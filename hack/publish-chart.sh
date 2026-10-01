@@ -15,6 +15,8 @@ WT="$(mktemp -d)"
 git config user.name "${GIT_USER:-github-actions[bot]}"
 git config user.email "${GIT_EMAIL:-github-actions[bot]@users.noreply.github.com}"
 
+# Dependencies are fetched by repository URL, which Helm requires to be a known repo.
+helm repo add harvester https://charts.harvesterhci.io >/dev/null 2>&1 || true
 helm dependency build "$CHART"
 
 if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then

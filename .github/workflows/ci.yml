@@ -56,6 +56,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
+      - name: Add the upstream chart repository
+        run: helm repo add harvester https://charts.harvesterhci.io
       - run: helm dependency build
       - run: helm lint .
       - name: Render every mode

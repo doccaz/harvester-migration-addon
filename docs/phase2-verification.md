@@ -11,10 +11,20 @@
 - Static check: the API server never writes to disk (all writes are in the export
   worker Job), so `readOnlyRootFilesystem` is safe for the UI pod.
 
+## Verified on the lab with the published v0.1.0 (2026-10-01)
+`helm install mig mig/harvester-migration --version 0.1.0 --set controller.enabled=false
+--set ui.auth.mode=token` on the lab (Harvester 1.8.2), then a port-forward to the pod:
+- Image built by the release workflow runs as non-root with a read-only root
+  filesystem (the Dockerfile and image are therefore verified too).
+- TLS to `rancher.cattle-system.svc` verifies against the CA the chart copied
+  (no insecure flag set).
+- UI page 200; no token 401; bad token 401; valid token 200 with live
+  `VmwareSource` objects and `capabilities` (`harvesterVersion v1.8.2`).
+- The token does not appear in the pod log.
+
 ## Not verified
-- The container image (podman cannot create its runtime dir in the sandbox this
-  was developed in). The Dockerfile paths were updated but never built here.
-- The UI pod in token mode on the cluster, and the real menu-entry path.
+- The real menu-entry path in a browser (the SPA minting a token through the
+  proxy, then calling the API).
 - Per-user RBAC with a *non-admin* user (all tests used an admin token).
 - Who may open the UI at all: RBAC on `services/proxy` for the UI Service.
 

@@ -1,0 +1,55 @@
+# Throwaway probe: shows which request headers reach a pod through the
+# Kubernetes API service proxy (the path a NavLink `toService` uses).
+# Apply, run the commands in docs/identity.md, then delete the namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: identity-probe
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: probe-cgi
+  namespace: identity-probe
+data:
+  echo: |
+    #!/bin/sh
+    echo "Content-Type: text/plain"
+    echo
+    echo "REMOTE_ADDR=$REMOTE_ADDR"
+    env | grep '^HTTP_' | sed 's/^\(HTTP_AUTHORIZATION=\).*/\1<present, value hidden>/' | sort
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: probe
+  namespace: identity-probe
+  labels:
+    app: probe
+spec:
+  containers:
+    - name: httpd
+      image: docker.io/library/busybox:1.36
+      command: ["httpd", "-f", "-p", "8080", "-h", "/www"]
+      ports:
+        - containerPort: 8080
+      volumeMounts:
+        - name: cgi
+          mountPath: /www/cgi-bin
+  volumes:
+    - name: cgi
+      configMap:
+        name: probe-cgi
+        defaultMode: 0755
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: probe
+  namespace: identity-probe
+spec:
+  selector:
+    app: probe
+  ports:
+    - port: 8080
+      targetPort: 8080

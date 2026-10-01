@@ -1,0 +1,25 @@
+{{- if .Values.ui.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "harvester-migration.ui.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "harvester-migration.ui.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "harvester-migration.ui.selectorLabels" . | nindent 6 }}
+  policyTypes: ["Ingress"]
+  ingress:
+    # The UI is reached through the Kubernetes API service proxy (NavLink) or a
+    # port-forward, both of which arrive from outside the pod network, so the
+    # allowed sources are configurable.
+    - ports:
+        - port: 8080
+          protocol: TCP
+      {{- with .Values.ui.networkPolicy.from }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

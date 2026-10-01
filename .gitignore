@@ -1,2 +1,4 @@
 reference/
 charts/*/charts/
+ui-frontend/node_modules/
+ui-frontend/build/

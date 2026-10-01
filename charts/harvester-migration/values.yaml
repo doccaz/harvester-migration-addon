@@ -49,6 +49,12 @@ ui:
     annotations: {}
   rbac:
     create: true
+  # Restricts ingress to the UI port. With no `from` entries any source may
+  # connect to 8080; set `from` (podSelector/namespaceSelector/ipBlock) to narrow.
+  # Off by default: it needs a CNI that enforces policies and a known source.
+  networkPolicy:
+    enabled: false
+    from: []
   navLink:
     enabled: true
     label: "VM Migration"

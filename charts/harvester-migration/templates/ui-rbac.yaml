@@ -1,5 +1,4 @@
 {{- if .Values.ui.rbac.create }}
-{{- /* TODO(phase 2): replace with per-user authorisation and narrower rules. */ -}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -7,51 +6,61 @@ metadata:
   labels:
     {{- include "harvester-migration.ui.labels" . | nindent 4 }}
 rules:
+  # Derived from the API calls in ui-backend (see docs/rbac-audit.md).
   - apiGroups: [""]
-    resources: ["namespaces", "nodes", "services", "configmaps", "events"]
-    verbs: ["get", "list", "watch"]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "create"]
   - apiGroups: [""]
-    resources: ["pods", "pods/log"]
-    verbs: ["get", "list", "watch"]
-  # Provider/source credentials
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get"]
+  # Source/provider credentials. No list/watch: secrets are only fetched by name.
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    verbs: ["get", "create", "update", "delete"]
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    verbs: ["get", "list"]
   - apiGroups: ["storage.k8s.io"]
     resources: ["storageclasses"]
-    verbs: ["get", "list", "watch"]
+    verbs: ["get", "list"]
   - apiGroups: ["kubevirt.io"]
     resources: ["virtualmachines", "virtualmachineinstances"]
-    verbs: ["get", "list", "watch"]
+    verbs: ["get", "list"]
   - apiGroups: ["harvesterhci.io"]
-    resources: ["settings", "virtualmachineimages"]
-    verbs: ["get", "list", "watch"]
+    resources: ["settings"]
+    verbs: ["get"]
   - apiGroups: ["k8s.cni.cncf.io"]
     resources: ["network-attachment-definitions"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["network.harvesterhci.io"]
-    resources: ["vlanconfigs"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["apiextensions.k8s.io"]
-    resources: ["customresourcedefinitions"]
-    verbs: ["get", "list", "watch"]
+    verbs: ["list"]
   {{- if .Values.engines.vmic.enabled }}
   - apiGroups: ["migration.harvesterhci.io"]
-    resources: ["*"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    resources: ["vmwaresources", "ovasources", "virtualmachineimports"]
+    verbs: ["get", "list", "create", "update", "delete"]
+  - apiGroups: ["migration.harvesterhci.io"]
+    resources: ["virtualmachineimports/status"]
+    verbs: ["update"]
   {{- end }}
   {{- if .Values.engines.forklift.enabled }}
   - apiGroups: ["forklift.konveyor.io"]
-    resources: ["providers", "plans", "migrations", "networkmaps", "storagemaps", "hosts", "forkliftcontrollers"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    resources: ["providers", "plans", "networkmaps", "storagemaps", "migrations"]
+    verbs: ["get", "list", "create", "update", "delete"]
+  - apiGroups: ["forklift.konveyor.io"]
+    resources: ["forkliftcontrollers"]
+    verbs: ["get", "list"]
   {{- end }}
   {{- if .Values.export.enabled }}
   - apiGroups: ["batch"]
     resources: ["jobs"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    verbs: ["get", "list", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["create"]
   {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1

@@ -1,0 +1,30 @@
+{{- /* Only rendered where the Rancher ui.cattle.io/v1 CRD exists (Harvester). */ -}}
+{{- if and .Values.ui.navLink.enabled (.Capabilities.APIVersions.Has "ui.cattle.io/v1") }}
+apiVersion: ui.cattle.io/v1
+kind: NavLink
+metadata:
+  name: {{ include "harvester-migration.ui.fullname" . }}
+  labels:
+    {{- include "harvester-migration.ui.labels" . | nindent 4 }}
+spec:
+  label: {{ .Values.ui.navLink.label | quote }}
+  {{- with .Values.ui.navLink.group }}
+  group: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.ui.navLink.description }}
+  description: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.ui.navLink.iconSrc }}
+  iconSrc: {{ . | quote }}
+  {{- end }}
+  {{- if .Values.ui.navLink.url }}
+  toURL: {{ .Values.ui.navLink.url | quote }}
+  target: _blank
+  {{- else }}
+  toService:
+    name: {{ include "harvester-migration.ui.fullname" . }}
+    namespace: {{ .Release.Namespace }}
+    scheme: http
+    port: {{ .Values.ui.service.port }}
+  {{- end }}
+{{- end }}

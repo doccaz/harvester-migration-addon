@@ -1,0 +1,12 @@
+{{- /*
+Refuse to install a second VM Import Controller. The built-in add-on
+(`vm-import-controller` in harvester-system) runs the same controller; two
+instances would reconcile the same CRs. lookup returns nothing under
+`helm template`, so this only fires against a live cluster.
+*/ -}}
+{{- if and .Values.controller.enabled (not .Values.controller.skipConflictCheck) }}
+{{- $addon := lookup "harvesterhci.io/v1beta1" "Addon" "harvester-system" "vm-import-controller" }}
+{{- if and $addon $addon.spec (eq (toString $addon.spec.enabled) "true") }}
+{{- fail "The built-in 'vm-import-controller' add-on is enabled and already runs the VM Import Controller. Disable it first (its CRs are preserved), or set controller.enabled=false for a UI-only install." }}
+{{- end }}
+{{- end }}

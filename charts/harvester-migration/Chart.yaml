@@ -1,0 +1,21 @@
+apiVersion: v2
+name: harvester-migration
+description: >
+  Harvester VM migration add-on: the VM Import Controller plus a migration UI.
+  Forklift is an optional engine, detected at runtime.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - harvester
+  - vm-import
+  - migration
+  - forklift
+dependencies:
+  # The upstream controller chart, consumed unmodified. Its values live under
+  # the `harvester-vm-import-controller` key; `controller.enabled=false` skips
+  # it for a UI-only install next to the built-in add-on.
+  - name: harvester-vm-import-controller
+    version: 1.9.0
+    repository: https://charts.harvesterhci.io
+    condition: controller.enabled

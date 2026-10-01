@@ -1,0 +1,90 @@
+# Default values for harvester-migration.
+
+# ── VM Import Controller (upstream subchart) ───────────────────────────────
+controller:
+  enabled: true
+  # Escape hatch for the conflict guard. Leave false: two controllers
+  # reconciling the same VirtualMachineImport CRs will fight each other.
+  skipConflictCheck: false
+
+harvester-vm-import-controller:
+  # Harvester finds the controller by these names/labels (storage-network
+  # setting validator, util.HarvesterVMImportController). Do not change.
+  fullnameOverride: harvester-vm-import-controller
+  nameOverride: ""
+
+# ── Migration engines (UI modules + RBAC only) ─────────────────────────────
+# The UI detects what is installed at runtime. These flags only decide which
+# permissions the UI ServiceAccount is granted. Forklift itself is a separate
+# add-on (harvester/forklift-packaging) and is never installed from here.
+engines:
+  vmic:
+    enabled: true
+  forklift:
+    enabled: true
+    namespace: forklift
+
+# ── UI ─────────────────────────────────────────────────────────────────────
+ui:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/doccaz/vm-import-ui
+    pullPolicy: IfNotPresent
+    # Pinned: the chart version is independent of the UI image version.
+    tag: "1.9.2"
+  imagePullSecrets: []
+  env:
+    logLevel: info
+    uiPath: /ui
+    useMockData: "false"
+  service:
+    # ClusterIP by default. Reach the UI through the Harvester menu entry
+    # (NavLink) or `kubectl port-forward`. Set NodePort only on trusted networks.
+    type: ClusterIP
+    port: 8080
+    nodePort: ""
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+  rbac:
+    create: true
+  navLink:
+    enabled: true
+    label: "VM Migration"
+    group: "Utilities"
+    description: "Import VMs into Harvester"
+    url: ""
+    iconSrc: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ── VM Export (Harvester VM -> OVA), off by default ────────────────────────
+# Runs as a Job in the source VM's namespace; needs a ReadWriteMany volume.
+export:
+  enabled: false
+  storage:
+    existingClaim: ""
+    create: false
+    storageClass: ""
+    size: 200Gi
+    accessMode: ReadWriteMany
+    mountPath: /export
+  maxConcurrent: 2
+  ttlSecondsAfterFinished: 0
+  activeDeadlineSeconds: 21600
+  downloadMaxBytes: 2147483648
+  defaultProfile: vmware
+  image:
+    repository: ""
+    tag: ""
+  securityContext:
+    runAsUser: 0
+    fsGroup: 0

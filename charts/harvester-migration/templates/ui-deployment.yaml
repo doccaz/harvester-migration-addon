@@ -1,0 +1,154 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "harvester-migration.ui.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "harvester-migration.ui.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.ui.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "harvester-migration.ui.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "harvester-migration.ui.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "harvester-migration.ui.serviceAccountName" . }}
+      {{- with .Values.ui.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # TODO(phase 2): drop this init container once the backend reads the
+      # in-cluster config directly (it is carried over from vm-import-ui).
+      initContainers:
+        - name: generate-kubeconfig
+          image: registry.suse.com/bci/bci-base:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              CA_DATA=$(base64 -w 0 /var/run/secrets/kubernetes.io/serviceaccount/ca.crt)
+              mkdir -p /var/kubeconfig
+              cat > /var/kubeconfig/config << KUBEEOF
+              apiVersion: v1
+              kind: Config
+              clusters:
+              - cluster:
+                  certificate-authority-data: ${CA_DATA}
+                  server: https://kubernetes.default.svc
+                name: in-cluster
+              contexts:
+              - context:
+                  cluster: in-cluster
+                  user: in-cluster
+                name: in-cluster
+              current-context: in-cluster
+              users:
+              - name: in-cluster
+                user:
+                  tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+              KUBEEOF
+              chmod 644 /var/kubeconfig/config
+          volumeMounts:
+            - name: kubeconfig-dir
+              mountPath: /var/kubeconfig
+      containers:
+        - name: ui
+          image: {{ include "harvester-migration.ui.image" . | quote }}
+          imagePullPolicy: {{ .Values.ui.image.pullPolicy }}
+          env:
+            # Blank the service-discovery vars so client-go skips in-cluster
+            # config and uses the init-container kubeconfig instead.
+            - name: KUBERNETES_SERVICE_HOST
+              value: ""
+            - name: KUBERNETES_SERVICE_PORT
+              value: ""
+            - name: KUBECONFIG
+              value: /var/kubeconfig/config
+            - name: LOG_LEVEL
+              value: {{ .Values.ui.env.logLevel | quote }}
+            - name: UI_PATH
+              value: {{ .Values.ui.env.uiPath | quote }}
+            - name: USE_MOCK_DATA
+              value: {{ .Values.ui.env.useMockData | quote }}
+            - name: FORKLIFT_NAMESPACE
+              value: {{ .Values.engines.forklift.namespace | quote }}
+            {{- if .Values.export.enabled }}
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: EXPORT_ROOT
+              value: {{ .Values.export.storage.mountPath | quote }}
+            - name: EXPORT_PVC
+              value: {{ include "harvester-migration.exportClaimName" . | quote }}
+            - name: EXPORT_STORAGE_CLASS
+              value: {{ .Values.export.storage.storageClass | quote }}
+            - name: EXPORT_STORAGE_SIZE
+              value: {{ .Values.export.storage.size | quote }}
+            - name: EXPORT_IMAGE
+              value: "{{ .Values.export.image.repository | default .Values.ui.image.repository }}:{{ .Values.export.image.tag | default .Values.ui.image.tag | default .Chart.AppVersion }}"
+            - name: EXPORT_MAX_CONCURRENT
+              value: {{ .Values.export.maxConcurrent | quote }}
+            - name: EXPORT_TTL_SECONDS
+              value: {{ .Values.export.ttlSecondsAfterFinished | quote }}
+            - name: EXPORT_DOWNLOAD_MAX_BYTES
+              # int64: avoid scientific notation for large values.
+              value: {{ .Values.export.downloadMaxBytes | int64 | quote }}
+            - name: EXPORT_RUN_AS_USER
+              value: {{ .Values.export.securityContext.runAsUser | quote }}
+            - name: EXPORT_FS_GROUP
+              value: {{ .Values.export.securityContext.fsGroup | quote }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - name: kubeconfig-dir
+              mountPath: /var/kubeconfig
+              readOnly: true
+            {{- if .Values.export.enabled }}
+            - name: export-storage
+              mountPath: {{ .Values.export.storage.mountPath }}
+            {{- end }}
+          {{- with .Values.ui.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: kubeconfig-dir
+          emptyDir: {}
+        {{- if .Values.export.enabled }}
+        - name: export-storage
+          persistentVolumeClaim:
+            claimName: {{ include "harvester-migration.exportClaimName" . }}
+        {{- end }}
+      {{- with .Values.ui.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.ui.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.ui.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

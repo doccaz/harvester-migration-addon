@@ -1,0 +1,21 @@
+{{- if and .Values.export.enabled .Values.export.storage.create (not .Values.export.storage.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "harvester-migration.exportClaimName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "harvester-migration.ui.labels" . | nindent 4 }}
+  annotations:
+    # Exported OVAs are expensive to regenerate; keep the claim on uninstall.
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - {{ .Values.export.storage.accessMode }}
+  {{- if .Values.export.storage.storageClass }}
+  storageClassName: {{ .Values.export.storage.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.export.storage.size }}
+{{- end }}

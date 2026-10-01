@@ -49,6 +49,22 @@ ui:
     annotations: {}
   rbac:
     create: true
+  # How the UI authorises Kubernetes calls.
+  #   serviceaccount: every user acts with the UI's ServiceAccount (see
+  #     docs/rbac-audit.md). Only for trusted, admin-only environments.
+  #   token: every call uses the signed-in user's own Rancher token, so Kubernetes
+  #     RBAC applies per user. The ServiceAccount gets no cluster rights and no
+  #     mounted token. Not yet verified in-cluster: see docs/identity.md.
+  auth:
+    mode: serviceaccount
+    # Where user tokens are presented. Rancher tokens are valid at Rancher only.
+    apiUrl: https://rancher.cattle-system.svc/k8s/clusters/local
+    # CA bundle that signed that endpoint's certificate (a Secret in this
+    # namespace). Required in token mode unless insecureSkipTLSVerify is true.
+    ca:
+      existingSecret: ""
+      key: ca.crt
+    insecureSkipTLSVerify: false
   # Restricts ingress to the UI port. With no `from` entries any source may
   # connect to 8080; set `from` (podSelector/namespaceSelector/ipBlock) to narrow.
   # Off by default: it needs a CNI that enforces policies and a known source.

@@ -67,3 +67,49 @@ proxy URL" (RBAC `services/proxy` on the UI Service), nothing finer.
 4. **Gate only (floor).** Restrict who may open the proxy URL via RBAC on
    `services/proxy`, plus NetworkPolicy, and document "admin users only".
    Always do this regardless of 1-3.
+
+## Decision (2026-10-01): option 1, token forwarding
+Implemented:
+- `ui-backend/auth.go`: `USER_AUTH=serviceaccount|token`. In token mode every
+  route is wrapped by `userScoped`, which builds clients from the caller's token
+  (header `X-Migration-Token`; `Authorization` is deliberately not used because
+  Rancher and kube-apiserver strip it). No token -> 401. The shared
+  ServiceAccount is never used as a fallback. The token is not logged.
+- `ui-frontend/src/apiClient.js`: on a 401 it mints a short-lived Rancher token
+  from the browser session (`POST /v3/tokens` + `X-Api-Csrf`), caches it in
+  sessionStorage and retries once. Keeps the existing sub-path rewrite.
+- Chart: `ui.auth.mode` (default `serviceaccount` until the items below are
+  measured). Token mode drops the UI ClusterRole and the mounted SA token (unless
+  export is on) and requires a CA secret (`ui.auth.ca.existingSecret`) or the
+  explicit development opt-out.
+
+Verified (2026-10-01):
+- Unit tests: missing token -> 401; caller's token reaches the API as a bearer;
+  Rancher's `/k8s/clusters/local` path prefix is preserved; clients are
+  per-request and the base config never holds a token. Frontend: 5 tests.
+- End to end, backend on a workstation in token mode against the lab Rancher
+  (`https://<vip>/k8s/clusters/local`) with an existing user token:
+  no token -> 401, valid token -> 200 with live data; token absent from logs.
+  A garbage token returns 500 (Rancher's 401 is not mapped yet).
+
+NOT verified (blocked: minting a token is a credential-creating action I may not
+run; the rest needs a pod in the cluster). Run these and record the results:
+
+1. Minting API shape and TTL unit (`ttl` in ms is assumed):
+
+       T=$(kubectl config view --raw --minify -o jsonpath='{.users[0].user.token}')
+       curl -sk -X POST -H "Authorization: Bearer $T" -H 'Content-Type: application/json' \
+         https://<vip>/v3/tokens -d '{"type":"token","description":"probe","ttl":600000}'
+       # expect a JSON body with "token" and "id"; then clean up:
+       curl -sk -X DELETE -H "Authorization: Bearer $T" https://<vip>/v3/tokens/<id>
+
+2. A user token is accepted from inside the cluster at the Rancher service, and
+   which CA signs its certificate (needed for `ui.auth.ca`):
+
+       kubectl run tokprobe --rm -it --restart=Never --image=registry.suse.com/bci/bci-base -- \
+         sh -c 'curl -sk -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer '"$T"'" \
+         https://rancher.cattle-system.svc/k8s/clusters/local/api/v1/namespaces/default; \
+         echo | openssl s_client -connect rancher.cattle-system.svc:443 -showcerts 2>/dev/null | grep -E "s:|i:"'
+
+3. From a real browser session through the menu entry: the SPA's `POST /v3/tokens`
+   works same-origin (needs the CSRF cookie) and API calls reach the pod.

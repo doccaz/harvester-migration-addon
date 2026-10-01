@@ -16,7 +16,11 @@ spec:
         {{- include "harvester-migration.ui.selectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "harvester-migration.ui.serviceAccountName" . }}
+      {{- if and (eq .Values.ui.auth.mode "token") (not .Values.export.enabled) }}
+      automountServiceAccountToken: false
+      {{- else }}
       automountServiceAccountToken: true
+      {{- end }}
       {{- with .Values.ui.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -26,6 +30,19 @@ spec:
           image: {{ include "harvester-migration.ui.image" . | quote }}
           imagePullPolicy: {{ .Values.ui.image.pullPolicy }}
           env:
+            - name: USER_AUTH
+              value: {{ .Values.ui.auth.mode | quote }}
+            {{- if eq .Values.ui.auth.mode "token" }}
+            - name: KUBE_API_URL
+              value: {{ .Values.ui.auth.apiUrl | quote }}
+            {{- if .Values.ui.auth.insecureSkipTLSVerify }}
+            - name: INSECURE_SKIP_TLS_VERIFY
+              value: "true"
+            {{- else }}
+            - name: KUBE_API_CA_FILE
+              value: /etc/migration-ui/ca/{{ .Values.ui.auth.ca.key }}
+            {{- end }}
+            {{- end }}
             - name: LOG_LEVEL
               value: {{ .Values.ui.env.logLevel | quote }}
             - name: UI_PATH
@@ -89,6 +106,11 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            {{- if and (eq .Values.ui.auth.mode "token") (not .Values.ui.auth.insecureSkipTLSVerify) }}
+            - name: api-ca
+              mountPath: /etc/migration-ui/ca
+              readOnly: true
+            {{- end }}
             {{- if .Values.export.enabled }}
             - name: export-storage
               mountPath: {{ .Values.export.storage.mountPath }}
@@ -100,6 +122,11 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
+        {{- if and (eq .Values.ui.auth.mode "token") (not .Values.ui.auth.insecureSkipTLSVerify) }}
+        - name: api-ca
+          secret:
+            secretName: {{ required "ui.auth.ca.existingSecret is required in token mode (or set ui.auth.insecureSkipTLSVerify=true for development)" .Values.ui.auth.ca.existingSecret }}
+        {{- end }}
         {{- if .Values.export.enabled }}
         - name: export-storage
           persistentVolumeClaim:

@@ -1,0 +1,63 @@
+import { createApiFetch, TOKEN_HEADER } from './apiClient';
+
+const memStorage = () => {
+  const m = {};
+  return { getItem: (k) => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = v; }, removeItem: (k) => { delete m[k]; } };
+};
+const res = (status, body) => ({ status, ok: status >= 200 && status < 300, json: async () => body });
+const doc = { cookie: 'CSRF=abc123; other=1' };
+
+test('rewrites /api paths and leaves other URLs alone', async () => {
+  const f = jest.fn().mockResolvedValue(res(200, {}));
+  const api = createApiFetch(f, { apiBase: '/proxy', storage: memStorage(), doc });
+  await api('/api/v1/plans');
+  await api('/static/x.js');
+  expect(f.mock.calls[0][0]).toBe('/proxy/api/v1/plans');
+  expect(f.mock.calls[1][0]).toBe('/static/x.js');
+});
+
+test('on 401 mints a token with the CSRF header, retries once, and caches it', async () => {
+  const calls = [];
+  const fetchFn = jest.fn((url, init) => {
+    calls.push([url, init]);
+    if (url === '/v3/tokens') return Promise.resolve(res(201, { token: 'token-1:secret' }));
+    const has = new Headers(init.headers).get(TOKEN_HEADER);
+    return Promise.resolve(has ? res(200, {}) : res(401, {}));
+  });
+  const api = createApiFetch(fetchFn, { apiBase: '', storage: memStorage(), doc });
+  const r1 = await api('/api/v1/plans');
+  expect(r1.status).toBe(200);
+  const mintCall = calls.find((c) => c[0] === '/v3/tokens');
+  expect(mintCall[1].headers['X-Api-Csrf']).toBe('abc123');
+  expect(mintCall[1].credentials).toBe('same-origin');
+  const before = calls.length;
+  await api('/api/v1/plans'); // cached: no new mint, one request
+  expect(calls.length).toBe(before + 1);
+  expect(calls.filter((c) => c[0] === '/v3/tokens')).toHaveLength(1);
+});
+
+test('concurrent 401s share one token request', async () => {
+  let mints = 0;
+  const fetchFn = jest.fn((url, init) => {
+    if (url === '/v3/tokens') { mints += 1; return Promise.resolve(res(201, { token: 't' })); }
+    return Promise.resolve(new Headers(init.headers).get(TOKEN_HEADER) ? res(200, {}) : res(401, {}));
+  });
+  const api = createApiFetch(fetchFn, { storage: memStorage(), doc });
+  await Promise.all([api('/api/v1/a'), api('/api/v1/b'), api('/api/v1/c')]);
+  expect(mints).toBe(1);
+});
+
+test('surfaces the 401 when a token cannot be minted', async () => {
+  const fetchFn = jest.fn((url) => Promise.resolve(url === '/v3/tokens' ? res(404, {}) : res(401, {})));
+  const api = createApiFetch(fetchFn, { storage: memStorage(), doc });
+  expect((await api('/api/v1/plans')).status).toBe(401);
+});
+
+test('expired cached tokens are not sent', async () => {
+  const storage = memStorage();
+  storage.setItem('migration-ui-token', JSON.stringify({ token: 'old', expiresAt: 1000 }));
+  const fetchFn = jest.fn().mockResolvedValue(res(200, {}));
+  const api = createApiFetch(fetchFn, { storage, doc, now: () => 5000000 });
+  await api('/api/v1/plans');
+  expect(new Headers(fetchFn.mock.calls[0][1].headers).get(TOKEN_HEADER)).toBeNull();
+});

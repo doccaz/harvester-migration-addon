@@ -5,7 +5,9 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,6 +39,10 @@ func TestTokenModeUsesCallersTokenAndKeepsPathPrefix(t *testing.T) {
 		gotAuth, gotPath = r.Header.Get("Authorization"), r.URL.Path
 		mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
+		if strings.HasSuffix(r.URL.Path, "/selfsubjectreviews") {
+			_, _ = w.Write([]byte(`{"kind":"SelfSubjectReview","apiVersion":"authentication.k8s.io/v1","status":{"userInfo":{"username":"u-test"}}}`))
+			return
+		}
 		_, _ = w.Write([]byte(`{"kind":"NamespaceList","apiVersion":"v1","items":[]}`))
 	}))
 	defer api.Close()
@@ -75,8 +81,14 @@ func TestTokensAreNotShared(t *testing.T) {
 	a.Header.Set(userTokenHeader, "a")
 	b := httptest.NewRequest("GET", "/", nil)
 	b.Header.Set(userTokenHeader, "b")
-	ca, _ := p.For(a)
-	cb, _ := p.For(b)
+	ca, cb := &K8sClients{}, &K8sClients{}
+	var err error
+	if ca, err = p.forUnvalidated(a); err != nil {
+		t.Fatal(err)
+	}
+	if cb, err = p.forUnvalidated(b); err != nil {
+		t.Fatal(err)
+	}
 	if ca == cb || ca.Clientset == cb.Clientset {
 		t.Fatal("clients for different users must be distinct")
 	}
@@ -106,5 +118,61 @@ func TestTokenModeRequiresAPIURL(t *testing.T) {
 	t.Setenv("KUBE_API_URL", "")
 	if _, err := NewK8sProvider(); err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+// rejectingAPI answers 401 to the token "bad" and counts validation calls.
+func rejectingAPI(t *testing.T, calls *int32) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasSuffix(r.URL.Path, "/selfsubjectreviews") {
+			atomic.AddInt32(calls, 1)
+			if r.Header.Get("Authorization") == "Bearer bad" {
+				w.WriteHeader(http.StatusUnauthorized)
+				_, _ = w.Write([]byte(`{"kind":"Status","apiVersion":"v1","status":"Failure","reason":"Unauthorized","code":401}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"kind":"SelfSubjectReview","apiVersion":"authentication.k8s.io/v1","status":{"userInfo":{"username":"u"}}}`))
+		}
+	}))
+}
+
+func TestBadTokenGets401NotServerError(t *testing.T) {
+	var calls int32
+	api := rejectingAPI(t, &calls)
+	defer api.Close()
+	t.Setenv("USER_AUTH", "token")
+	t.Setenv("KUBE_API_URL", api.URL)
+	p, _ := NewK8sProvider()
+	called := false
+	h := userScoped(p, func(*K8sClients) http.HandlerFunc {
+		return func(http.ResponseWriter, *http.Request) { called = true }
+	})
+	req := httptest.NewRequest("GET", "/api/v1/x", nil)
+	req.Header.Set(userTokenHeader, "bad")
+	rr := httptest.NewRecorder()
+	h(rr, req)
+	if rr.Code != http.StatusUnauthorized || called {
+		t.Fatalf("got %d (called=%v), want 401 without running the handler", rr.Code, called)
+	}
+}
+
+func TestValidTokenIsCachedBriefly(t *testing.T) {
+	var calls int32
+	api := rejectingAPI(t, &calls)
+	defer api.Close()
+	t.Setenv("USER_AUTH", "token")
+	t.Setenv("KUBE_API_URL", api.URL)
+	p, _ := NewK8sProvider()
+	for i := 0; i < 3; i++ {
+		req := httptest.NewRequest("GET", "/", nil)
+		req.Header.Set(userTokenHeader, "good")
+		if _, err := p.For(req); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := atomic.LoadInt32(&calls); n != 1 {
+		t.Fatalf("validated %d times, want 1 (cached)", n)
 	}
 }

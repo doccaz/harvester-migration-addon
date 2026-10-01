@@ -2,12 +2,19 @@
 package main
 
 import (
+	"context"
+	"crypto/sha256"
 	"fmt"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
+	"time"
 
 	log "github.com/sirupsen/logrus"
+	authv1 "k8s.io/api/authentication/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -35,7 +42,16 @@ type K8sProvider struct {
 	shared *K8sClients
 	// base is the connection config without credentials, used in token mode.
 	base *rest.Config
+
+	// validated caches tokens that recently passed validation, keyed by hash,
+	// so the extra authentication round trip is not paid on every request.
+	mu        sync.Mutex
+	validated map[[32]byte]time.Time
 }
+
+// validationTTL bounds how long a successful token check is reused. An expired
+// or revoked token is therefore rejected within this window.
+const validationTTL = 30 * time.Second
 
 // NewK8sProvider builds the provider selected by USER_AUTH.
 func NewK8sProvider() (*K8sProvider, error) {
@@ -89,6 +105,22 @@ func (p *K8sProvider) For(r *http.Request) (*K8sClients, error) {
 	if token == "" {
 		return nil, errNoToken
 	}
+	clients, err := p.clientsForToken(token)
+	if err != nil {
+		return nil, err
+	}
+	if err := p.validate(r.Context(), token, clients); err != nil {
+		return nil, err
+	}
+	return clients, nil
+}
+
+// forUnvalidated builds clients from the request's token without checking it.
+func (p *K8sProvider) forUnvalidated(r *http.Request) (*K8sClients, error) {
+	return p.clientsForToken(strings.TrimSpace(r.Header.Get(userTokenHeader)))
+}
+
+func (p *K8sProvider) clientsForToken(token string) (*K8sClients, error) {
 	cfg := rest.CopyConfig(p.base)
 	cfg.BearerToken = token
 	clientset, err := kubernetes.NewForConfig(cfg)
@@ -102,6 +134,46 @@ func (p *K8sProvider) For(r *http.Request) (*K8sClients, error) {
 	return &K8sClients{Clientset: clientset, Dynamic: dyn}, nil
 }
 
+// validate asks the API who the token belongs to. It turns a bad or expired token
+// into errUnauthorized (HTTP 401) up front, which is what lets the frontend mint a
+// fresh one; without it handlers would surface the failure as an opaque 500.
+func (p *K8sProvider) validate(ctx context.Context, token string, clients *K8sClients) error {
+	key := sha256.Sum256([]byte(token))
+	p.mu.Lock()
+	if until, ok := p.validated[key]; ok && time.Now().Before(until) {
+		p.mu.Unlock()
+		return nil
+	}
+	p.mu.Unlock()
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	review, err := clients.Clientset.AuthenticationV1().SelfSubjectReviews().Create(ctx, &authv1.SelfSubjectReview{}, metav1.CreateOptions{})
+	switch {
+	case apierrors.IsUnauthorized(err):
+		return errUnauthorized
+	case err != nil:
+		return fmt.Errorf("validating token: %w", err)
+	}
+	log.WithField("user", review.Status.UserInfo.Username).Debug("Authenticated request")
+
+	p.mu.Lock()
+	if p.validated == nil {
+		p.validated = map[[32]byte]time.Time{}
+	}
+	now := time.Now()
+	for k, until := range p.validated { // drop expired entries
+		if now.After(until) {
+			delete(p.validated, k)
+		}
+	}
+	p.validated[key] = now.Add(validationTTL)
+	p.mu.Unlock()
+	return nil
+}
+
+var errUnauthorized = fmt.Errorf("token rejected")
+
 var errNoToken = fmt.Errorf("missing %s header", userTokenHeader)
 
 // userScoped adapts a handler constructor to per-request clients, so existing
@@ -110,7 +182,7 @@ func userScoped(p *K8sProvider, build func(*K8sClients) http.HandlerFunc) http.H
 	return func(w http.ResponseWriter, r *http.Request) {
 		clients, err := p.For(r)
 		if err != nil {
-			if err == errNoToken {
+			if err == errNoToken || err == errUnauthorized {
 				respondWithError(w, http.StatusUnauthorized, err.Error())
 				return
 			}

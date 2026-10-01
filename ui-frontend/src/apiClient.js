@@ -12,6 +12,10 @@ const STORAGE_KEY = 'migration-ui-token';
 // see docs/identity.md ("Token minting").
 export const TOKEN_TTL_MS = 60 * 60 * 1000;
 const EXPIRY_MARGIN_MS = 60 * 1000;
+// After a failed attempt to obtain a working token, do not try again for this
+// long. The page polls every few seconds, and every attempt creates a token in
+// Rancher, so retrying on each poll would flood it.
+export const MINT_BACKOFF_MS = 5 * 60 * 1000;
 
 const isApiCall = (input) => typeof input === 'string' && input.startsWith('/api/');
 
@@ -42,17 +46,31 @@ export function createApiFetch(originalFetch, { apiBase = '', storage, doc = doc
     try { if (storage) storage.removeItem(STORAGE_KEY); } catch (e) { /* ignore */ }
   };
 
+  const csrfHeaders = () => ({ 'Content-Type': 'application/json', 'X-Api-Csrf': readCookie(doc, 'CSRF') });
+
+  // Best effort: do not leave a token behind that we cannot use.
+  const discard = (id) => {
+    if (!id) return;
+    originalFetch(`/v3/tokens/${encodeURIComponent(id)}`, {
+      method: 'DELETE', credentials: 'same-origin', headers: csrfHeaders(),
+    }).catch(() => {});
+  };
+
   const mint = () => {
     if (!minting) {
       minting = originalFetch('/v3/tokens', {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', 'X-Api-Csrf': readCookie(doc, 'CSRF') },
+        headers: csrfHeaders(),
         body: JSON.stringify({ type: 'token', description: 'Harvester migration UI', ttl: TOKEN_TTL_MS }),
       })
-        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`token request failed: ${r.status}`))))
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`token request failed: HTTP ${r.status}`))))
         .then((body) => {
-          if (!body.token) throw new Error('token response had no token');
+          if (!body || !body.token) {
+            discard(body && body.id);
+            // Field names only: never log values.
+            throw new Error(`token response had no usable token (fields: ${Object.keys(body || {}).join(', ')})`);
+          }
           save(body.token);
           return body.token;
         })
@@ -67,17 +85,31 @@ export function createApiFetch(originalFetch, { apiBase = '', storage, doc = doc
     return originalFetch(apiBase + input, { ...init, headers });
   };
 
+  let blockedUntil = 0;
+  const giveUp = (res, reason) => {
+    blockedUntil = now() + MINT_BACKOFF_MS;
+    // eslint-disable-next-line no-console
+    console.warn(`[migration-ui] not authenticated: ${reason}. Not retrying for ${MINT_BACKOFF_MS / 60000} min.`);
+    return res;
+  };
+
   return async (input, init) => {
     if (!isApiCall(input)) return originalFetch(input, init);
     const res = await send(input, init, load());
     if (res.status !== 401) return res;
     clear();
+    if (now() < blockedUntil) return res;
     let token;
     try {
       token = await mint();
     } catch (e) {
-      return res; // can't get a token (not behind Rancher?): surface the 401
+      return giveUp(res, e.message);
     }
-    return send(input, init, token);
+    const retry = await send(input, init, token);
+    if (retry.status === 401) {
+      clear();
+      return giveUp(retry, 'the backend rejected a freshly minted token');
+    }
+    return retry;
   };
 }

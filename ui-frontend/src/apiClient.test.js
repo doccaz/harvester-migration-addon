@@ -47,7 +47,7 @@ test('concurrent 401s share one token request', async () => {
   expect(mints).toBe(1);
 });
 
-test('surfaces the 401 when a token cannot be minted', async () => {
+test('surfaces the 401 when a token cannot be minted, and stops retrying', async () => {
   const fetchFn = jest.fn((url) => Promise.resolve(url === '/v3/tokens' ? res(404, {}) : res(401, {})));
   const api = createApiFetch(fetchFn, { storage: memStorage(), doc });
   expect((await api('/api/v1/plans')).status).toBe(401);
@@ -60,4 +60,58 @@ test('expired cached tokens are not sent', async () => {
   const api = createApiFetch(fetchFn, { storage, doc, now: () => 5000000 });
   await api('/api/v1/plans');
   expect(new Headers(fetchFn.mock.calls[0][1].headers).get(TOKEN_HEADER)).toBeNull();
+});
+
+test('a 201 without a token field discards the token, warns, and backs off', async () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  const calls = [];
+  const fetchFn = jest.fn((url, init) => {
+    calls.push([url, init && init.method]);
+    if (url === '/v3/tokens') return Promise.resolve(res(201, { id: 'token-abc', type: 'token' }));
+    if (url.startsWith('/v3/tokens/')) return Promise.resolve(res(204, {}));
+    return Promise.resolve(res(401, { error: 'missing' }));
+  });
+  const api = createApiFetch(fetchFn, { storage: memStorage(), doc });
+  expect((await api('/api/v1/plans')).status).toBe(401);
+  expect(calls).toContainEqual(['/v3/tokens/token-abc', 'DELETE']);
+  expect(warn.mock.calls[0][0]).toMatch(/no usable token \(fields: id, type\)/);
+  // Further polls must not mint again.
+  await api('/api/v1/plans');
+  await api('/api/v1/plans');
+  expect(calls.filter(([u, m]) => u === '/v3/tokens' && m === 'POST')).toHaveLength(1);
+  warn.mockRestore();
+});
+
+test('a freshly minted token that the backend still rejects is not minted again', async () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  let mints = 0;
+  const fetchFn = jest.fn((url) => {
+    if (url === '/v3/tokens') { mints += 1; return Promise.resolve(res(201, { id: 'x', token: 't' })); }
+    return Promise.resolve(res(401, {}));
+  });
+  const api = createApiFetch(fetchFn, { storage: memStorage(), doc });
+  await api('/api/v1/a');
+  await api('/api/v1/b');
+  await api('/api/v1/c');
+  expect(mints).toBe(1);
+  warn.mockRestore();
+});
+
+test('minting is attempted again after the backoff window', async () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  let t = 1000;
+  let mints = 0;
+  const fetchFn = jest.fn((url) => {
+    if (url === '/v3/tokens') { mints += 1; return Promise.resolve(res(500, {})); }
+    return Promise.resolve(res(401, {}));
+  });
+  const api = createApiFetch(fetchFn, { storage: memStorage(), doc, now: () => t });
+  await api('/api/v1/a');
+  t += 60 * 1000;
+  await api('/api/v1/a');
+  expect(mints).toBe(1);
+  t += 5 * 60 * 1000;
+  await api('/api/v1/a');
+  expect(mints).toBe(2);
+  warn.mockRestore();
 });

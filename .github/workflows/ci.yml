@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui-backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ui-backend/go.mod
+          cache-dependency-path: ui-backend/go.sum
+      - name: gofmt
+        run: |
+          out="$(gofmt -l .)"
+          if [ -n "$out" ]; then echo "Not gofmt-formatted:"; echo "$out"; exit 1; fi
+      - run: go vet ./...
+      - run: go test ./...
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Matches the Dockerfile's build stage.
+          node-version: 18
+          cache: yarn
+          cache-dependency-path: ui-frontend/yarn.lock
+      - run: yarn install --frozen-lockfile
+      - run: CI=true yarn test --watchAll=false
+      - run: CI=true yarn build
+
+  chart:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: charts/harvester-migration
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - run: helm dependency build
+      - run: helm lint .
+      - name: Render every mode
+        run: |
+          set -euo pipefail
+          # No cluster here, so lookup() is empty: token mode needs an explicit CA secret.
+          helm template t . > /dev/null
+          helm template t . --set controller.enabled=false > /dev/null
+          helm template t . --set ui.networkPolicy.enabled=true > /dev/null
+          helm template t . --set export.enabled=true --set export.storage.create=true > /dev/null
+          helm template t . --set ui.auth.mode=token --set ui.auth.ca.existingSecret=ca > /dev/null
+          helm template t . --set ui.auth.mode=token --set ui.auth.insecureSkipTLSVerify=true > /dev/null
+      - name: Token mode without a CA must fail loudly
+        run: |
+          if helm template t . --set ui.auth.mode=token 2> err.txt; then
+            echo "expected failure"; exit 1
+          fi
+          grep -q "tls-rancher" err.txt
+      - name: Controller names Harvester depends on are preserved
+        run: |
+          out="$(helm template t .)"
+          echo "$out" | grep -q 'app.kubernetes.io/name: harvester-vm-import-controller'
+          echo "$out" | grep -qE '^  name: harvester-vm-import-controller$'
+
+  image:
+    # Build only, to catch Dockerfile breakage on PRs. Publishing is in release.yml.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          platforms: linux/amd64
+          cache-from: type=gha,scope=ui-image
+          cache-to: type=gha,scope=ui-image,mode=max

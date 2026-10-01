@@ -1,0 +1,22 @@
+{{- /*
+Public CA certificate for the user-token API endpoint. The source Secret also
+holds the CA private key; only tls.crt is read, and the UI is never granted
+access to that Secret. lookup returns nothing under `helm template`, so render
+offline with ui.auth.ca.existingSecret set.
+*/ -}}
+{{- if and (eq .Values.ui.auth.mode "token") (not .Values.ui.auth.insecureSkipTLSVerify) (not .Values.ui.auth.ca.existingSecret) }}
+{{- $src := lookup "v1" "Secret" "cattle-system" "tls-rancher" }}
+{{- if not (and $src $src.data (index $src.data "tls.crt")) }}
+{{- fail "Cannot read the Rancher listener CA from cattle-system/tls-rancher. Set ui.auth.ca.existingSecret to a Secret holding the CA bundle." }}
+{{- end }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "harvester-migration.ui.caSecretName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "harvester-migration.ui.labels" . | nindent 4 }}
+type: Opaque
+data:
+  {{ .Values.ui.auth.ca.key }}: {{ index $src.data "tls.crt" }}
+{{- end }}

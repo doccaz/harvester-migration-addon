@@ -46,3 +46,8 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- define "harvester-migration.exportClaimName" -}}
 {{- default (printf "%s-exports" (include "harvester-migration.fullname" .)) .Values.export.storage.existingClaim -}}
 {{- end -}}
+
+{{/* Secret holding the CA that signs the user-token API endpoint. */}}
+{{- define "harvester-migration.ui.caSecretName" -}}
+{{- default (printf "%s-api-ca" (include "harvester-migration.ui.fullname" .)) .Values.ui.auth.ca.existingSecret -}}
+{{- end -}}

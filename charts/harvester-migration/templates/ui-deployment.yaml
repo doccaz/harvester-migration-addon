@@ -125,7 +125,7 @@ spec:
         {{- if and (eq .Values.ui.auth.mode "token") (not .Values.ui.auth.insecureSkipTLSVerify) }}
         - name: api-ca
           secret:
-            secretName: {{ required "ui.auth.ca.existingSecret is required in token mode (or set ui.auth.insecureSkipTLSVerify=true for development)" .Values.ui.auth.ca.existingSecret }}
+            secretName: {{ include "harvester-migration.ui.caSecretName" . }}
         {{- end }}
         {{- if .Values.export.enabled }}
         - name: export-storage

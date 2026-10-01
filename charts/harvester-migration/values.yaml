@@ -59,8 +59,11 @@ ui:
     mode: serviceaccount
     # Where user tokens are presented. Rancher tokens are valid at Rancher only.
     apiUrl: https://rancher.cattle-system.svc/k8s/clusters/local
-    # CA bundle that signed that endpoint's certificate (a Secret in this
-    # namespace). Required in token mode unless insecureSkipTLSVerify is true.
+    # CA that signed the endpoint's certificate. By default the chart copies the
+    # public certificate (only tls.crt, never the key) of the Rancher listener CA
+    # from cattle-system/tls-rancher at install/upgrade time. Re-run an upgrade if
+    # that CA is ever regenerated. Set existingSecret to supply your own bundle
+    # (needed for `helm template` without a cluster, or a different apiUrl).
     ca:
       existingSecret: ""
       key: ca.crt

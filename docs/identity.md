@@ -92,24 +92,31 @@ Verified (2026-10-01):
   no token -> 401, valid token -> 200 with live data; token absent from logs.
   A garbage token returns 500 (Rancher's 401 is not mapped yet).
 
-NOT verified (blocked: minting a token is a credential-creating action I may not
-run; the rest needs a pod in the cluster). Run these and record the results:
+Measured on the lab (2026-10-01, `hack/verify-token-auth.sh`):
+- **Minting works.** `POST /v3/tokens` with `ttl: 600000` returns `ttl: 600000`
+  (milliseconds), `expired: false`, and a token that works at the VIP. Deleted
+  afterwards (HTTP 204).
+- **Token accepted in-cluster at Rancher.** From a pod, with `-k`:
+  `https://rancher.cattle-system.svc/k8s/clusters/local/...` -> 200.
+- **kube-apiserver rejects it** (`https://kubernetes.default.svc` -> 401), so
+  the backend must talk to Rancher, as designed.
+- **TLS trust.** The service presents a leaf (`O=dynamic`) signed by
+  `dynamiclistener-ca@1765667991`; default trust fails (curl exit 60). Several
+  Secrets carry that CA name, and only one is the real signer:
+  - `cattle-system/tls-rancher` `tls.crt`: **the signer** (SKI 5A:F3:F5:5B...,
+    leaf AKI matches, `openssl verify -verify_hostname rancher.cattle-system.svc` OK).
+  - `cattle-system/tls-rancher-internal-ca`: same CN and dates, **different key**;
+    does not verify the leaf. Do not use.
+  `tls-rancher` also holds the CA **private key**, so the chart copies only
+  `tls.crt` into the UI's own Secret (`templates/ui-api-ca.yaml`), and the UI is
+  never given access to that Secret. Verified on a server-side dry run: the
+  rendered Secret has 1 certificate and 0 private-key blocks.
+  The CA is valid to 2035 and changes only if the Secret is regenerated: re-run
+  `helm upgrade` (or an addon re-apply) to refresh the copy.
 
-1. Minting API shape and TTL unit (`ttl` in ms is assumed):
-
-       T=$(kubectl config view --raw --minify -o jsonpath='{.users[0].user.token}')
-       curl -sk -X POST -H "Authorization: Bearer $T" -H 'Content-Type: application/json' \
-         https://<vip>/v3/tokens -d '{"type":"token","description":"probe","ttl":600000}'
-       # expect a JSON body with "token" and "id"; then clean up:
-       curl -sk -X DELETE -H "Authorization: Bearer $T" https://<vip>/v3/tokens/<id>
-
-2. A user token is accepted from inside the cluster at the Rancher service, and
-   which CA signs its certificate (needed for `ui.auth.ca`):
-
-       kubectl run tokprobe --rm -it --restart=Never --image=registry.suse.com/bci/bci-base -- \
-         sh -c 'curl -sk -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer '"$T"'" \
-         https://rancher.cattle-system.svc/k8s/clusters/local/api/v1/namespaces/default; \
-         echo | openssl s_client -connect rancher.cattle-system.svc:443 -showcerts 2>/dev/null | grep -E "s:|i:"'
-
-3. From a real browser session through the menu entry: the SPA's `POST /v3/tokens`
-   works same-origin (needs the CSRF cookie) and API calls reach the pod.
+Still NOT verified:
+1. Browser same-origin minting through the menu entry: paste the snippet printed
+   by the script into the Harvester UI console (needs the CSRF cookie) and record
+   the line it logs. Until then the default stays `ui.auth.mode=serviceaccount`.
+2. An actual pod running the UI image in token mode with the copied CA.
+3. Error mapping: a bad token returns 500 (Rancher's 401 is not propagated).

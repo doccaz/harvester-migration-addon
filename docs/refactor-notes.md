@@ -48,17 +48,36 @@
 - The OVA inventory proxy refuses a namespace that is not a DNS label (400) before it
   becomes part of a host name.
 
+- **export**: 13 sites in 7 handlers now keep the API server's status: the job and
+  pod lookups and lists, the VM and power-state lookups, export-volume and Job
+  creation, the cleanup Job and Job deletion. That includes five lookups that used to
+  answer 404 for *any* failure (a forbidden read looked like "not found"). Statuses
+  that already carried meaning are unchanged (503 not configured, 429 cap, 409 running
+  VM, 422 no disks or unknown capacity). Left at 500 on purpose: building the Job,
+  removing files, and `Stat`. The handlers had **no handler-level tests**; there are
+  now tests for create (success, 202 body, volume provisioned, running VM refused with
+  no Job created, not configured, concurrency cap, validation, 422s), preview, list,
+  get, delete (including a purge whose cleanup Job is forbidden keeping the export),
+  download and logs. Mutation-checked, including removing the running-VM refusal.
+- The Job entry points are `export.BinaryPath`, `WorkerArg` and `CleanupArg`, shared
+  by both Job builders and `main()`; tests pin the Job commands and that the
+  Dockerfile installs the binary at that path.
+
 ## Observations (still open)
+- **`inventory.PVCIndex` swallows a failed PVC list** (logs a warning and returns an
+  empty index), so a user who may not list PersistentVolumeClaims gets a misleading
+  422 "could not determine the capacity of disk" from export Create/Preview instead of
+  a 403. Not changed here (it also feeds the inventory page); worth fixing together
+  with the capabilities detection.
 - **`CheckAvailability` reports "Forklift not available" for any failure** reading the
   `host` Provider, including a plain permission denial, so a limited user in token mode
   would see Forklift as missing. Not a 500; revisit with the capabilities detection in
   Phase 4 (it should distinguish "absent" from "not allowed to look").
 - **Blanket 404s mask permission errors.** Some handlers answer 404 for *any* failure
   of a lookup (`GetResource`, the source detail routes, parts of export and forklift
-  providers; about 18 sites: export 8, vmic 6, forklift 3, harvester 1), so a forbidden read looks like "not found". Not a 500,
+  providers; about 10 sites after export was fixed: vmic 6, forklift 3, harvester 1), so a forbidden read looks like "not found". Not a 500,
   so left alone for now; in token mode it should become the API status too.
-- **Blanket 500s still to convert as packages move:** export (11), support bundle (2),
-  inventory (1). Everything else left at 500 is on purpose (see the vmic and forklift
+- **Blanket 500s still to convert as packages move:** support bundle (2), inventory (1). Everything else left at 500 is on purpose (see the vmic and forklift
   entries above). `harvester` is done (its four list calls were
   converted in a follow-up; only the YAML marshal failure stays 500, which is internal).
 - List routes that return `list.Items` directly could answer `null` instead of `[]`

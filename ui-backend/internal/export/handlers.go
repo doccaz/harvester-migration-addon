@@ -83,7 +83,7 @@ func Preview(clients *kube.Clients) http.HandlerFunc {
 		vm, err := clients.Dynamic.Resource(kube.VMGVR).Namespace(req.Namespace).Get(ctx, req.Name, metav1.GetOptions{})
 		if err != nil {
 			log.Errorf("Preview: failed to get VM %s/%s: %v", req.Namespace, req.Name, err)
-			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get VirtualMachine: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get VirtualMachine: "+err.Error())
 			return
 		}
 
@@ -269,7 +269,7 @@ func Create(clients *kube.Clients) http.HandlerFunc {
 		// with more replicas it is advisory, not a distributed lock.
 		active, err := listExportJobs(ctx, clients)
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list existing exports: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to list existing exports: "+err.Error())
 			return
 		}
 		running := 0
@@ -286,7 +286,7 @@ func Create(clients *kube.Clients) http.HandlerFunc {
 
 		vm, err := clients.Dynamic.Resource(kube.VMGVR).Namespace(req.Namespace).Get(ctx, req.Name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get VirtualMachine: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get VirtualMachine: "+err.Error())
 			return
 		}
 
@@ -296,7 +296,7 @@ func Create(clients *kube.Clients) http.HandlerFunc {
 		// Kubernetes prevents it, so this is the load-bearing safety check.
 		running2, err := vmIsRunning(ctx, clients, req.Namespace, req.Name)
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Could not determine VM power state: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Could not determine VM power state: "+err.Error())
 			return
 		}
 		if running2 {
@@ -347,7 +347,7 @@ func Create(clients *kube.Clients) http.HandlerFunc {
 		// namespaces. Provision one there on first use rather than failing the
 		// Job at schedule time with an opaque "persistentvolumeclaim not found".
 		if err := ensureExportPVC(ctx, clients, req.Namespace, cfg); err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, err.Error())
 			return
 		}
 
@@ -386,7 +386,7 @@ func Create(clients *kube.Clients) http.HandlerFunc {
 		created, err := clients.Clientset.BatchV1().Jobs(req.Namespace).Create(ctx, job, metav1.CreateOptions{})
 		if err != nil {
 			log.Errorf("Failed to create export Job for %s/%s: %v", req.Namespace, req.Name, err)
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create export job: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to create export job: "+err.Error())
 			return
 		}
 		log.Infof("Created export job %s/%s for VM %s (profile %s, %d disk(s))",
@@ -470,7 +470,7 @@ func List(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		jobs, err := listExportJobs(r.Context(), clients)
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list exports: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to list exports: "+err.Error())
 			return
 		}
 		cfg := loadExportConfig()
@@ -491,7 +491,7 @@ func Get(clients *kube.Clients) http.HandlerFunc {
 		vars := mux.Vars(r)
 		job, err := clients.Clientset.BatchV1().Jobs(vars["namespace"]).Get(r.Context(), exportJobName(vars["id"]), metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusNotFound, "Export not found: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Export not found: "+err.Error())
 			return
 		}
 		httpx.RespondWithJSON(w, http.StatusOK, exportView(job, loadExportConfig()))
@@ -518,7 +518,7 @@ func Delete(clients *kube.Clients) http.HandlerFunc {
 
 		job, err := clients.Clientset.BatchV1().Jobs(ns).Get(r.Context(), exportJobName(id), metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusNotFound, "Export not found: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Export not found: "+err.Error())
 			return
 		}
 
@@ -555,7 +555,7 @@ func Delete(clients *kube.Clients) http.HandlerFunc {
 				}
 				if err != nil {
 					log.Errorf("Could not start cleanup for export %s/%s: %v", ns, id, err)
-					httpx.RespondWithError(w, http.StatusInternalServerError,
+					httpx.RespondWithAPIErrorMsg(w, err,
 						"Could not start the cleanup of the export's files, so the export was kept: "+err.Error())
 					return
 				}
@@ -567,7 +567,7 @@ func Delete(clients *kube.Clients) http.HandlerFunc {
 		policy := metav1.DeletePropagationBackground
 		if err := clients.Clientset.BatchV1().Jobs(ns).Delete(r.Context(), exportJobName(id),
 			metav1.DeleteOptions{PropagationPolicy: &policy}); err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to delete export: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to delete export: "+err.Error())
 			return
 		}
 		httpx.RespondWithJSON(w, http.StatusOK, resp)
@@ -730,7 +730,7 @@ func Download(clients *kube.Clients) http.HandlerFunc {
 		}
 		job, err := clients.Clientset.BatchV1().Jobs(vars["namespace"]).Get(r.Context(), exportJobName(vars["id"]), metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusNotFound, "Export not found: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Export not found: "+err.Error())
 			return
 		}
 		if !exportVolumeMountedHere(job.Namespace, cfg) {
@@ -798,7 +798,7 @@ func GetLogs(clients *kube.Clients) http.HandlerFunc {
 			LabelSelector: exportLabelID + "=" + id,
 		})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list export pods: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to list export pods: "+err.Error())
 			return
 		}
 		if len(pods.Items) == 0 {

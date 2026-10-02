@@ -1,6 +1,6 @@
 # Harvester Migration Add-on — analysis and phased plan
 
-Status: draft for review (2026-10-01). No repository has been created on GitHub yet.
+Status (2026-10-02): Phases 0–2 done and released (current release v0.2.0, https://github.com/doccaz/harvester-migration-addon); Phase 3 in progress; Phases 4–6 not started. Last updated alongside the Phase 3 `inventory` extraction.
 
 ## 1. What exists today
 
@@ -82,7 +82,7 @@ Harvester's own UI (`harvester-ui-extension`) already has plain CRUD pages for t
 1. **Distribution:** `harvester/experimental-addons`. Note what that repo actually holds: only an `Addon` manifest (see `harvester-vm-dhcp-controller`) pointing at a chart in `https://charts.harvesterhci.io`, i.e. the chart itself lives in **harvester/charts**. So Phase 5 needs a conversation with the Harvester maintainers (open an issue/enhancement first) about where the chart and images are hosted. Until accepted, Phase 5a (self-hosted chart repo + Addon YAML) is the working channel.
 2. **Forklift:** optional engine, UI elements appear only when Forklift is detected (CRDs served and `ForkliftController` Ready).
 3. **VM Export (OVA):** the user's premise was that it depends on Forklift tools. Code check says it does not: no Forklift references in `pkg/export*.go`/`ova.go`/`ovf.go`, and `qemu-img` ships in the UI's own image. Only the *round-trip re-import test* uses Forklift's OVA provider. Decision: gate it behind `export.enabled` (default off) and, as a UX choice, show the Export page only when Forklift is detected, since re-importing the OVA is its main use here. Revisit if you want it always available.
-4. **Repo:** `doccaz/harvester-migration-addon` (not created on GitHub yet).
+4. **Repo:** `doccaz/harvester-migration-addon` (created, public).
 
 ## 6. Phased plan
 

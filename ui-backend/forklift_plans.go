@@ -334,7 +334,7 @@ func HandleGetForkliftPlanYAML(clients *kube.Clients) http.HandlerFunc {
 
 		item, err := clients.Dynamic.Resource(kube.ForkliftPlanGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithAPIError(w, err)
 			return
 		}
 

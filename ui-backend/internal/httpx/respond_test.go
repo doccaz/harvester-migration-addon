@@ -3,9 +3,15 @@ package httpx
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 func TestRespondWithJSON(t *testing.T) {
@@ -54,5 +60,35 @@ func TestRespondWithError(t *testing.T) {
 	}
 	if result["error"] != "test error" {
 		t.Errorf("expected error 'test error', got '%s'", result["error"])
+	}
+}
+
+func TestRespondWithAPIError(t *testing.T) {
+	gr := schema.GroupResource{Resource: "things"}
+	cases := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"not found", apierrors.NewNotFound(gr, "x"), http.StatusNotFound},
+		{"already exists", apierrors.NewAlreadyExists(gr, "x"), http.StatusConflict},
+		{"forbidden", apierrors.NewForbidden(gr, "x", errors.New("no")), http.StatusForbidden},
+		{"unauthorized", apierrors.NewUnauthorized("expired"), http.StatusUnauthorized},
+		{"invalid", apierrors.NewBadRequest("bad"), http.StatusBadRequest},
+		{"wrapped API error keeps its status", fmt.Errorf("getting x: %w", apierrors.NewNotFound(gr, "x")), http.StatusNotFound},
+		{"not an API error", errors.New("connection refused"), http.StatusInternalServerError},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			RespondWithAPIError(rr, tc.err)
+			if rr.Code != tc.want {
+				t.Errorf("status %d, want %d", rr.Code, tc.want)
+			}
+			var body map[string]string
+			if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil || body["error"] != tc.err.Error() {
+				t.Errorf("body %q, want the error text", rr.Body.String())
+			}
+		})
 	}
 }

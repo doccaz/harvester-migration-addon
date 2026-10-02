@@ -127,7 +127,7 @@ Test debt found and paid while extracting (harvester: 1 weak test -> 14 cases co
 Lessons and open items:
 - Two ~66 MB build binaries were committed by mistake when the backend was imported (removed from the tree; no credentials found). They remain in git history; rewriting history would change every SHA after `d218b1b` and move the release tags, so it is left to a deliberate decision.
 - The extraction script initially did not persist removals, which left dead duplicates (found and removed in the `kube` step). The stale-name grep and `unused` lint are part of every step now.
-- Existing inconsistency, deliberately not changed: `GET …/{ns}/{name}/yaml` returns 500 for a missing object while the detail routes return 404.
+- Fixed (own commit, verified on the lab, baseline retaken): API errors now keep their HTTP status via `httpx.RespondWithAPIError` on the four YAML handlers and namespace creation (404 / 409 / 403 instead of a blanket 500). The remaining ~150 blanket-500 sites are converted per package as they are extracted, each with a test.
 - No release tag is needed for this phase until the full set of gates is clean after the last extraction.
 
 ### Phase 4 — Frontend modularisation (≈3 weeks)

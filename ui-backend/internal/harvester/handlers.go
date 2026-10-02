@@ -47,7 +47,7 @@ func CreateNamespace(clients *kube.Clients) http.HandlerFunc {
 		nsSpec := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: payload.Name}}
 		_, err := clients.Clientset.CoreV1().Namespaces().Create(context.TODO(), nsSpec, metav1.CreateOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithAPIError(w, err)
 			return
 		}
 
@@ -120,7 +120,7 @@ func GetSourceYAML(clients *kube.Clients, gvr schema.GroupVersionResource) http.
 
 		item, err := clients.Dynamic.Resource(gvr).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithAPIError(w, err)
 			return
 		}
 

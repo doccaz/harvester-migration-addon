@@ -284,3 +284,35 @@ func TestOvaInventoryRejectsUnknownResource(t *testing.T) {
 		}
 	}
 }
+
+func yamlObj(apiVersion, kind, ns, name string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": apiVersion, "kind": kind,
+		"metadata": map[string]interface{}{"name": name, "namespace": ns},
+	}}
+}
+
+// Both plan YAML routes answer 404 for a missing plan (they used to answer 500).
+func TestPlanYAMLHandlers(t *testing.T) {
+	cases := []struct {
+		name    string
+		handler func(*kube.Clients) http.HandlerFunc
+		obj     *unstructured.Unstructured
+	}{
+		{"VMIC plan", HandleGetPlanYAML, yamlObj("migration.harvesterhci.io/v1beta1", "VirtualMachineImport", "ns", "p1")},
+		{"Forklift plan", HandleGetForkliftPlanYAML, yamlObj("forklift.konveyor.io/v1beta1", "Plan", "ns", "p1")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			clients := testutil.NewClientsWithDynamic(nil, tc.obj)
+			rr := testutil.Do(tc.handler(clients), "GET", "/x", nil, map[string]string{"namespace": "ns", "name": "p1"})
+			if rr.Code != http.StatusOK || rr.Header().Get("Content-Type") != "application/yaml" {
+				t.Fatalf("existing plan: %d %q", rr.Code, rr.Header().Get("Content-Type"))
+			}
+			rr = testutil.Do(tc.handler(clients), "GET", "/x", nil, map[string]string{"namespace": "ns", "name": "missing"})
+			if rr.Code != http.StatusNotFound {
+				t.Errorf("missing plan: status %d, want 404", rr.Code)
+			}
+		})
+	}
+}

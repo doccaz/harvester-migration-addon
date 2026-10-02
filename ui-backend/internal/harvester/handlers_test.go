@@ -3,6 +3,7 @@ package harvester
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"sort"
 	"strings"
@@ -12,10 +13,13 @@ import (
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/testutil"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 	"sigs.k8s.io/yaml"
 )
 
@@ -90,13 +94,23 @@ func TestCreateNamespace(t *testing.T) {
 			t.Errorf("status %d, want 400", rr.Code)
 		}
 	})
-	// Current behaviour, pinned: any failure from the API server, including
-	// "already exists", surfaces as 500 rather than 409.
-	t.Run("an existing namespace is reported as 500", func(t *testing.T) {
+	// The API server's status passes through: 409 for a duplicate (it used to be a
+	// blanket 500), 403 when the caller may not create namespaces.
+	t.Run("an existing namespace is a 409", func(t *testing.T) {
 		clients := testutil.NewClients(namespace("taken"))
 		rr := testutil.Do(CreateNamespace(clients), "POST", "/x", map[string]string{"name": "taken"}, nil)
-		if rr.Code != http.StatusInternalServerError {
-			t.Errorf("status %d", rr.Code)
+		if rr.Code != http.StatusConflict {
+			t.Errorf("status %d, want 409", rr.Code)
+		}
+	})
+	t.Run("a forbidden create is a 403", func(t *testing.T) {
+		clients := testutil.NewClients()
+		clients.Clientset.(*fake.Clientset).PrependReactor("create", "namespaces", func(k8stesting.Action) (bool, runtime.Object, error) {
+			return true, nil, apierrors.NewForbidden(schema.GroupResource{Resource: "namespaces"}, "x", errors.New("not allowed"))
+		})
+		rr := testutil.Do(CreateNamespace(clients), "POST", "/x", map[string]string{"name": "x"}, nil)
+		if rr.Code != http.StatusForbidden {
+			t.Errorf("status %d, want 403", rr.Code)
 		}
 	})
 }
@@ -219,10 +233,9 @@ func TestGetSourceYAML(t *testing.T) {
 		t.Errorf("kind = %v", back["kind"])
 	}
 
-	// Known inconsistency, pinned until it is changed deliberately: a missing
-	// object is a 500 here, while GetResource answers 404 (see docs/refactor-notes.md).
+	// A missing object is a 404, consistent with GetResource (it used to be a 500).
 	rr = testutil.Do(GetSourceYAML(clients, kube.VMwareSourceGVR), "GET", "/x", nil, map[string]string{"namespace": "default", "name": "nope"})
-	if rr.Code != http.StatusInternalServerError {
-		t.Errorf("missing object: status %d (currently 500)", rr.Code)
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("missing object: status %d, want 404", rr.Code)
 	}
 }

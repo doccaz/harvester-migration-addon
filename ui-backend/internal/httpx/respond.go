@@ -5,9 +5,11 @@ package httpx
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	log "github.com/sirupsen/logrus"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 // RespondWithJSON writes payload as JSON with the given status code. A payload
@@ -33,4 +35,19 @@ func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 // RespondWithError writes {"error": message} with the given status code.
 func RespondWithError(w http.ResponseWriter, code int, message string) {
 	RespondWithJSON(w, code, map[string]string{"error": message})
+}
+
+// RespondWithAPIError answers with the HTTP status the Kubernetes API server
+// reported for err (404 not found, 409 already exists or conflict, 403 forbidden,
+// 422 invalid, ...), and 500 when err did not come from the API server. The
+// message is the error text, as with RespondWithError.
+func RespondWithAPIError(w http.ResponseWriter, err error) {
+	code := http.StatusInternalServerError
+	var status apierrors.APIStatus
+	if errors.As(err, &status) {
+		if c := int(status.Status().Code); c >= 400 && c < 600 {
+			code = c
+		}
+	}
+	RespondWithError(w, code, err.Error())
 }

@@ -2,8 +2,29 @@ apiVersion: v1
 entries:
   harvester-migration:
   - apiVersion: v2
+    appVersion: 0.1.2
+    created: "2026-10-02T00:41:40.142726057Z"
+    dependencies:
+    - condition: controller.enabled
+      name: harvester-vm-import-controller
+      repository: https://charts.harvesterhci.io
+      version: 1.9.0
+    description: 'Harvester VM migration add-on: the VM Import Controller plus a migration
+      UI. Forklift is an optional engine, detected at runtime. '
+    digest: 4daea8ce82d9b544b44100d860cc80168dbd5b7484037c9b8c175c8c47e55634
+    keywords:
+    - harvester
+    - vm-import
+    - migration
+    - forklift
+    name: harvester-migration
+    type: application
+    urls:
+    - https://doccaz.github.io/harvester-migration-addon/harvester-migration-0.1.2.tgz
+    version: 0.1.2
+  - apiVersion: v2
     appVersion: 0.1.1
-    created: "2026-10-02T00:28:03.327285364Z"
+    created: "2026-10-02T00:41:40.142015607Z"
     dependencies:
     - condition: controller.enabled
       name: harvester-vm-import-controller
@@ -24,7 +45,7 @@ entries:
     version: 0.1.1
   - apiVersion: v2
     appVersion: 0.1.0
-    created: "2026-10-02T00:28:03.326318871Z"
+    created: "2026-10-02T00:41:40.141220192Z"
     dependencies:
     - condition: controller.enabled
       name: harvester-vm-import-controller
@@ -43,4 +64,4 @@ entries:
     urls:
     - https://doccaz.github.io/harvester-migration-addon/harvester-migration-0.1.0.tgz
     version: 0.1.0
-generated: "2026-10-02T00:28:03.325278779Z"
+generated: "2026-10-02T00:41:40.140137862Z"

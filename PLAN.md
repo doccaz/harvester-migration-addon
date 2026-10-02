@@ -105,11 +105,28 @@ Delivered: per-user token auth (default), TLS verification, RBAC derived from th
 - Secrets handling review (create/delete of credentials), run as non-root, read-only root FS where possible, NetworkPolicy.
 - Exit criteria: a user with only namespace-scoped rights cannot see or act on other namespaces.
 
-### Phase 3 — Backend alignment (≈2–3 weeks)
-- Move `pkg/` into packages (`engine/vmic`, `engine/forklift`, `export`, `inventory`, `api`), introduce the engine interface, split `handlers.go`.
-- Adopt controller conventions: `logrus.WithFields`, golangci config copied from the controller (gosec, prealloc, staticcheck), `revive.toml`, Go version aligned.
-- Replace the unstructured client for VMIC with typed objects by importing the controller's `pkg/apis` (no fork). Bump k8s/govmomi to the controller's versions.
-- Keep existing handler tests; add contract tests per engine against fake clients.
+### Phase 3 — Backend alignment (≈2–3 weeks) — IN PROGRESS
+Rule: no user-visible behaviour change. The REST API that `App.js` calls is the contract, protected at every step by four gates, each step is its own commit with CI green: (1) `testdata/routes.golden` (every method+path), (2) golangci-lint v2.12.2 with the controller's config at 0 issues, (3) unit tests, (4) a read-only snapshot of the 32 safe GET routes on the lab compared with a baseline (`hack/run-snapshot.sh`, `hack/snapshot-api.py`; two runs of identical code diff clean). Details and observations: `docs/refactor-notes.md`.
+
+Done (all verified by the four gates):
+- Safety net: route golden test, snapshot tooling.
+- Lint adopted from the controller; 36 findings fixed (two added timeouts on calls that could hang: HTTP header read, OVA inventory proxy).
+- `handlers.go` (2383 lines) and `forklift_handlers.go` split by area, code motion only (declarations proven byte-identical).
+- Packages extracted under `ui-backend/internal/`: `httpx` (response helpers), `kube` (clients, token provider/`Scoped`, TLS policy, GVRs, unstructured helpers), `inventory` (VM tree types + Harvester inventory).
+
+Remaining, in dependency order (leaf first), one commit each: `vcenter` → `capabilities` → `harvester` (namespaces, NADs, storage classes, VMs, generic GETs) → `vmic` (sources, plans, vCenter ops) → `forklift` → `export` (export, job, worker, cleanup, ova, ovf) → `supportbundle` → `api` (routes). `main.go` keeps the `export-worker` / `export-cleanup` command modes (Export Jobs invoke the binary by those arguments).
+
+Changed from the original plan:
+- **No import of the controller's `pkg/apis`.** Its `go.mod` pins `k8s.io/client-go v12.0.0+incompatible` and depends on a `replace` block that consumers do not inherit. Typed VMIC objects are instead produced locally with `runtime.DefaultUnstructuredConverter`, with a contract test against the real `virtualmachineimports.migration.harvesterhci.io` CRD saved from the lab.
+- **Engine interface only where the engines really share behaviour** (detection/capabilities, plan list and status, logs). VMIC (sources + VirtualMachineImport) and Forklift (provider, inventory service, maps, plan, migration) differ too much for an upfront CreatePlan/RunPlan abstraction; routes stay as they are until Phase 4.
+- **Dependency bumps** (k8s 0.28 → current, govmomi 0.33 → 0.52, Go directive) are a separate optional last step; govmomi across 19 minors is where `vcenter.go` is most likely to break. If the `go` directive moves, move the Dockerfile's `golang:` tag in the same commit.
+- `logrus.WithFields` is adopted opportunistically in code being moved, not as a sweep.
+
+Lessons and open items:
+- Two ~66 MB build binaries were committed by mistake when the backend was imported (removed from the tree; no credentials found). They remain in git history; rewriting history would change every SHA after `d218b1b` and move the release tags, so it is left to a deliberate decision.
+- The extraction script initially did not persist removals, which left dead duplicates (found and removed in the `kube` step). The stale-name grep and `unused` lint are part of every step now.
+- Existing inconsistency, deliberately not changed: `GET …/{ns}/{name}/yaml` returns 500 for a missing object while the detail routes return 404.
+- No release tag is needed for this phase until the full set of gates is clean after the last extraction.
 
 ### Phase 4 — Frontend modularisation (≈3 weeks)
 - Break up `App.js` (5.7k lines) into engine modules and shared components; engine registry driven by `GET /api/v1/capabilities`.
@@ -131,4 +148,5 @@ Delivered: per-user token auth (default), TLS verification, RBAC derived from th
 - Upstream controller chart/labels change under us → pin and test against each Harvester minor.
 - Dual-controller conflict during migration (Phase 1 guard).
 - Forklift packaging is experimental and heavy (Ansible operator, ~12 images, cert-manager, `ForkliftController` CR, VDDK image) and pinned to one upstream release — keep it a separate, optional add-on and detect it rather than bundle it.
+- Refactor regressions: mitigated by the four Phase 3 gates; the lab snapshot only covers GET routes, so write paths rely on the unit tests and the route golden.
 - Scope: UI + controller + Forklift + export is four products; Phase 5b/5c acceptance is the main uncertainty, which is why A (no fork) comes first.

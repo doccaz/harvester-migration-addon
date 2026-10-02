@@ -70,6 +70,19 @@ checks pass.
 - The same script run read-only against v0.2.0 failed exactly the four behaviours this
   release changes, so it discriminates between versions.
 
-Not covered: export is not configured on the lab pod (503), so the running-VM refusal
-(409) is covered by unit tests only; the browser pass (menu entry, Forklift tab, support
-bundle from About) is manual.
+The browser pass (menu entry, Forklift tab, support bundle from About) is manual.
+
+### Export enabled: the running-VM refusal (2026-10-02)
+Upgraded with `export.enabled=true`, `export.storage.create=true`,
+`export.storage.storageClass=harvester-longhorn`, then re-ran `hack/lab-smoke.sh`: 49 of 49,
+and the export check now exercises the real guard instead of reporting 503: creating an
+export of the **running** VM `labs/downstream-01` is refused with **409**.
+Confirmed on the cluster, independent of the script: no export or cleanup Job exists, no
+export volume was created in the VM's namespace under this release's name (so the refusal
+happens before any side effect), the VM is still running, and no smoke-test resource was
+left behind. Only the chart's own volume `harvester-system/mig-harvester-migration-exports`
+(RWX, Bound) exists for this release.
+
+Still not exercised: a successful export of a *stopped* VM end to end (Job, qemu-img,
+OVA on the volume, download). It needs a VM that can be powered off and ~its disk size
+of free space on the export volume.

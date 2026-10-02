@@ -33,36 +33,24 @@ Two pitfalls found on the way, both fixed:
   creates a real token. The client now backs off for 5 minutes and deletes tokens
   it cannot use.
 
+## Access Role verified against the real API server (v0.2.0, 2026-10-02)
+`hack/verify-access-rbac.sh` on the lab node, chart installed with
+`--set 'ui.access.users={migtest}'`: 12 of 12 checks pass.
+- `migtest` is allowed GET, POST and DELETE through the service proxy; `nobody` is
+  denied all three (so the Role's `get/create/update/delete` verbs are what gates it).
+- All four spellings of the service name (`svc`, `svc:8080`, `http:svc:8080`,
+  `http:svc:http`) are accepted for the bound user.
+- The Role does not open any other service in the namespace (`cdi-api` is denied).
+- `migtest` cannot list/get Secrets or create sources, imports or Forklift
+  providers: reaching the page grants no data access.
+Caveat: the script treats anything other than "Forbidden" as allowed, so "allow"
+means "authorisation passed", not "the UI returned 200" (the harmless POST/DELETE
+are answered or rejected by the UI itself).
+
 ## Not verified
-- Per-user RBAC with a *non-admin* user (all tests used an admin token).
-- Who may open the UI at all: the chart now creates a `services/proxy` Role
-  (`ui.access`), but the resourceNames spelling the apiserver actually checks has
-  not been confirmed with a real non-admin user (see below).
-
-## Non-admin test plan (needs a real limited Rancher user)
-1. In the Harvester UI create a local user `migtest` (Users & Authentication) with
-   a read-only or project-limited role, not an administrator.
-2. Upgrade with `--set 'ui.access.users={<the user's id, e.g. user-abc12>}'` so
-   the Role is bound to that user (find the id under Users, or `kubectl get
-   users.management.cattle.io`).
-3. Log in as `migtest` in an Incognito window and open the menu entry.
-   - Expect the page to load (proxy access granted) and the lists to be empty or
-     restricted, not the admin's data. Creating a source in a namespace the user
-     cannot write to must fail with 403, not succeed through the UI.
-   - Without step 2 the menu entry should fail at the proxy (403): that is the gate.
-4. Record the result here.
-
-## Commands to run (workstation with podman/docker and the lab kubeconfig)
-    cd harvester-migration-addon
-    podman build -t ghcr.io/doccaz/harvester-migration-ui:0.1.0 .
-    podman run --rm --read-only --tmpfs /tmp -u 1001 -e USE_MOCK_DATA=true \
-      -p 8081:8080 ghcr.io/doccaz/harvester-migration-ui:0.1.0 &
-    curl -s -o /dev/null -w '%{http_code}\n' localhost:8081/        # expect 200
-    # make it pullable by the lab (registry of your choice), then, UI-only because the
-    # built-in controller add-on is enabled on the lab:
-    helm install mig charts/harvester-migration -n harvester-system \
-      --set controller.enabled=false --set ui.auth.mode=token
-    kubectl -n harvester-system get pods -l app.kubernetes.io/name=harvester-migration-ui
-    kubectl -n harvester-system logs deploy/mig-harvester-migration-ui | head
-    # expect: "User token auth enabled; Kubernetes API at https://rancher.cattle-system.svc/..."
-    # then open the "VM Migration" menu entry as a UI user.
+- A real login as a limited user. Harvester's embedded Rancher has no user
+  management UI and no global roles (only users, tokens and auth settings exist),
+  so this was covered at the Kubernetes RBAC level by impersonation instead.
+  Resource permissions in token mode are enforced by the API server for the
+  caller's token, which impersonation exercises equivalently; the token flow
+  itself was verified with an admin in the browser.

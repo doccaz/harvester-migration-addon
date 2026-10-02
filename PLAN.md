@@ -98,7 +98,8 @@ Harvester's own UI (`harvester-ui-extension`) already has plain CRUD pages for t
 - **Conflict guard:** pre-install check (Helm `lookup`) that fails with a clear message if the built-in `vm-import-controller` Addon is enabled; document the migration path (disable old, enable new, CRs are preserved because CRDs and CRs are unchanged).
 - Exit criteria: enable the add-on on the lab cluster, import one VMware VM via VMIC, disable → resources gone, CRs intact.
 
-### Phase 2 — Make the UI safe to ship (≈2 weeks)
+### Phase 2 — Make the UI safe to ship (≈2 weeks) — DONE in v0.2.0
+Delivered: per-user token auth (default), TLS verification, RBAC derived from the code, non-root read-only pod, services/proxy access Role, release pipeline. Verification and the known gap (no real limited-user login on Harvester) are in docs/phase2-verification.md. Findings that changed the design: the pod never learns the caller's identity from the proxy; Rancher's `/v3/tokens` needs `Accept: application/json` from browsers; Harvester's Rancher has no global roles.
 - Drop NodePort default; serve through the Harvester/Rancher service proxy (NavLink already exists) with `ClusterIP`.
 - Authorisation: use the caller's identity (forwarded token / `Impersonate-*` or SubjectAccessReview per request) instead of a god-mode ServiceAccount; narrow RBAC to what each engine needs; split export RBAC behind `export.enabled`.
 - Secrets handling review (create/delete of credentials), run as non-root, read-only root FS where possible, NetworkPolicy.

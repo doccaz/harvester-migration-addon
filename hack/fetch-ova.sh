@@ -8,17 +8,22 @@
 # by streaming hack/verify-ova.sh into the helper pod, so integrity is known before any
 # transfer.
 #
-#   VM_NS=labs hack/fetch-ova.sh bastion-galins-server-c0e85f41797f.ova [outdir]
+#   KUBECONFIG=... VM_NS=labs hack/fetch-ova.sh bastion-galins-server-c0e85f41797f.ova [outdir]
 #
-# Env: VM_NS (required)  PVC (mig-harvester-migration-exports)  CHUNK_MB (256)
-#      RETRIES (6)  KEEP_POD=1 to leave the helper pod  VERIFY_IN_CLUSTER=0 to skip
+# The exec stream can be cut after a while (observed: every failure at 96-99.9% of a 256 MiB
+# chunk), so the transfer size ADAPTS: it halves after a failure (down to MIN_MB) and doubles
+# again after a few successes (up to CHUNK_MB). Each finished range is kept as a part named
+# <start MiB>-<MiB>, so a re-run resumes whatever the earlier run completed.
+#
+# Env: VM_NS (required)  PVC (mig-harvester-migration-exports)  CHUNK_MB (max range, 128)
+#      MIN_MB (smallest range, 8)  RETRIES (consecutive failures at MIN_MB before giving up, 8)  KEEP_POD=1 to leave the helper pod  VERIFY_IN_CLUSTER=0 to skip
 #      HELPER_IMAGE (registry.suse.com/bci/bci-base:latest). It needs bash, tar, sha256sum, sed,
 #      grep, cut, tr, df, stat, dd. No awk needed. The UI image (ghcr.io/doccaz/harvester-
 #      migration-ui:<tag>) also works and adds qemu-img; bci-busybox does not (no bash).
 set -uo pipefail
 NS="${VM_NS:?set VM_NS}"; FILE="${1:?usage: fetch-ova.sh <file-on-volume> [outdir]}"; OUT="${2:-.}"
 HELPER_IMAGE="${HELPER_IMAGE:-registry.suse.com/bci/bci-base:latest}"
-PVC="${PVC:-mig-harvester-migration-exports}"; CHUNK_MB="${CHUNK_MB:-256}"; RETRIES="${RETRIES:-6}"; POD=ova-fetch
+PVC="${PVC:-mig-harvester-migration-exports}"; CHUNK_MB="${CHUNK_MB:-128}"; MIN_MB="${MIN_MB:-8}"; RETRIES="${RETRIES:-8}"; POD=ova-fetch
 HERE="$(cd "$(dirname "$0")" && pwd)"
 K() { kubectl -n "$NS" "$@"; }
 OWN=0
@@ -70,21 +75,44 @@ echo "== SHA-256 of the file on the volume"
 WANT="$(K exec "$POD" -- sha256sum "/export/$FILE" | awk '{print $1}')"; echo "  $WANT"
 [ -n "$WANT" ] || { echo "could not hash the remote file"; exit 1; }
 
-CHUNK=$((CHUNK_MB*1048576)); N=$(( (SIZE + CHUNK - 1) / CHUNK ))
-PARTS="$OUT/.$FILE.parts"; mkdir -p "$PARTS"
-echo "== Fetching $N chunk(s) of up to ${CHUNK_MB} MiB (resumable)"
-for ((i=0; i<N; i++)); do
-  OFF=$((i*CHUNK)); EXP=$(( SIZE-OFF < CHUNK ? SIZE-OFF : CHUNK )); P="$PARTS/$(printf '%05d' $i)"
-  if [ -f "$P" ] && [ "$(stat -c %s "$P")" = "$EXP" ]; then echo "  chunk $((i+1))/$N already present"; continue; fi
-  ok=0
-  for ((t=1; t<=RETRIES; t++)); do
-    K exec "$POD" -- dd if="/export/$FILE" bs=1M skip=$((i*CHUNK_MB)) count="$CHUNK_MB" status=none > "$P.tmp" 2>/dev/null
-    if [ "$(stat -c %s "$P.tmp" 2>/dev/null || echo 0)" = "$EXP" ]; then mv "$P.tmp" "$P"; ok=1; break; fi
-    echo "  chunk $((i+1))/$N attempt $t failed ($(stat -c %s "$P.tmp" 2>/dev/null || echo 0)/$EXP bytes); retrying"; sleep 2
-  done
-  [ "$ok" = 1 ] || { echo "chunk $((i+1)) failed after $RETRIES attempts; re-run to resume"; exit 1; }
-  echo "  chunk $((i+1))/$N ok"
+TOTAL_MIB=$(( (SIZE + 1048575) / 1048576 )); PARTS="$OUT/.$FILE.parts"; mkdir -p "$PARTS"
+echo "== Fetching $TOTAL_MIB MiB in adaptive ranges (start ${CHUNK_MB} MiB, min ${MIN_MB} MiB; resumable)"
+# parts from the earlier fixed-size version (00000, 00001, ... of 256 MiB each) become <start>-256
+for f in "$PARTS"/[0-9][0-9][0-9][0-9][0-9]; do
+  [ -e "$f" ] || continue
+  mv "$f" "$PARTS/$(printf '%08d' $(( 10#${f##*/} * 256 )))-256"
 done
+rm -f "$PARTS"/*.tmp
+pos=0; cur="$CHUNK_MB"; streak=0; fails=0; retried=0
+while [ "$pos" -lt "$TOTAL_MIB" ]; do
+  # a part already fetched at this position (from an earlier run)? skip over it
+  have="$(ls "$PARTS"/"$(printf '%08d' "$pos")"-* 2>/dev/null | head -1)"
+  if [ -n "$have" ]; then
+    n="${have##*-}"; e=$(( (n*1048576) < (SIZE - pos*1048576) ? n*1048576 : SIZE - pos*1048576 ))
+    if [ "$(stat -c %s "$have")" = "$e" ]; then pos=$((pos+n)); continue; fi
+    rm -f "$have"
+  fi
+  count=$(( TOTAL_MIB - pos < cur ? TOTAL_MIB - pos : cur ))
+  exp=$(( count*1048576 < SIZE - pos*1048576 ? count*1048576 : SIZE - pos*1048576 ))
+  P="$PARTS/$(printf '%08d' "$pos")-$count"
+  K exec "$POD" -- dd if="/export/$FILE" bs=1M skip="$pos" count="$count" status=none > "$P.tmp" 2>/dev/null
+  if [ "$(stat -c %s "$P.tmp" 2>/dev/null || echo 0)" = "$exp" ]; then
+    mv "$P.tmp" "$P"; pos=$((pos+count)); fails=0; streak=$((streak+1))
+    printf '  %d/%d MiB  (range %d MiB ok)\n' "$pos" "$TOTAL_MIB" "$count"
+    if [ "$streak" -ge 4 ] && [ "$cur" -lt "$CHUNK_MB" ]; then cur=$(( cur*2 > CHUNK_MB ? CHUNK_MB : cur*2 )); streak=0; fi
+  else
+    got="$(stat -c %s "$P.tmp" 2>/dev/null || echo 0)"; rm -f "$P.tmp"; streak=0; retried=$((retried+1))
+    if [ "$cur" -gt "$MIN_MB" ]; then
+      cur=$(( cur/2 < MIN_MB ? MIN_MB : cur/2 )); fails=0
+      echo "  range of $count MiB at ${pos} MiB dropped at $((got/1048576))/$((exp/1048576)) MiB; shrinking to ${cur} MiB"
+    else
+      fails=$((fails+1)); echo "  range of $count MiB at ${pos} MiB failed (${fails}/${RETRIES} at the minimum size)"
+      [ "$fails" -ge "$RETRIES" ] && { echo "giving up at ${pos} MiB; re-run to resume (finished ranges are kept in $PARTS)"; exit 1; }
+      sleep 2
+    fi
+  fi
+done
+echo "  all ranges fetched ($retried retried)"
 
 echo "== Reassembling"
 cat "$PARTS"/[0-9]* > "$OUT/$FILE" || exit 1

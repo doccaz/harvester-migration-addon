@@ -17,9 +17,18 @@ NS="${VM_NS:?set VM_NS}"; FILE="${1:?usage: fetch-ova.sh <file-on-volume> [outdi
 PVC="${PVC:-mig-harvester-migration-exports}"; CHUNK_MB="${CHUNK_MB:-256}"; RETRIES="${RETRIES:-6}"; POD=ova-fetch
 HERE="$(cd "$(dirname "$0")" && pwd)"
 K() { kubectl -n "$NS" "$@"; }
-cleanup() { [ "${KEEP_POD:-0}" = 1 ] || K delete pod "$POD" --ignore-not-found --wait=false >/dev/null 2>&1; }
+OWN=0
+cleanup() { [ "$OWN" = 1 ] && [ "${KEEP_POD:-0}" != 1 ] && K delete pod "$POD" --ignore-not-found --wait=false >/dev/null 2>&1; true; }
 trap cleanup EXIT
 mkdir -p "$OUT"
+
+# Say which cluster this will touch, and check it can be read, before creating anything.
+echo "== Cluster: $(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' 2>/dev/null) (KUBECONFIG=${KUBECONFIG:-default})"
+if ! ERR="$(K get pvc "$PVC" -o name 2>&1)"; then
+  echo "cannot read pvc $NS/$PVC:"; echo "  $(echo "$ERR" | head -c 300)"
+  echo "wrong cluster? set KUBECONFIG to the lab's kubeconfig, e.g. KUBECONFIG=/home/erico/Projetos/local-harvester.yaml"
+  exit 1
+fi
 
 # A helper pod left over from an earlier run may still be terminating: wait for it to go.
 if K get pod "$POD" -o jsonpath='{.metadata.deletionTimestamp}' 2>/dev/null | grep -q .; then
@@ -38,7 +47,10 @@ spec:
   - {name: c, image: registry.suse.com/bci/bci-base:latest, command: [sleep, "7200"], securityContext: {runAsUser: 0}, volumeMounts: [{name: v, mountPath: /export, readOnly: true}]}
   volumes: [{name: v, persistentVolumeClaim: {claimName: $PVC, readOnly: true}}]
 YAML
+  OWN=1
   K wait --for=condition=Ready "pod/$POD" --timeout=180s >/dev/null || { echo "helper pod did not become ready"; exit 1; }
+else
+  OWN=1   # adopt a helper pod left by an earlier run of this script
 fi
 
 SIZE="$(K exec "$POD" -- stat -c %s "/export/$FILE" 2>/dev/null)"

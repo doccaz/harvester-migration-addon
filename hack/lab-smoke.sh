@@ -16,11 +16,11 @@ FL_NS="${FL_NS:-forklift}"; SRC_NS="${SRC_NS:-default}"; PORT="${PORT:-18081}"; 
 BASE="http://localhost:$PORT"; TMP="$(mktemp -d)"
 TOKEN="$(kubectl config view --raw --minify -o jsonpath='{.users[0].user.token}')"
 [ -n "$TOKEN" ] || { echo "kubeconfig user has no bearer token"; exit 1; }
-pass=0; failn=0; CODE=""
+pass=0; failn=0; CODE=""; WROTE=0   # set just before the first write, so cleanup only runs if something may exist
 
 cleanup() {
-  kill "${PF:-0}" 2>/dev/null || true
-  if [ "$READONLY" != "1" ]; then
+  [ -n "${PF:-}" ] && kill "$PF" 2>/dev/null || true
+  if [ "$READONLY" != "1" ] && [ "$WROTE" = 1 ]; then
     kubectl -n "$FL_NS" delete providers.forklift.konveyor.io v-smoke-ova v-smoke-vs --ignore-not-found >/dev/null 2>&1
     kubectl -n "$FL_NS" delete secret v-smoke-ova-secret v-smoke-vs-secret --ignore-not-found >/dev/null 2>&1
     kubectl -n "$SRC_NS" delete vmwaresources.migration.harvesterhci.io v-smoke-src --ignore-not-found >/dev/null 2>&1
@@ -46,6 +46,11 @@ contains() { # description needle haystack
 }
 
 echo "== Deployment"
+echo "  cluster: $(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' 2>/dev/null) (KUBECONFIG=${KUBECONFIG:-default})"
+if ! ERR="$(kubectl -n "${APP_NS:-harvester-system}" get ns -o name 2>&1 | head -c 300)" || [ -z "$ERR" ]; then
+  echo "cannot reach the cluster; set KUBECONFIG to the lab's kubeconfig"; exit 1
+fi
+case "$ERR" in *"Unable to connect"*|*"no such host"*|*"dial tcp"*|*"error:"*) echo "cannot reach the cluster: $ERR"; echo "set KUBECONFIG to the lab's kubeconfig, e.g. /home/erico/Projetos/local-harvester.yaml"; exit 1;; esac
 kubectl -n "$APP_NS" get deploy "$SVC" >/dev/null 2>&1 || { echo "deployment $APP_NS/$SVC not found"; exit 1; }
 kubectl -n "$APP_NS" rollout status "deploy/$SVC" --timeout=120s >/dev/null 2>&1 && ok "pod is ready" || bad "pod is not ready"
 LOGS="$(kubectl -n "$APP_NS" logs "deploy/$SVC" 2>/dev/null)"
@@ -100,6 +105,7 @@ fi
 
 if [ "$READONLY" = "1" ]; then echo; echo "(READONLY=1: write checks skipped)"; echo "passed: $pass  failed: $failn"; [ "$failn" -eq 0 ]; exit; fi
 
+WROTE=1
 echo "== Writes: Forklift providers (API group and annotation must survive)"
 call POST /api/v1/forklift/providers "{\"name\":\"v-smoke-ova\",\"namespace\":\"$FL_NS\",\"url\":\"10.255.255.1:/smoke\",\"providerType\":\"ova\"}"; expect "create OVA provider" 201
 call POST /api/v1/forklift/providers "{\"name\":\"v-smoke-vs\",\"namespace\":\"$FL_NS\",\"url\":\"https://vc.invalid/sdk\",\"username\":\"u\",\"password\":\"p\",\"providerType\":\"vsphere\"}"; expect "create vSphere provider" 201

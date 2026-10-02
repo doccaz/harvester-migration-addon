@@ -16,12 +16,18 @@ PORT="${PORT:-18082}"; TIMEOUT="${TIMEOUT:-3600}"; EXPORT_PVC="${EXPORT_PVC:-mig
 BASE="http://localhost:$PORT"; TMP="$(mktemp -d)"
 TOKEN="$(kubectl config view --raw --minify -o jsonpath='{.users[0].user.token}')"
 [ -n "$TOKEN" ] || { echo "kubeconfig user has no bearer token"; exit 1; }
-cleanup() { kill "${PF:-0}" 2>/dev/null || true; kubectl -n "$VM_NS" delete pod ova-fetch --ignore-not-found --wait=false >/dev/null 2>&1; rm -rf "$TMP"; }
+FETCHED=0
+cleanup() { [ -n "${PF:-}" ] && kill "$PF" 2>/dev/null; [ "$FETCHED" = 1 ] && kubectl -n "$VM_NS" delete pod ova-fetch --ignore-not-found --wait=false >/dev/null 2>&1; rm -rf "$TMP"; true; }
 trap cleanup EXIT
 api() { curl -s -o "$TMP/body" -w '%{http_code}' -H "X-Migration-Token: $TOKEN" -H 'Content-Type: application/json' "${@:2}" "$BASE$1"; }
 field() { python3 -c "import sys,json; print(json.load(open('$TMP/body')).get('$1',''))" 2>/dev/null; }
 
 echo "== Pre-flight"
+echo "  cluster: $(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' 2>/dev/null) (KUBECONFIG=${KUBECONFIG:-default})"
+if ! ERR="$(kubectl -n "${APP_NS:-harvester-system}" get ns -o name 2>&1 | head -c 300)" || [ -z "$ERR" ]; then
+  echo "cannot reach the cluster; set KUBECONFIG to the lab's kubeconfig"; exit 1
+fi
+case "$ERR" in *"Unable to connect"*|*"no such host"*|*"dial tcp"*|*"error:"*) echo "cannot reach the cluster: $ERR"; echo "set KUBECONFIG to the lab's kubeconfig, e.g. /home/erico/Projetos/local-harvester.yaml"; exit 1;; esac
 kubectl -n "$VM_NS" get vm "$VM_NAME" >/dev/null 2>&1 || { echo "VM $VM_NS/$VM_NAME not found"; exit 1; }
 if kubectl -n "$VM_NS" get vmi "$VM_NAME" >/dev/null 2>&1; then echo "VM is RUNNING; power it off first (the export refuses a running VM, correctly)."; exit 1; fi
 echo "  VM $VM_NS/$VM_NAME is stopped"
@@ -63,6 +69,7 @@ echo "== Where the OVA is"
 echo "  volume : $VM_NS/$EXPORT_PVC (RWX), file: /$TARGET   (the UI pod cannot serve this namespace's volume)"
 if [ "${FETCH:-0}" = 1 ]; then
   echo "== Fetching with a temporary read-only pod"
+  FETCHED=1
   kubectl -n "$VM_NS" apply -f - >/dev/null <<YAML
 apiVersion: v1
 kind: Pod

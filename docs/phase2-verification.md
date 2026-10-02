@@ -83,6 +83,20 @@ happens before any side effect), the VM is still running, and no smoke-test reso
 left behind. Only the chart's own volume `harvester-system/mig-harvester-migration-exports`
 (RWX, Bound) exists for this release.
 
-Still not exercised: a successful export of a *stopped* VM end to end (Job, qemu-img,
-OVA on the volume, download). It needs a VM that can be powered off and ~its disk size
-of free space on the export volume.
+## Successful export, end to end (2026-10-02, v0.3.0)
+
+Exported `labs/bastion-galins-server` (stopped VM, 80 GiB virtual disk) through the UI API
+with `hack/lab-export.sh`: the create call returned 202, the Job completed in 639 s and left
+`bastion-galins-server-c0e85f41797f.ova` (4,556,208,640 bytes) on the export volume.
+
+- Verified in the cluster (`hack/verify-ova.sh` via the helper pod): 9/9, with the manifest
+  SHA-256 digests of the `.ovf` and `disk-0.vmdk` matching the real files.
+- Fetched to the workstation with `hack/fetch-ova.sh`; the local SHA-256
+  (`942efe46495dac3501d396cad7d463db09a1dccfe3d8f75ddd7bbc77f0dc69d4`) equals the one computed
+  on the volume.
+- Verified locally with `hack/verify-ova.sh`: 11/11, including validation against the DSP8023
+  schema (`xmllint`) and `qemu-img` opening the disk as VMDK (80 GiB virtual, 4.24 GiB on disk).
+
+Transfer lesson: `kubectl cp` and 256 MiB `kubectl exec ... dd` ranges were cut short (every
+failure at 96-99.9% of the range). `fetch-ova.sh` now adapts the range size; 128 MiB ranges ran
+without a single retry. Not yet exercised: importing this OVA back through Forklift's OVA provider.

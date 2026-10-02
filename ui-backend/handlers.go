@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
@@ -304,7 +305,7 @@ func UpdatePlanHandler(clients *K8sClients) http.HandlerFunc {
 			if *val == "" {
 				unstructured.RemoveNestedField(item.Object, path...)
 			} else {
-				unstructured.SetNestedField(item.Object, *val, path...)
+				setNested(item.Object, *val, path...)
 			}
 		}
 
@@ -315,16 +316,16 @@ func UpdatePlanHandler(clients *K8sClients) http.HandlerFunc {
 		setOrClearString(payload.DefaultDiskBusType, "spec", "defaultDiskBusType")
 
 		if payload.ForcePowerOff != nil {
-			unstructured.SetNestedField(item.Object, *payload.ForcePowerOff, "spec", "forcePowerOff")
+			setNested(item.Object, *payload.ForcePowerOff, "spec", "forcePowerOff")
 		}
 		if payload.SkipPreflightChecks != nil {
-			unstructured.SetNestedField(item.Object, *payload.SkipPreflightChecks, "spec", "skipPreflightChecks")
+			setNested(item.Object, *payload.SkipPreflightChecks, "spec", "skipPreflightChecks")
 		}
 		if payload.GracefulShutdownTimeoutSeconds != nil {
 			if *payload.GracefulShutdownTimeoutSeconds == 0 {
 				unstructured.RemoveNestedField(item.Object, "spec", "gracefulShutdownTimeoutSeconds")
 			} else {
-				unstructured.SetNestedField(item.Object, *payload.GracefulShutdownTimeoutSeconds, "spec", "gracefulShutdownTimeoutSeconds")
+				setNested(item.Object, *payload.GracefulShutdownTimeoutSeconds, "spec", "gracefulShutdownTimeoutSeconds")
 			}
 		}
 		if payload.NetworkMapping != nil {
@@ -361,7 +362,7 @@ func UpdatePlanHandler(clients *K8sClients) http.HandlerFunc {
 		// branch that re-validates. So after saving the edited spec we clear
 		// status.importStatus via the status subresource to force re-reconciliation;
 		// without this an edit silently leaves the plan stuck in its old state.
-		unstructured.SetNestedField(updatedItem.Object, "", "status", "importStatus")
+		setNested(updatedItem.Object, "", "status", "importStatus")
 		finalItem, err := clients.Dynamic.Resource(vmiGVR).Namespace(namespace).UpdateStatus(context.TODO(), updatedItem, metav1.UpdateOptions{})
 		if err != nil {
 			// Spec saved but status reset failed — the plan may stay in its terminal
@@ -1975,6 +1976,19 @@ func HandleGetForkliftPlanYAML(clients *K8sClients) http.HandlerFunc {
 	}
 }
 
+// inventoryClient bounds calls to the in-cluster forklift-inventory service; the
+// default client would wait forever on a hung upstream.
+var inventoryClient = &http.Client{Timeout: 60 * time.Second}
+
+// setNested sets a field on an unstructured object. It can only fail when an
+// intermediate path element is not a map, which the CRDs never produce; the
+// failure is logged instead of silently dropped.
+func setNested(obj map[string]interface{}, val interface{}, path ...string) {
+	if err := unstructured.SetNestedField(obj, val, path...); err != nil {
+		log.Warnf("could not set %s: %v", strings.Join(path, "."), err)
+	}
+}
+
 // ovaInventoryResources are the forklift-inventory collections the UI reads.
 var ovaInventoryResources = map[string]bool{"vms": true, "networks": true, "disks": true}
 
@@ -2035,7 +2049,12 @@ func HandleGetForkliftOvaInventory(clients *K8sClients) http.HandlerFunc {
 		log.Debugf("Proxying OVA inventory request to: %s", inventoryURL)
 
 		// 4. Proxy the request
-		resp, err := http.Get(inventoryURL)
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, inventoryURL, nil)
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "Failed to build inventory request: "+err.Error())
+			return
+		}
+		resp, err := inventoryClient.Do(req)
 		if err != nil {
 			respondWithError(w, http.StatusBadGateway, "Failed to reach forklift-inventory: "+err.Error())
 			return
@@ -2271,14 +2290,14 @@ func HandleGetForkliftLogs(clients *K8sClients) http.HandlerFunc {
 		}
 
 		if logOutput.Len() == 0 {
-			logOutput.WriteString(fmt.Sprintf("No matching log entries found for plan '%s'.\n\n", planName))
+			fmt.Fprintf(&logOutput, "No matching log entries found for plan '%s'.\n\n", planName)
 			logOutput.WriteString("Troubleshooting tips:\n")
 			logOutput.WriteString("  1. Disable 'Only relevant' to see all Forklift controller logs\n")
 			if targetNamespace != "" {
-				logOutput.WriteString(fmt.Sprintf("  2. Check worker pods: kubectl get pods -n %s -l plan-name=%s\n", targetNamespace, planName))
-				logOutput.WriteString(fmt.Sprintf("  3. Check populator pods: kubectl get pods -n %s | grep populate-\n", targetNamespace))
+				fmt.Fprintf(&logOutput, "  2. Check worker pods: kubectl get pods -n %s -l plan-name=%s\n", targetNamespace, planName)
+				fmt.Fprintf(&logOutput, "  3. Check populator pods: kubectl get pods -n %s | grep populate-\n", targetNamespace)
 			}
-			logOutput.WriteString(fmt.Sprintf("  4. Controller logs: kubectl logs -n %s -l app=forklift-controller | grep %s\n", forkliftNs, planName))
+			fmt.Fprintf(&logOutput, "  4. Controller logs: kubectl logs -n %s -l app=forklift-controller | grep %s\n", forkliftNs, planName)
 		}
 
 		w.Header().Set("Content-Type", "text/plain")

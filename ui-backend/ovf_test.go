@@ -49,7 +49,7 @@ func TestBuildOVF_Golden(t *testing.T) {
 			}
 			path := filepath.Join("testdata", "ovf", string(p)+".ovf")
 			if *updateGolden {
-				if err := os.WriteFile(path, got, 0o644); err != nil {
+				if err := os.WriteFile(path, got, 0o600); err != nil {
 					t.Fatal(err)
 				}
 				return
@@ -82,7 +82,7 @@ func TestBuildOVF_ValidatesAgainstDSP8023(t *testing.T) {
 				t.Fatalf("BuildOVF: %v", err)
 			}
 			f := filepath.Join(t.TempDir(), "descriptor.ovf")
-			if err := os.WriteFile(f, got, 0o644); err != nil {
+			if err := os.WriteFile(f, got, 0o600); err != nil {
 				t.Fatal(err)
 			}
 			out, err := exec.Command("xmllint", "--noout", "--schema", schema, f).CombinedOutput()

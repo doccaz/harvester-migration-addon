@@ -240,15 +240,9 @@ func TestCreateForkliftProviderHandler_VSphere(t *testing.T) {
 	}
 
 	// Verify Secret was created with correct keys
-	secret, err := clients.Clientset.CoreV1().Secrets("forklift").Get(nil, "test-provider-secret", metav1.GetOptions{})
+	secret, err := clients.Clientset.CoreV1().Secrets("forklift").Get(context.TODO(), "test-provider-secret", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("expected secret to be created: %v", err)
-	}
-	if string(secret.Data["user"]) != "" {
-		// StringData is converted to Data by the fake client — check StringData was set
-		if secret.StringData["user"] != "admin" {
-			// Fake client may or may not copy StringData to Data
-		}
 	}
 	if secret.Labels["createdForProviderType"] != "vsphere" {
 		t.Errorf("expected label createdForProviderType=vsphere, got %s", secret.Labels["createdForProviderType"])
@@ -272,7 +266,7 @@ func TestCreateForkliftProviderHandler_OVA(t *testing.T) {
 	}
 
 	// Verify Secret was created with only url key (no user/password)
-	secret, err := clients.Clientset.CoreV1().Secrets("forklift").Get(nil, "ova-provider-secret", metav1.GetOptions{})
+	secret, err := clients.Clientset.CoreV1().Secrets("forklift").Get(context.TODO(), "ova-provider-secret", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("expected secret to be created: %v", err)
 	}
@@ -315,7 +309,7 @@ func TestCreateForkliftProviderHandler_DefaultNamespace(t *testing.T) {
 	}
 
 	// Verify Secret was created in default "forklift" namespace
-	_, err := clients.Clientset.CoreV1().Secrets("forklift").Get(nil, "test-provider-secret", metav1.GetOptions{})
+	_, err := clients.Clientset.CoreV1().Secrets("forklift").Get(context.TODO(), "test-provider-secret", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("expected secret in forklift namespace: %v", err)
 	}

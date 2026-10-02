@@ -16,19 +16,6 @@ import (
 	"github.com/vmware/govmomi/vim25/types"
 )
 
-func formatDiskSize(bytes int64) string {
-	const unit = 1024
-	if bytes < unit {
-		return fmt.Sprintf("%d B", bytes)
-	}
-	div, exp := int64(unit), 0
-	for n := bytes / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
-}
-
 // VMDisk represents a virtual disk in vCenter or Harvester.
 // The trailing fields are Harvester-only and stay empty for vCenter inventory.
 type VMDisk struct {
@@ -96,7 +83,7 @@ func GetVCenterInventory(ctx context.Context, creds VCenterCredentials) (*Invent
 	if err != nil {
 		return nil, err
 	}
-	defer c.Logout(ctx)
+	defer logout(ctx, c)
 
 	finder := find.NewFinder(c.Client, true)
 	dc, err := finder.Datacenter(ctx, creds.Datacenter)
@@ -346,7 +333,7 @@ func PowerOpVM(ctx context.Context, creds VCenterCredentials, vmName string, op 
 	if err != nil {
 		return err
 	}
-	defer c.Logout(ctx)
+	defer logout(ctx, c)
 
 	finder := find.NewFinder(c.Client, true)
 	dc, err := finder.Datacenter(ctx, creds.Datacenter)
@@ -407,7 +394,7 @@ func RenameVM(ctx context.Context, creds VCenterCredentials, oldName string, new
 	if err != nil {
 		return err
 	}
-	defer c.Logout(ctx)
+	defer logout(ctx, c)
 
 	finder := find.NewFinder(c.Client, true)
 	dc, err := finder.Datacenter(ctx, creds.Datacenter)
@@ -445,7 +432,7 @@ func UpdateVMNetworkMAC(ctx context.Context, creds VCenterCredentials, vmName st
 	if err != nil {
 		return err
 	}
-	defer c.Logout(ctx)
+	defer logout(ctx, c)
 
 	finder := find.NewFinder(c.Client, true)
 	dc, err := finder.Datacenter(ctx, creds.Datacenter)
@@ -516,7 +503,7 @@ func GetVCenterInventoryAutoDiscover(ctx context.Context, creds VCenterCredentia
 	if err != nil {
 		return nil, err
 	}
-	defer c.Logout(ctx)
+	defer logout(ctx, c)
 
 	finder := find.NewFinder(c.Client, true)
 
@@ -571,4 +558,12 @@ func GetVCenterInventoryAutoDiscover(ctx context.Context, creds VCenterCredentia
 
 	log.Debugf("Constructed vCenter inventory tree (auto-discover): %+v", rootNode)
 	return rootNode, nil
+}
+
+// logout releases a vCenter session. A failure only means the session expires on
+// its own, so it is logged at debug level rather than returned.
+func logout(ctx context.Context, c interface{ Logout(context.Context) error }) {
+	if err := c.Logout(ctx); err != nil {
+		log.Debugf("vCenter logout failed: %v", err)
+	}
 }

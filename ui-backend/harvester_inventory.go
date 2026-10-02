@@ -9,6 +9,7 @@ package main
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -189,16 +190,16 @@ func vcpuCount(domain map[string]interface{}) int32 {
 		}
 		return v
 	}
-	return int32(get("cores") * get("sockets") * get("threads"))
+	return clampInt32(get("cores") * get("sockets") * get("threads"))
 }
 
 // memoryMB prefers domain.memory.guest and falls back to the memory request.
 func memoryMB(domain map[string]interface{}) int32 {
 	if s, found, _ := unstructured.NestedString(domain, "memory", "guest"); found && s != "" {
-		return int32(parseQuantityBytes(s) / (1024 * 1024))
+		return clampInt32(parseQuantityBytes(s) / (1024 * 1024))
 	}
 	if s, found, _ := unstructured.NestedString(domain, "resources", "requests", "memory"); found && s != "" {
-		return int32(parseQuantityBytes(s) / (1024 * 1024))
+		return clampInt32(parseQuantityBytes(s) / (1024 * 1024))
 	}
 	return 0
 }
@@ -264,7 +265,7 @@ func harvesterDisks(domain, spec map[string]interface{}, ns string, pvcs map[str
 			disk.Device = "lun"
 		}
 		if bo, found, _ := unstructured.NestedInt64(d, "bootOrder"); found {
-			disk.BootOrder = int32(bo)
+			disk.BootOrder = clampInt32(bo)
 		}
 		if claim := claimByVolume[name]; claim != "" {
 			disk.PVCName = claim
@@ -363,4 +364,15 @@ func parseQuantityBytes(s string) int64 {
 		return 0
 	}
 	return n
+}
+
+// clampInt32 narrows an int64 without wrapping around on absurd values.
+func clampInt32(v int64) int32 {
+	if v > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	if v < math.MinInt32 {
+		return math.MinInt32
+	}
+	return int32(v) //nolint:gosec // range checked above
 }

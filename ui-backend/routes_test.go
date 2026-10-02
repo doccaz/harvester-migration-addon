@@ -40,7 +40,7 @@ func TestRoutesAreStable(t *testing.T) {
 
 	const golden = "testdata/routes.golden"
 	if *updateGolden {
-		if err := os.WriteFile(golden, []byte(out), 0o644); err != nil {
+		if err := os.WriteFile(golden, []byte(out), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		return

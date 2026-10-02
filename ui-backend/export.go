@@ -199,7 +199,7 @@ func loadExportConfig() exportConfig {
 		}
 	}
 	if v := os.Getenv("EXPORT_TTL_SECONDS"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+		if n, err := strconv.ParseInt(v, 10, 32); err == nil && n >= 0 {
 			c.TTLSeconds = int32(n)
 		}
 	}

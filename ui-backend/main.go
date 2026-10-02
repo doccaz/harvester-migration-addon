@@ -5,6 +5,7 @@ import (
 	"mime"
 	"net/http"
 	"os"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -28,12 +29,14 @@ func main() {
 	}
 
 	// Fix MIME types for serving static files
-	mime.AddExtensionType(".js", "application/javascript")
-	mime.AddExtensionType(".css", "text/css")
-	mime.AddExtensionType(".html", "text/html")
-	mime.AddExtensionType(".json", "application/json")
-	mime.AddExtensionType(".svg", "image/svg+xml")
-	mime.AddExtensionType(".ico", "image/x-icon")
+	for ext, typ := range map[string]string{
+		".js": "application/javascript", ".css": "text/css", ".html": "text/html",
+		".json": "application/json", ".svg": "image/svg+xml", ".ico": "image/x-icon",
+	} {
+		if err := mime.AddExtensionType(ext, typ); err != nil {
+			log.Warnf("could not register MIME type for %s: %v", ext, err)
+		}
+	}
 
 	log.SetFormatter(&log.JSONFormatter{})
 
@@ -60,7 +63,14 @@ func main() {
 	router := newRouter(provider, uiPath)
 
 	log.Info("Server is starting on port 8080")
-	if err := http.ListenAndServe(":8080", recoverMiddleware(router)); err != nil {
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: recoverMiddleware(router),
+		// Bounds slow-header clients. No write timeout: support bundles and
+		// downloads can legitimately stream for a long time.
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }

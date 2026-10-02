@@ -81,12 +81,12 @@ func TestTokensAreNotShared(t *testing.T) {
 	a.Header.Set(userTokenHeader, "a")
 	b := httptest.NewRequest("GET", "/", nil)
 	b.Header.Set(userTokenHeader, "b")
-	ca, cb := &K8sClients{}, &K8sClients{}
-	var err error
-	if ca, err = p.forUnvalidated(a); err != nil {
+	ca, err := p.forUnvalidated(a)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if cb, err = p.forUnvalidated(b); err != nil {
+	cb, err := p.forUnvalidated(b)
+	if err != nil {
 		t.Fatal(err)
 	}
 	if ca == cb || ca.Clientset == cb.Clientset {

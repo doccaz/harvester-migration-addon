@@ -1,0 +1,47 @@
+version: 2
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - gosec
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - prealloc
+  settings:
+    gosec:
+      # https: //github.com/securego/gosec#available-rules
+      excludes:
+        - G101 # Look for hard coded credentials
+        - G402 # TLS InsecureSkipVerify set true
+  exclusions:
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - staticcheck
+        text: "QF1008:" # could remove embedded field from selector (staticcheck)
+      - linters:
+          - gosec
+        text: "G301" # Expect directory permissions to be 0750 or less
+      - linters:
+          - gosec
+        text: "G304" # Potential file inclusion via variable
+      - linters:
+          - staticcheck
+        text: "SA1019:" # function is deprecated (staticcheck)
+    paths:
+      - generated
+      - "zz_generated_.*\\.go$"
+formatters:
+  enable:
+    - gofmt
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/harvester/vm-import-controller

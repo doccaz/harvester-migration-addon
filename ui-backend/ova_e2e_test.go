@@ -24,7 +24,7 @@ func buildRealOVA(t *testing.T, dir string, p Profile) string {
 	t.Helper()
 
 	raw := filepath.Join(dir, "disk.raw")
-	if err := os.WriteFile(raw, make([]byte, 16<<20), 0o644); err != nil {
+	if err := os.WriteFile(raw, make([]byte, 16<<20), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -166,7 +166,7 @@ func TestOVA_CorruptManifestIsRejected(t *testing.T) {
 			lines[i] = l[:idx] + flipped + l[idx+1:]
 		}
 	}
-	if err := os.WriteFile(mfPath, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(mfPath, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil { //nolint:gosec // test-controlled path under t.TempDir()
 		t.Fatal(err)
 	}
 
@@ -211,7 +211,7 @@ func TestVMDK_ReadableByVMwareVDDK(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw := filepath.Join(dir, "disk.raw")
-	if err := os.WriteFile(raw, make([]byte, 16<<20), 0o666); err != nil {
+	if err := os.WriteFile(raw, make([]byte, 16<<20), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -220,12 +220,12 @@ func TestVMDK_ReadableByVMwareVDDK(t *testing.T) {
 		t.Fatal(err)
 	}
 	disk := filepath.Join(dir, "stream.vmdk")
-	out, err := exec.Command("qemu-img", "convert", "-f", "raw", "-O", rules.qemuFormat,
+	out, err := exec.Command("qemu-img", "convert", "-f", "raw", "-O", rules.qemuFormat, //nolint:gosec // test helper: fixed binary, test-controlled args
 		"-o", qemuOutputOpts(rules), raw, disk).CombinedOutput()
 	if err != nil {
 		t.Fatalf("qemu-img: %v\n%s", err, out)
 	}
-	if err := os.Chmod(disk, 0o666); err != nil {
+	if err := os.Chmod(disk, 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -233,7 +233,7 @@ func TestVMDK_ReadableByVMwareVDDK(t *testing.T) {
 	check := func(name string) int {
 		script := "export LD_LIBRARY_PATH=/vmware-vix-disklib-distrib/lib64; " +
 			"/vmware-vix-disklib-distrib/bin64/vmware-vdiskmanager -R /data/" + name
-		cmd := exec.Command("podman", "run", "--rm", "--user", "0",
+		cmd := exec.Command("podman", "run", "--rm", "--user", "0", //nolint:gosec // test helper: fixed binary, test-controlled args
 			"-v", dir+":/data:z", "--entrypoint", "/bin/sh", image, "-c", script)
 		if err := cmd.Run(); err != nil {
 			if ee, ok := err.(*exec.ExitError); ok {
@@ -256,7 +256,7 @@ func TestVMDK_ReadableByVMwareVDDK(t *testing.T) {
 	}
 	copy(broken, []byte("GARBAGE_HEADER_XX"))
 	brokenPath := filepath.Join(dir, "broken.vmdk")
-	if err := os.WriteFile(brokenPath, broken, 0o666); err != nil {
+	if err := os.WriteFile(brokenPath, broken, 0o600); err != nil { //nolint:gosec // test-controlled path under t.TempDir()
 		t.Fatal(err)
 	}
 	if rc := check("broken.vmdk"); rc == 0 {

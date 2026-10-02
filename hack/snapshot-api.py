@@ -12,6 +12,8 @@ valid baseline. Output may contain real object names: keep it out of git.
 import gzip, io, json, os, re, sys, tarfile, urllib.error, urllib.request
 
 ROUTES = os.path.join(os.path.dirname(__file__), "..", "ui-backend", "testdata", "routes.golden")
+# Live log streams grow between runs: only status and content type are compared.
+VOLATILE = ("/logs",)
 SKIP = ("/vcenter/", "/forklift/inventory/", "/download")  # outbound calls / large payloads
 DROP_KEYS = {"resourceVersion", "managedFields", "generatedAt", "timestamp", "time", "salt"}
 
@@ -74,6 +76,8 @@ def snap(base, outdir):
         v = dict(vals, **pvals) if tmpl.startswith("/api/v1/plans/") else vals
         path = re.sub(r"\{(\w+)\}", lambda m: v[m.group(1)], tmpl)
         s = summarize(*get(base, path, token))
+        if any(x in tmpl for x in VOLATILE):
+            s.pop("body", None); s.pop("body_text", None)
         fn = re.sub(r"[^A-Za-z0-9]+", "_", tmpl).strip("_") or "root"
         json.dump({"template": tmpl, "path": path, **s}, open(os.path.join(outdir, fn + ".json"), "w"), indent=1, sort_keys=True)
         done += 1

@@ -31,6 +31,20 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
 
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ui-backend/go.mod
+          cache-dependency-path: ui-backend/go.sum
+      # Same version and config as harvester/vm-import-controller.
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.12.2
+          working-directory: ui-backend
+
   frontend:
     runs-on: ubuntu-latest
     defaults:

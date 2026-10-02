@@ -102,7 +102,8 @@ func (w *statusWriter) flush() error {
 		return err
 	}
 	tmp := w.path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+	// 0644: the API pod reads this file and runs as a different uid than the worker Job.
+	if err := os.WriteFile(tmp, b, 0o644); err != nil { //nolint:gosec
 		return err
 	}
 	return os.Rename(tmp, w.path)
@@ -353,7 +354,9 @@ func scanProgress(r io.Reader, onPercent func(float64)) {
 			acc.Write(buf[:n])
 			if m := qemuProgress.FindAllStringSubmatch(acc.String(), -1); len(m) > 0 {
 				var p float64
-				fmt.Sscanf(m[len(m)-1][1], "%f", &p)
+				if _, err := fmt.Sscanf(m[len(m)-1][1], "%f", &p); err != nil {
+					p = 0 // the regexp guarantees a number; keep the previous behaviour if not
+				}
 				// Only report whole-percent movement; the file is on shared
 				// storage and rewriting it hundreds of times is wasteful.
 				if p-last >= 1.0 {

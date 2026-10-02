@@ -154,7 +154,9 @@ func TestExportBlockers_StoppedVMIsExportable(t *testing.T) {
 
 func TestExportBlockers_NonAmd64AndNoDisks(t *testing.T) {
 	vm := vmFixture()
-	unstructured.SetNestedField(vm.Object, "arm64", "spec", "template", "spec", "architecture")
+	if err := unstructured.SetNestedField(vm.Object, "arm64", "spec", "template", "spec", "architecture"); err != nil {
+		t.Fatal(err)
+	}
 	node := harvesterVMToNode(vm, map[string]bool{}, testPVCs())
 	if !hasBlockerContaining(node.ExportBlockers, "arm64") {
 		t.Errorf("arm64 VM must be blocked, got: %v", node.ExportBlockers)
@@ -162,9 +164,11 @@ func TestExportBlockers_NonAmd64AndNoDisks(t *testing.T) {
 
 	// A VM whose only volumes are cloud-init has nothing to export.
 	vm2 := vmFixture()
-	unstructured.SetNestedSlice(vm2.Object, []interface{}{
+	if err := unstructured.SetNestedSlice(vm2.Object, []interface{}{
 		map[string]interface{}{"name": "cloudinitdisk", "disk": map[string]interface{}{"bus": "virtio"}},
-	}, "spec", "template", "spec", "domain", "devices", "disks")
+	}, "spec", "template", "spec", "domain", "devices", "disks"); err != nil {
+		t.Fatal(err)
+	}
 	node2 := harvesterVMToNode(vm2, map[string]bool{}, testPVCs())
 	if !hasBlockerContaining(node2.ExportBlockers, "no PVC-backed disks") {
 		t.Errorf("VM with no exportable disks must be blocked, got: %v", node2.ExportBlockers)

@@ -17,11 +17,13 @@ WORKDIR /go/src/app
 
 # Accept the target architecture as a build argument from Docker Buildx
 ARG TARGETARCH
+# Release version stamped into the binary (see appVersion in support_bundle.go).
+ARG VERSION=dev
 
 COPY ui-backend/ ./
 
 # Use TARGETARCH to tell Go which architecture to build for (e.g., amd64, arm64)
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -v -o /go/bin/vm-import-ui .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -v -ldflags "-X main.appVersion=${VERSION}" -o /go/bin/vm-import-ui .
 
 # Stage 3: Create the final image
 # This stage will be built for the target platform

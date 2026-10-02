@@ -21,10 +21,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-const (
-	appVersion                 = "1.9.2"
-	supportBundleSchemaVersion = "1"
-)
+// appVersion is set at build time (-ldflags "-X main.appVersion=...") from the
+// release tag; "dev" marks a local build.
+var appVersion = "dev"
+
+const supportBundleSchemaVersion = "1"
 
 // supportBundle accumulates JSON files and best-effort gather errors, then
 // serialises everything into one tar.gz. Every file is JSON so the bundle

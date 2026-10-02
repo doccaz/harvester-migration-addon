@@ -26,23 +26,34 @@ function readCookie(doc, name) {
 
 export function createApiFetch(originalFetch, { apiBase = '', storage, doc = document, now = Date.now } = {}) {
   let minting = null;
+  // Also held in memory: sessionStorage can be blocked or partitioned (embedded
+  // pages, privacy settings), and losing the token there caused a mint per call.
+  let memory = null; // { token, expiresAt }
+
+  const fresh = (entry) => (entry && entry.token && entry.expiresAt - EXPIRY_MARGIN_MS > now() ? entry.token : null);
 
   const load = () => {
+    const fromMemory = fresh(memory);
+    if (fromMemory) return fromMemory;
     try {
       const raw = storage && storage.getItem(STORAGE_KEY);
       if (!raw) return null;
-      const { token, expiresAt } = JSON.parse(raw);
-      return token && expiresAt - EXPIRY_MARGIN_MS > now() ? token : null;
+      const stored = JSON.parse(raw);
+      const token = fresh(stored);
+      if (token) memory = stored;
+      return token;
     } catch (e) {
       return null;
     }
   };
   const save = (token) => {
+    memory = { token, expiresAt: now() + TOKEN_TTL_MS };
     try {
-      if (storage) storage.setItem(STORAGE_KEY, JSON.stringify({ token, expiresAt: now() + TOKEN_TTL_MS }));
-    } catch (e) { /* storage unavailable: token just isn't cached */ }
+      if (storage) storage.setItem(STORAGE_KEY, JSON.stringify(memory));
+    } catch (e) { /* storage unavailable: the in-memory copy still works */ }
   };
   const clear = () => {
+    memory = null;
     try { if (storage) storage.removeItem(STORAGE_KEY); } catch (e) { /* ignore */ }
   };
 
@@ -72,6 +83,8 @@ export function createApiFetch(originalFetch, { apiBase = '', storage, doc = doc
             throw new Error(`token response had no usable token (fields: ${Object.keys(body || {}).join(', ')})`);
           }
           save(body.token);
+          // eslint-disable-next-line no-console
+          console.info(`[migration-ui] token minted (ttl ${body.ttl}ms); retrying request`);
           return body.token;
         })
         .finally(() => { minting = null; });
@@ -79,9 +92,18 @@ export function createApiFetch(originalFetch, { apiBase = '', storage, doc = doc
     return minting;
   };
 
+  // Plain object, not a Headers instance: it is the form every fetch wrapper
+  // (browser extensions, instrumentation) is sure to pass through unchanged.
+  const toPlain = (h) => {
+    if (!h) return {};
+    if (typeof Headers !== 'undefined' && h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Array.isArray(h)) return Object.fromEntries(h);
+    return { ...h };
+  };
+
   const send = (input, init, token) => {
-    const headers = new Headers((init && init.headers) || {});
-    if (token) headers.set(TOKEN_HEADER, token);
+    const headers = toPlain(init && init.headers);
+    if (token) headers[TOKEN_HEADER] = token;
     return originalFetch(apiBase + input, { ...init, headers });
   };
 
@@ -106,6 +128,8 @@ export function createApiFetch(originalFetch, { apiBase = '', storage, doc = doc
       return giveUp(res, e.message);
     }
     const retry = await send(input, init, token);
+    // eslint-disable-next-line no-console
+    console.info(`[migration-ui] retry with token -> HTTP ${retry.status}`);
     if (retry.status === 401) {
       clear();
       return giveUp(retry, 'the backend rejected a freshly minted token');

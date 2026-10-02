@@ -21,7 +21,7 @@ test('on 401 mints a token with the CSRF header, retries once, and caches it', a
   const fetchFn = jest.fn((url, init) => {
     calls.push([url, init]);
     if (url === '/v3/tokens') return Promise.resolve(res(201, { token: 'token-1:secret' }));
-    const has = new Headers(init.headers).get(TOKEN_HEADER);
+    const has = init.headers[TOKEN_HEADER];
     return Promise.resolve(has ? res(200, {}) : res(401, {}));
   });
   const api = createApiFetch(fetchFn, { apiBase: '', storage: memStorage(), doc });
@@ -40,7 +40,7 @@ test('concurrent 401s share one token request', async () => {
   let mints = 0;
   const fetchFn = jest.fn((url, init) => {
     if (url === '/v3/tokens') { mints += 1; return Promise.resolve(res(201, { token: 't' })); }
-    return Promise.resolve(new Headers(init.headers).get(TOKEN_HEADER) ? res(200, {}) : res(401, {}));
+    return Promise.resolve(init.headers[TOKEN_HEADER] ? res(200, {}) : res(401, {}));
   });
   const api = createApiFetch(fetchFn, { storage: memStorage(), doc });
   await Promise.all([api('/api/v1/a'), api('/api/v1/b'), api('/api/v1/c')]);
@@ -59,7 +59,7 @@ test('expired cached tokens are not sent', async () => {
   const fetchFn = jest.fn().mockResolvedValue(res(200, {}));
   const api = createApiFetch(fetchFn, { storage, doc, now: () => 5000000 });
   await api('/api/v1/plans');
-  expect(new Headers(fetchFn.mock.calls[0][1].headers).get(TOKEN_HEADER)).toBeNull();
+  expect(fetchFn.mock.calls[0][1].headers[TOKEN_HEADER]).toBeUndefined();
 });
 
 test('a 201 without a token field discards the token, warns, and backs off', async () => {
@@ -114,4 +114,33 @@ test('minting is attempted again after the backoff window', async () => {
   await api('/api/v1/a');
   expect(mints).toBe(2);
   warn.mockRestore();
+});
+
+test('headers are sent as a plain object and caller headers are preserved', async () => {
+  const fetchFn = jest.fn((url, init) => Promise.resolve(
+    url === '/v3/tokens' ? res(201, { token: 't', id: 'i', ttl: 1 }) : (init.headers[TOKEN_HEADER] ? res(200, {}) : res(401, {}))));
+  jest.spyOn(console, 'info').mockImplementation(() => {});
+  const api = createApiFetch(fetchFn, { storage: memStorage(), doc });
+  await api('/api/v1/x', { headers: new Headers({ 'Content-Type': 'application/json' }) });
+  const sent = fetchFn.mock.calls.filter(([u]) => u === '/api/v1/x').pop()[1].headers;
+  expect(Object.getPrototypeOf(sent)).toBe(Object.prototype);
+  expect(sent['content-type']).toBe('application/json');
+  expect(sent[TOKEN_HEADER]).toBe('t');
+  console.info.mockRestore();
+});
+
+test('the token stays usable when sessionStorage is unavailable', async () => {
+  const broken = { getItem: () => null, setItem: () => { throw new Error('blocked'); }, removeItem: () => {} };
+  let mints = 0;
+  jest.spyOn(console, 'info').mockImplementation(() => {});
+  const fetchFn = jest.fn((url, init) => {
+    if (url === '/v3/tokens') { mints += 1; return Promise.resolve(res(201, { token: 't', id: 'i', ttl: 1 })); }
+    return Promise.resolve(init.headers[TOKEN_HEADER] ? res(200, {}) : res(401, {}));
+  });
+  const api = createApiFetch(fetchFn, { storage: broken, doc });
+  await api('/api/v1/a');
+  await api('/api/v1/b');
+  await api('/api/v1/c');
+  expect(mints).toBe(1);
+  console.info.mockRestore();
 });

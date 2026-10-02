@@ -1,5 +1,5 @@
-// pkg/export_test.go
-package main
+// handlers_test.go
+package export
 
 import (
 	"context"
@@ -337,7 +337,7 @@ func TestEnsureExportPVC_LeavesExistingClaimAlone(t *testing.T) {
 
 // Regression: the API pod's EXPORT_ROOT mount is a different physical volume
 // than an export Job's PVC whenever the Job ran outside this pod's own
-// namespace. Before this check, exportView/DownloadExportHandler read (or
+// namespace. Before this check, exportView/Download read (or
 // tried to read) the wrong volume and either silently omitted progress fields
 // or reported a real OVA as "not found".
 func TestExportVolumeMountedHere(t *testing.T) {

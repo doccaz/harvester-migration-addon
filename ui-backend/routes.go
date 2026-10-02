@@ -4,6 +4,8 @@ package main
 import (
 	"net/http"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/export"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/forklift"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/vmic"
@@ -63,13 +65,13 @@ func newRouter(provider *kube.Provider, uiPath string) *mux.Router {
 	api.HandleFunc("/harvester/virtualmachines/{namespace}", kube.Scoped(provider, harvester.ListVMs)).Methods("GET")
 	// Cluster-wide Harvester VM inventory, for the VM Export page.
 	api.HandleFunc("/harvester/inventory", kube.Scoped(provider, inventory.HandleGetHarvesterInventory)).Methods("GET")
-	api.HandleFunc("/exports/preview", kube.Scoped(provider, PreviewOVFHandler)).Methods("POST")
-	api.HandleFunc("/exports", kube.Scoped(provider, ListExportsHandler)).Methods("GET")
-	api.HandleFunc("/exports", kube.Scoped(provider, CreateExportHandler)).Methods("POST")
-	api.HandleFunc("/exports/{namespace}/{id}", kube.Scoped(provider, GetExportHandler)).Methods("GET")
-	api.HandleFunc("/exports/{namespace}/{id}", kube.Scoped(provider, DeleteExportHandler)).Methods("DELETE")
-	api.HandleFunc("/exports/{namespace}/{id}/logs", kube.Scoped(provider, GetExportLogsHandler)).Methods("GET")
-	api.HandleFunc("/exports/{namespace}/{id}/download", kube.Scoped(provider, DownloadExportHandler)).Methods("GET")
+	api.HandleFunc("/exports/preview", kube.Scoped(provider, export.Preview)).Methods("POST")
+	api.HandleFunc("/exports", kube.Scoped(provider, export.List)).Methods("GET")
+	api.HandleFunc("/exports", kube.Scoped(provider, export.Create)).Methods("POST")
+	api.HandleFunc("/exports/{namespace}/{id}", kube.Scoped(provider, export.Get)).Methods("GET")
+	api.HandleFunc("/exports/{namespace}/{id}", kube.Scoped(provider, export.Delete)).Methods("DELETE")
+	api.HandleFunc("/exports/{namespace}/{id}/logs", kube.Scoped(provider, export.GetLogs)).Methods("GET")
+	api.HandleFunc("/exports/{namespace}/{id}/download", kube.Scoped(provider, export.Download)).Methods("GET")
 
 	// Forklift Handlers
 	api.HandleFunc("/forklift/availability", kube.Scoped(provider, forklift.CheckAvailability)).Methods("GET")

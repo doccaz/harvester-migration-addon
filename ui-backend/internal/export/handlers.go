@@ -1,8 +1,8 @@
-// pkg/export.go
+// handlers.go
 //
 // VM export orchestration. Phase 2 ships the read-only descriptor preview; the
 // job/conversion machinery lands in phase 3.
-package main
+package export
 
 import (
 	"context"
@@ -55,10 +55,10 @@ const previewNotice = `<!--
 -->
 `
 
-// PreviewOVFHandler renders the OVF descriptor for a VM without touching the
+// Preview renders the OVF descriptor for a VM without touching the
 // cluster beyond a read. It is the fastest way to inspect what an export would
 // produce, and the feed for `xmllint --schema` / `ovftool --schemaValidate`.
-func PreviewOVFHandler(clients *kube.Clients) http.HandlerFunc {
+func Preview(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req ExportPreviewRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -233,9 +233,9 @@ type CreateExportRequest struct {
 	GuestOSName  string `json:"guestOsName,omitempty"`
 }
 
-// CreateExportHandler validates the request, re-checks that the VM is stopped,
+// Create validates the request, re-checks that the VM is stopped,
 // and creates the Job that performs the export.
-func CreateExportHandler(clients *kube.Clients) http.HandlerFunc {
+func Create(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req CreateExportRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -464,9 +464,9 @@ func listExportJobs(ctx context.Context, clients *kube.Clients) ([]batchv1.Job, 
 	return list.Items, nil
 }
 
-// ListExportsHandler returns every export, newest first, merging each Job with
+// List returns every export, newest first, merging each Job with
 // the status file its worker writes.
-func ListExportsHandler(clients *kube.Clients) http.HandlerFunc {
+func List(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		jobs, err := listExportJobs(r.Context(), clients)
 		if err != nil {
@@ -485,8 +485,8 @@ func ListExportsHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-// GetExportHandler returns one export.
-func GetExportHandler(clients *kube.Clients) http.HandlerFunc {
+// Get returns one export.
+func Get(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		job, err := clients.Clientset.BatchV1().Jobs(vars["namespace"]).Get(r.Context(), exportJobName(vars["id"]), metav1.GetOptions{})
@@ -498,7 +498,7 @@ func GetExportHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-// DeleteExportHandler removes the export Job (and its pods). Pass purge=true to
+// Delete removes the export Job (and its pods). Pass purge=true to
 // delete the produced .ova and its status folder as well.
 //
 // Where the files are decides how they are removed. The API pod mounts only its
@@ -510,7 +510,7 @@ func GetExportHandler(clients *kube.Clients) http.HandlerFunc {
 // The Job is deleted only after the files are dealt with (or scheduled), because
 // it is the export's only record: deleting it first and then failing would
 // strand the OVA with nothing left to retry from.
-func DeleteExportHandler(clients *kube.Clients) http.HandlerFunc {
+func Delete(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		ns, id := vars["namespace"], vars["id"]
@@ -715,11 +715,11 @@ func newExportID() string {
 	return hex.EncodeToString(b)
 }
 
-// DownloadExportHandler serves a finished .ova.
+// Download serves a finished .ova.
 //
 // http.ServeContent gives Range support and correct Content-Length without ever
 // buffering the file, which matters because these are multi-gigabyte artifacts.
-func DownloadExportHandler(clients *kube.Clients) http.HandlerFunc {
+func Download(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		cfg := loadExportConfig()
@@ -786,9 +786,9 @@ func downloadMaxBytes() int64 {
 	return 2 << 30 // 2 GiB
 }
 
-// GetExportLogsHandler tails the export Job's pod logs. It mirrors the existing
+// GetLogs tails the export Job's pod logs. It mirrors the existing
 // plan-log handler, and is the fallback when the status file is unavailable.
-func GetExportLogsHandler(clients *kube.Clients) http.HandlerFunc {
+func GetLogs(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		ns, id := vars["namespace"], vars["id"]

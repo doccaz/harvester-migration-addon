@@ -1,4 +1,4 @@
-// pkg/ova.go
+// ova.go
 //
 // OVA package assembly: the tar container defined by DMTF DSP0243 v2.1.1.
 //
@@ -13,7 +13,7 @@
 //   - clause 462: "Entries in a compressed OVF package shall exist only once."
 //   - clause 542-556: chunking, via ovf:chunkSize and 9-digit chunk suffixes.
 //   - clause 405-421: the manifest file grammar.
-package main
+package export
 
 import (
 	"archive/tar"

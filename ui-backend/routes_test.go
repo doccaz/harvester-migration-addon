@@ -2,6 +2,7 @@
 package main
 
 import (
+	"flag"
 	"os"
 	"sort"
 	"strings"
@@ -12,8 +13,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// updateGolden (-update) is declared in ovf_test.go and shared by all golden tests.
-//
+var updateGolden = flag.Bool("update", false, "rewrite testdata/routes.golden")
+
 // TestRoutesAreStable pins the REST API surface (method + path template). The
 // frontend calls these routes, so a refactor must neither drop nor rename one by
 // accident. After an intentional change run: go test -run TestRoutesAreStable -update

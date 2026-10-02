@@ -1,5 +1,5 @@
-// pkg/export_cleanup_test.go
-package main
+// cleanup_test.go
+package export
 
 import (
 	"context"
@@ -198,7 +198,7 @@ func callDelete(t *testing.T, clients *kube.Clients, ns, id, query string) *http
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/exports/"+ns+"/"+id+query, nil)
 	req = mux.SetURLVars(req, map[string]string{"namespace": ns, "id": id})
 	rec := httptest.NewRecorder()
-	DeleteExportHandler(clients)(rec, req)
+	Delete(clients)(rec, req)
 	return rec
 }
 

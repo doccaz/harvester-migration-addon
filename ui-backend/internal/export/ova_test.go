@@ -1,5 +1,5 @@
-// pkg/ova_test.go
-package main
+// ova_test.go
+package export
 
 import (
 	"archive/tar"

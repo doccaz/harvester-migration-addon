@@ -1,4 +1,4 @@
-// pkg/export_worker.go
+// worker.go
 //
 // The export worker: the half of the export that runs inside a Kubernetes Job,
 // invoked as `vm-import-ui export-worker`.
@@ -11,7 +11,7 @@
 // Pipeline, per DSP0243 (see ova.go / ovf.go):
 //
 //	block device -> qemu-img convert -> staged disk -> descriptor -> OVA tar
-package main
+package export
 
 import (
 	"encoding/json"
@@ -126,8 +126,8 @@ func (w *statusWriter) fail(err error) {
 	})
 }
 
-// RunExportWorker is the `export-worker` entry point. It returns an exit code.
-func RunExportWorker() int {
+// RunWorker is the `export-worker` entry point. It returns an exit code.
+func RunWorker() int {
 	root := envOr("EXPORT_ROOT", "/export")
 	raw := os.Getenv("EXPORT_SPEC")
 	if raw == "" {

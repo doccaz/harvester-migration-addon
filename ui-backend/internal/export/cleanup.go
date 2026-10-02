@@ -1,4 +1,4 @@
-// pkg/export_cleanup.go
+// cleanup.go
 //
 // Removing an export's files from its export volume.
 //
@@ -8,7 +8,7 @@
 // the files at all. Those are removed by a short-lived cleanup Job that runs in
 // the export's namespace, mounts that namespace's export PVC and runs
 // `vm-import-ui export-cleanup` — the same binary, the same path checks.
-package main
+package export
 
 import (
 	"fmt"
@@ -72,9 +72,9 @@ func removeExportFiles(root, exportID, target string) error {
 	return firstErr
 }
 
-// RunExportCleanup is the `export-cleanup` mode of the binary, run inside the
+// RunCleanup is the `export-cleanup` mode of the binary, run inside the
 // cleanup Job. Returns the process exit code.
-func RunExportCleanup() int {
+func RunCleanup() int {
 	root := os.Getenv("EXPORT_ROOT")
 	id := os.Getenv("EXPORT_ID")
 	target := os.Getenv("EXPORT_TARGET")

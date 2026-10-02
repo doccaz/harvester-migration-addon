@@ -1,5 +1,5 @@
-// pkg/ovf_test.go
-package main
+// ovf_test.go
+package export
 
 import (
 	"encoding/xml"

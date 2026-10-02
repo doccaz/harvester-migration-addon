@@ -1,4 +1,4 @@
-// pkg/export_job.go
+// job.go
 //
 // Builds the Kubernetes Job that performs one export.
 //
@@ -6,7 +6,7 @@
 // carries the export metadata in labels and annotations, and is what the API
 // lists. That avoids a ConfigMap store (which would need write RBAC and its own
 // garbage collection) and survives an API-pod restart or replicaCount > 1.
-package main
+package export
 
 import (
 	"encoding/json"

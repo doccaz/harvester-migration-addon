@@ -1,4 +1,4 @@
-// pkg/ova_e2e_test.go
+// ova_e2e_test.go
 //
 // End-to-end assembly checks against independent, third-party readers.
 //
@@ -9,7 +9,7 @@
 //
 // Both tests skip cleanly when the tools are absent, so CI without qemu-img or
 // libguestfs still passes.
-package main
+package export
 
 import (
 	"os"

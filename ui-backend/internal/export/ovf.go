@@ -1,4 +1,4 @@
-// pkg/ovf.go
+// ovf.go
 //
 // OVF descriptor generation: KubeVirt VirtualMachine -> OVF envelope XML.
 //
@@ -13,7 +13,7 @@
 //     (CIM_ResourceAllocationSettingData.xsd / CIM_VirtualSystemSettingData.xsd).
 //     The struct field order below IS that order. Reordering fields produces XML
 //     that no longer validates.
-package main
+package export
 
 import (
 	"encoding/xml"

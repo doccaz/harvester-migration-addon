@@ -7,6 +7,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/export"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
@@ -23,13 +25,13 @@ func main() {
 		if lvl, err := log.ParseLevel(os.Getenv("LOG_LEVEL")); err == nil {
 			log.SetLevel(lvl)
 		}
-		os.Exit(RunExportWorker())
+		os.Exit(export.RunWorker())
 	}
 	// Removes one export's files from an export volume, inside a short-lived Job
 	// in the export's namespace (see export_cleanup.go).
 	if len(os.Args) > 1 && os.Args[1] == "export-cleanup" {
 		log.SetFormatter(&log.JSONFormatter{})
-		os.Exit(RunExportCleanup())
+		os.Exit(export.RunCleanup())
 	}
 
 	// Fix MIME types for serving static files

@@ -5,3 +5,6 @@ ui-frontend/build/
 # Build output
 ui-backend/ui-backend
 ui-backend/vm-import-ui
+
+# Local API snapshots (contain real object names)
+.snapshots/

@@ -1,8 +1,8 @@
-// pkg/types.go
-package main
+// types.go
+package forklift
 
-// CreateForkliftProviderPayload is the JSON payload from the frontend to create a Forklift Provider + Secret
-type CreateForkliftProviderPayload struct {
+// CreateProviderPayload is the JSON payload from the frontend to create a Forklift Provider + Secret
+type CreateProviderPayload struct {
 	Name               string `json:"name"`
 	Namespace          string `json:"namespace"`
 	URL                string `json:"url"` // vSphere URL or NFS path (for OVA: host:/nfs-path)
@@ -15,8 +15,8 @@ type CreateForkliftProviderPayload struct {
 	VddkInitImage      string `json:"vddkInitImage,omitempty"`      // VDDK container image for optimized disk transfers
 }
 
-// ForkliftNetworkMapEntry represents a single network mapping for Forklift
-type ForkliftNetworkMapEntry struct {
+// NetworkMapEntry represents a single network mapping for Forklift
+type NetworkMapEntry struct {
 	SourceID             string `json:"sourceId"`                  // vSphere network moRef, e.g. network-1008
 	SourceName           string `json:"sourceName,omitempty"`      // vSphere network display name for fallback matching
 	DestinationType      string `json:"destinationType"`           // "pod" or "multus"
@@ -24,8 +24,8 @@ type ForkliftNetworkMapEntry struct {
 	DestinationNamespace string `json:"destinationNamespace,omitempty"`
 }
 
-// ForkliftStorageMapEntry represents a single storage mapping for Forklift
-type ForkliftStorageMapEntry struct {
+// StorageMapEntry represents a single storage mapping for Forklift
+type StorageMapEntry struct {
 	SourceID                string `json:"sourceId"`                // vSphere datastore moRef, e.g. datastore-1007
 	SourceName              string `json:"sourceName,omitempty"`    // OVA disk filename (used instead of sourceId for OVA providers)
 	DestinationStorageClass string `json:"destinationStorageClass"` // Harvester storage class name
@@ -33,26 +33,26 @@ type ForkliftStorageMapEntry struct {
 	AccessMode              string `json:"accessMode,omitempty"`    // "ReadWriteOnce", "ReadWriteMany", "ReadOnlyMany"
 }
 
-// ForkliftVMEntry represents a VM to migrate in a Forklift Plan
-type ForkliftVMEntry struct {
+// VMEntry represents a VM to migrate in a Forklift Plan
+type VMEntry struct {
 	ID         string `json:"id"`                   // vSphere VM moRef, e.g. vm-1019
 	Name       string `json:"name"`                 // VM display name
 	TargetName string `json:"targetName,omitempty"` // RFC-1123 compliant name for the destination VM in Kubernetes
 }
 
-// CreateForkliftPlanPayload is the JSON payload from the frontend to create a Forklift migration plan
+// CreatePlanPayload is the JSON payload from the frontend to create a Forklift migration plan
 // (which creates NetworkMap + StorageMap + Plan atomically)
-type CreateForkliftPlanPayload struct {
-	Name                  string                    `json:"name"`
-	Namespace             string                    `json:"namespace"`
-	ProviderName          string                    `json:"providerName"`
-	ProviderNamespace     string                    `json:"providerNamespace"`
-	ProviderType          string                    `json:"providerType,omitempty"`          // "vsphere" (default) or "ova"
-	HostProviderNamespace string                    `json:"hostProviderNamespace,omitempty"` // Namespace where Forklift's "host" provider lives (defaults to "forklift")
-	TargetNamespace       string                    `json:"targetNamespace"`
-	NetworkMappings       []ForkliftNetworkMapEntry `json:"networkMappings"`
-	StorageMappings       []ForkliftStorageMapEntry `json:"storageMappings"`
-	VMs                   []ForkliftVMEntry         `json:"vms"`
+type CreatePlanPayload struct {
+	Name                  string            `json:"name"`
+	Namespace             string            `json:"namespace"`
+	ProviderName          string            `json:"providerName"`
+	ProviderNamespace     string            `json:"providerNamespace"`
+	ProviderType          string            `json:"providerType,omitempty"`          // "vsphere" (default) or "ova"
+	HostProviderNamespace string            `json:"hostProviderNamespace,omitempty"` // Namespace where Forklift's "host" provider lives (defaults to "forklift")
+	TargetNamespace       string            `json:"targetNamespace"`
+	NetworkMappings       []NetworkMapEntry `json:"networkMappings"`
+	StorageMappings       []StorageMapEntry `json:"storageMappings"`
+	VMs                   []VMEntry         `json:"vms"`
 	// Advanced options
 	MigrateSharedDisks      bool `json:"migrateSharedDisks"`
 	PopulatorLabels         bool `json:"populatorLabels"`

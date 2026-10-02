@@ -1,5 +1,5 @@
-// pkg/handlers_test.go
-package main
+// handlers_test.go
+package forklift
 
 import (
 	"bytes"
@@ -24,7 +24,7 @@ import (
 func TestCreateForkliftProviderHandler_VSphere(t *testing.T) {
 	clients := testutil.NewClients()
 
-	payload := CreateForkliftProviderPayload{
+	payload := CreateProviderPayload{
 		Name:         "test-provider",
 		Namespace:    "forklift",
 		URL:          "https://vcenter.example.com/sdk",
@@ -34,7 +34,7 @@ func TestCreateForkliftProviderHandler_VSphere(t *testing.T) {
 		ProviderType: "vsphere",
 	}
 
-	rr := testutil.Do(CreateForkliftProviderHandler(clients), "POST", "/api/v1/forklift/providers", payload, nil)
+	rr := testutil.Do(CreateProvider(clients), "POST", "/api/v1/forklift/providers", payload, nil)
 
 	if rr.Code != http.StatusCreated {
 		t.Errorf("expected status 201, got %d; body: %s", rr.Code, rr.Body.String())
@@ -53,14 +53,14 @@ func TestCreateForkliftProviderHandler_VSphere(t *testing.T) {
 func TestCreateForkliftProviderHandler_OVA(t *testing.T) {
 	clients := testutil.NewClients()
 
-	payload := CreateForkliftProviderPayload{
+	payload := CreateProviderPayload{
 		Name:         "ova-provider",
 		Namespace:    "forklift",
 		URL:          "10.0.0.1:/exports/vms",
 		ProviderType: "ova",
 	}
 
-	rr := testutil.Do(CreateForkliftProviderHandler(clients), "POST", "/api/v1/forklift/providers", payload, nil)
+	rr := testutil.Do(CreateProvider(clients), "POST", "/api/v1/forklift/providers", payload, nil)
 
 	if rr.Code != http.StatusCreated {
 		t.Errorf("expected status 201, got %d; body: %s", rr.Code, rr.Body.String())
@@ -86,7 +86,7 @@ func TestCreateForkliftProviderHandler_InvalidJSON(t *testing.T) {
 	req := httptest.NewRequest("POST", "/api/v1/forklift/providers", bytes.NewReader([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
-	CreateForkliftProviderHandler(clients).ServeHTTP(rr, req)
+	CreateProvider(clients).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400, got %d", rr.Code)
@@ -96,14 +96,14 @@ func TestCreateForkliftProviderHandler_InvalidJSON(t *testing.T) {
 func TestCreateForkliftProviderHandler_DefaultNamespace(t *testing.T) {
 	clients := testutil.NewClients()
 
-	payload := CreateForkliftProviderPayload{
+	payload := CreateProviderPayload{
 		Name:     "test-provider",
 		URL:      "https://vcenter.example.com/sdk",
 		Username: "admin",
 		Password: "secret",
 	}
 
-	rr := testutil.Do(CreateForkliftProviderHandler(clients), "POST", "/api/v1/forklift/providers", payload, nil)
+	rr := testutil.Do(CreateProvider(clients), "POST", "/api/v1/forklift/providers", payload, nil)
 
 	if rr.Code != http.StatusCreated {
 		t.Errorf("expected status 201, got %d; body: %s", rr.Code, rr.Body.String())
@@ -170,7 +170,7 @@ func TestListForkliftProvidersHandler(t *testing.T) {
 	_ = gvr
 
 	t.Run("list all source providers", func(t *testing.T) {
-		rr := testutil.Do(ListForkliftProvidersHandler(clients), "GET", "/api/v1/forklift/providers", nil, nil)
+		rr := testutil.Do(ListProviders(clients), "GET", "/api/v1/forklift/providers", nil, nil)
 
 		if rr.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d; body: %s", rr.Code, rr.Body.String())
@@ -197,7 +197,7 @@ func TestDeleteForkliftProviderHandler(t *testing.T) {
 
 	// Try to delete a non-existent provider
 	rr := testutil.Do(
-		DeleteForkliftProviderHandler(clients),
+		DeleteProvider(clients),
 		"DELETE",
 		"/api/v1/forklift/providers/forklift/nonexistent",
 		nil,
@@ -211,7 +211,7 @@ func TestDeleteForkliftProviderHandler(t *testing.T) {
 }
 
 func TestOvaInventoryRejectsUnknownResource(t *testing.T) {
-	handler := HandleGetForkliftOvaInventory(testutil.NewClientsWithDynamic(nil))
+	handler := GetOvaInventory(testutil.NewClientsWithDynamic(nil))
 	for _, res := range []string{"../providers", "secrets", "vms/../../x"} {
 		rr := testutil.Do(handler, "GET", "/x", nil,
 			map[string]string{"namespace": "forklift", "name": "p", "resource": res})
@@ -236,7 +236,7 @@ func TestPlanYAMLHandlers(t *testing.T) {
 		handler func(*kube.Clients) http.HandlerFunc
 		obj     *unstructured.Unstructured
 	}{
-		{"Forklift plan", HandleGetForkliftPlanYAML, yamlObj("forklift.konveyor.io/v1beta1", "Plan", "ns", "p1")},
+		{"Forklift plan", GetPlanYAML, yamlObj("forklift.konveyor.io/v1beta1", "Plan", "ns", "p1")},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -245,10 +245,25 @@ func TestPlanYAMLHandlers(t *testing.T) {
 			if rr.Code != http.StatusOK || rr.Header().Get("Content-Type") != "application/yaml" {
 				t.Fatalf("existing plan: %d %q", rr.Code, rr.Header().Get("Content-Type"))
 			}
+			if rr.Header().Get("X-Content-Type-Options") != "nosniff" {
+				t.Error("YAML must be served with X-Content-Type-Options: nosniff")
+			}
 			rr = testutil.Do(tc.handler(clients), "GET", "/x", nil, map[string]string{"namespace": "ns", "name": "missing"})
 			if rr.Code != http.StatusNotFound {
 				t.Errorf("missing plan: status %d, want 404", rr.Code)
 			}
 		})
+	}
+}
+
+// The namespace becomes part of the inventory service's host name, so anything that
+// is not a DNS label is refused before a URL is built.
+func TestOvaInventoryRejectsABadNamespace(t *testing.T) {
+	handler := GetOvaInventory(testutil.NewClients())
+	for _, ns := range []string{"a.b", "evil.example.com#", "UPPER", "a b", "-x"} {
+		rr := testutil.Do(handler, "GET", "/x", nil, map[string]string{"namespace": ns, "name": "p", "resource": "vms"})
+		if rr.Code != http.StatusBadRequest {
+			t.Errorf("namespace %q: status %d, want 400", ns, rr.Code)
+		}
 	}
 }

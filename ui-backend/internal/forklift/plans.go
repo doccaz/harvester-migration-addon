@@ -1,5 +1,5 @@
-// forklift_plans.go
-package main
+// plans.go
+package forklift
 
 import (
 	"context"
@@ -18,8 +18,8 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-// ListForkliftPlansHandler lists Forklift Plan CRs
-func ListForkliftPlansHandler(clients *kube.Clients) http.HandlerFunc {
+// ListPlans lists Forklift Plan CRs
+func ListPlans(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		list, err := clients.Dynamic.Resource(kube.ForkliftPlanGVR).Namespace("").List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
@@ -30,10 +30,10 @@ func ListForkliftPlansHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-// CreateForkliftPlanHandler creates NetworkMap, StorageMap, and Plan atomically
-func CreateForkliftPlanHandler(clients *kube.Clients) http.HandlerFunc {
+// CreatePlan creates NetworkMap, StorageMap, and Plan atomically
+func CreatePlan(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var payload CreateForkliftPlanPayload
+		var payload CreatePlanPayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			httpx.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 			return
@@ -285,8 +285,8 @@ func CreateForkliftPlanHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-// DeleteForkliftPlanHandler deletes a Forklift Plan and its associated NetworkMap/StorageMap
-func DeleteForkliftPlanHandler(clients *kube.Clients) http.HandlerFunc {
+// DeletePlan deletes a Forklift Plan and its associated NetworkMap/StorageMap
+func DeletePlan(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -325,8 +325,8 @@ func DeleteForkliftPlanHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-// HandleGetForkliftPlanYAML returns the YAML representation of a Forklift Plan
-func HandleGetForkliftPlanYAML(clients *kube.Clients) http.HandlerFunc {
+// GetPlanYAML returns the YAML representation of a Forklift Plan
+func GetPlanYAML(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -345,8 +345,11 @@ func HandleGetForkliftPlanYAML(clients *kube.Clients) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/yaml")
+		// Object names and values come from the cluster; never let a browser sniff
+		// this body into something it would render.
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write(yamlBytes); err != nil {
+		if _, err := w.Write(yamlBytes); err != nil { //nolint:gosec // G705: application/yaml + nosniff, and the requester's own object
 			log.Warnf("Failed to write response: %v", err)
 		}
 	}

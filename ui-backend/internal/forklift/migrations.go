@@ -1,5 +1,5 @@
-// forklift_migrations.go
-package main
+// migrations.go
+package forklift
 
 import (
 	"context"
@@ -15,8 +15,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-// CreateForkliftMigrationHandler creates a Migration CR to start executing a Forklift Plan
-func CreateForkliftMigrationHandler(clients *kube.Clients) http.HandlerFunc {
+// CreateMigration creates a Migration CR to start executing a Forklift Plan
+func CreateMigration(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -51,8 +51,8 @@ func CreateForkliftMigrationHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-// DeleteForkliftMigrationHandler deletes an existing Migration CR for a Plan
-func DeleteForkliftMigrationHandler(clients *kube.Clients) http.HandlerFunc {
+// DeleteMigration deletes an existing Migration CR for a Plan
+func DeleteMigration(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -71,8 +71,8 @@ func DeleteForkliftMigrationHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-// GetForkliftMigrationStatus returns the status of Migrations for a Plan
-func GetForkliftMigrationStatus(clients *kube.Clients) http.HandlerFunc {
+// GetMigrationStatus returns the status of Migrations for a Plan
+func GetMigrationStatus(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]

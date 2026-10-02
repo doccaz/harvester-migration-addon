@@ -1,5 +1,5 @@
-// forklift_providers.go
-package main
+// providers.go
+package forklift
 
 import (
 	"context"
@@ -17,8 +17,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-// CheckForkliftAvailability checks if the Forklift "host" Provider exists
-func CheckForkliftAvailability(clients *kube.Clients) http.HandlerFunc {
+// CheckAvailability checks if the Forklift "host" Provider exists
+func CheckAvailability(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		namespace := r.URL.Query().Get("namespace")
 		if namespace == "" {
@@ -43,8 +43,8 @@ func CheckForkliftAvailability(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-// ListForkliftProvidersHandler lists Forklift Provider CRs (vsphere type only)
-func ListForkliftProvidersHandler(clients *kube.Clients) http.HandlerFunc {
+// ListProviders lists Forklift Provider CRs (vsphere type only)
+func ListProviders(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		list, err := clients.Dynamic.Resource(kube.ForkliftProviderGVR).Namespace("").List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
@@ -75,10 +75,10 @@ func ListForkliftProvidersHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-// CreateForkliftProviderHandler creates a Forklift Provider with its associated Secret
-func CreateForkliftProviderHandler(clients *kube.Clients) http.HandlerFunc {
+// CreateProvider creates a Forklift Provider with its associated Secret
+func CreateProvider(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var payload CreateForkliftProviderPayload
+		var payload CreateProviderPayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			httpx.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 			return
@@ -195,8 +195,8 @@ func CreateForkliftProviderHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-// GetForkliftProviderDetails returns a single Forklift Provider with its secret info
-func GetForkliftProviderDetails(clients *kube.Clients) http.HandlerFunc {
+// GetProvider returns a single Forklift Provider with its secret info
+func GetProvider(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -224,14 +224,14 @@ func GetForkliftProviderDetails(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-// UpdateForkliftProviderHandler updates a Forklift Provider and its Secret
-func UpdateForkliftProviderHandler(clients *kube.Clients) http.HandlerFunc {
+// UpdateProvider updates a Forklift Provider and its Secret
+func UpdateProvider(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
 		name := vars["name"]
 
-		var payload CreateForkliftProviderPayload
+		var payload CreateProviderPayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			httpx.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 			return
@@ -330,8 +330,8 @@ func UpdateForkliftProviderHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-// DeleteForkliftProviderHandler deletes a Forklift Provider and its associated Secret
-func DeleteForkliftProviderHandler(clients *kube.Clients) http.HandlerFunc {
+// DeleteProvider deletes a Forklift Provider and its associated Secret
+func DeleteProvider(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]

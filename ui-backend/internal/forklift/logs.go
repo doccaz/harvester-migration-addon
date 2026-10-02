@@ -1,5 +1,5 @@
-// forklift_logs.go
-package main
+// logs.go
+package forklift
 
 import (
 	"bufio"
@@ -17,11 +17,11 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-// HandleGetForkliftLogs fetches logs from Forklift controller pods and migration worker pods.
+// GetLogs fetches logs from Forklift controller pods and migration worker pods.
 // Forklift labels worker pods with "plan-name" = <planName> and "forklift.app" = virt-v2v | consumer | virt-v2v-inspection.
 // Worker pods run in the plan's targetNamespace; hooks run in the plan namespace.
 // Controller pods use structured JSON logging with "plan", "migration", "vm" fields.
-func HandleGetForkliftLogs(clients *kube.Clients) http.HandlerFunc {
+func GetLogs(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		planNamespace := vars["namespace"]

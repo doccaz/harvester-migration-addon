@@ -4,6 +4,8 @@ package main
 import (
 	"net/http"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/forklift"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/vmic"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/harvester"
@@ -70,23 +72,23 @@ func newRouter(provider *kube.Provider, uiPath string) *mux.Router {
 	api.HandleFunc("/exports/{namespace}/{id}/download", kube.Scoped(provider, DownloadExportHandler)).Methods("GET")
 
 	// Forklift Handlers
-	api.HandleFunc("/forklift/availability", kube.Scoped(provider, CheckForkliftAvailability)).Methods("GET")
-	api.HandleFunc("/forklift/providers", kube.Scoped(provider, ListForkliftProvidersHandler)).Methods("GET")
-	api.HandleFunc("/forklift/providers", kube.Scoped(provider, CreateForkliftProviderHandler)).Methods("POST")
-	api.HandleFunc("/forklift/providers/{namespace}/{name}", kube.Scoped(provider, GetForkliftProviderDetails)).Methods("GET")
-	api.HandleFunc("/forklift/providers/{namespace}/{name}", kube.Scoped(provider, UpdateForkliftProviderHandler)).Methods("PUT")
-	api.HandleFunc("/forklift/providers/{namespace}/{name}", kube.Scoped(provider, DeleteForkliftProviderHandler)).Methods("DELETE")
+	api.HandleFunc("/forklift/availability", kube.Scoped(provider, forklift.CheckAvailability)).Methods("GET")
+	api.HandleFunc("/forklift/providers", kube.Scoped(provider, forklift.ListProviders)).Methods("GET")
+	api.HandleFunc("/forklift/providers", kube.Scoped(provider, forklift.CreateProvider)).Methods("POST")
+	api.HandleFunc("/forklift/providers/{namespace}/{name}", kube.Scoped(provider, forklift.GetProvider)).Methods("GET")
+	api.HandleFunc("/forklift/providers/{namespace}/{name}", kube.Scoped(provider, forklift.UpdateProvider)).Methods("PUT")
+	api.HandleFunc("/forklift/providers/{namespace}/{name}", kube.Scoped(provider, forklift.DeleteProvider)).Methods("DELETE")
 	api.HandleFunc("/forklift/providers/{namespace}/{name}/yaml", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return harvester.GetSourceYAML(c, kube.ForkliftProviderGVR) })).Methods("GET")
-	api.HandleFunc("/forklift/inventory/{namespace}/{name}", kube.Scoped(provider, HandleGetForkliftInventory)).Methods("GET")
-	api.HandleFunc("/forklift/inventory/ova/{namespace}/{name}/{resource}", kube.Scoped(provider, HandleGetForkliftOvaInventory)).Methods("GET")
-	api.HandleFunc("/forklift/plans", kube.Scoped(provider, ListForkliftPlansHandler)).Methods("GET")
-	api.HandleFunc("/forklift/plans", kube.Scoped(provider, CreateForkliftPlanHandler)).Methods("POST")
-	api.HandleFunc("/forklift/plans/{namespace}/{name}", kube.Scoped(provider, DeleteForkliftPlanHandler)).Methods("DELETE")
-	api.HandleFunc("/forklift/plans/{namespace}/{name}/logs", kube.Scoped(provider, HandleGetForkliftLogs)).Methods("GET")
-	api.HandleFunc("/forklift/plans/{namespace}/{name}/yaml", kube.Scoped(provider, HandleGetForkliftPlanYAML)).Methods("GET")
-	api.HandleFunc("/forklift/plans/{namespace}/{name}/run", kube.Scoped(provider, CreateForkliftMigrationHandler)).Methods("POST")
-	api.HandleFunc("/forklift/plans/{namespace}/{name}/migration", kube.Scoped(provider, GetForkliftMigrationStatus)).Methods("GET")
-	api.HandleFunc("/forklift/plans/{namespace}/{name}/migration", kube.Scoped(provider, DeleteForkliftMigrationHandler)).Methods("DELETE")
+	api.HandleFunc("/forklift/inventory/{namespace}/{name}", kube.Scoped(provider, forklift.GetInventory)).Methods("GET")
+	api.HandleFunc("/forklift/inventory/ova/{namespace}/{name}/{resource}", kube.Scoped(provider, forklift.GetOvaInventory)).Methods("GET")
+	api.HandleFunc("/forklift/plans", kube.Scoped(provider, forklift.ListPlans)).Methods("GET")
+	api.HandleFunc("/forklift/plans", kube.Scoped(provider, forklift.CreatePlan)).Methods("POST")
+	api.HandleFunc("/forklift/plans/{namespace}/{name}", kube.Scoped(provider, forklift.DeletePlan)).Methods("DELETE")
+	api.HandleFunc("/forklift/plans/{namespace}/{name}/logs", kube.Scoped(provider, forklift.GetLogs)).Methods("GET")
+	api.HandleFunc("/forklift/plans/{namespace}/{name}/yaml", kube.Scoped(provider, forklift.GetPlanYAML)).Methods("GET")
+	api.HandleFunc("/forklift/plans/{namespace}/{name}/run", kube.Scoped(provider, forklift.CreateMigration)).Methods("POST")
+	api.HandleFunc("/forklift/plans/{namespace}/{name}/migration", kube.Scoped(provider, forklift.GetMigrationStatus)).Methods("GET")
+	api.HandleFunc("/forklift/plans/{namespace}/{name}/migration", kube.Scoped(provider, forklift.DeleteMigration)).Methods("DELETE")
 	api.HandleFunc("/forklift/networkmaps/{namespace}/{name}", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return harvester.GetResource(c, kube.ForkliftNetworkMapGVR) })).Methods("GET")
 	api.HandleFunc("/forklift/networkmaps/{namespace}/{name}/yaml", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return harvester.GetSourceYAML(c, kube.ForkliftNetworkMapGVR) })).Methods("GET")
 	api.HandleFunc("/forklift/storagemaps/{namespace}/{name}", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return harvester.GetResource(c, kube.ForkliftStorageMapGVR) })).Methods("GET")

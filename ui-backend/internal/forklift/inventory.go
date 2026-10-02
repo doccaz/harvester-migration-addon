@@ -1,5 +1,5 @@
-// forklift_inventory.go
-package main
+// inventory.go
+package forklift
 
 import (
 	"context"
@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/vcenter"
 
@@ -19,8 +21,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// HandleGetForkliftInventory fetches vCenter inventory using Forklift Provider credentials
-func HandleGetForkliftInventory(clients *kube.Clients) http.HandlerFunc {
+// GetInventory fetches vCenter inventory using Forklift Provider credentials
+func GetInventory(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -84,10 +86,10 @@ var inventoryClient = &http.Client{Timeout: 60 * time.Second}
 // ovaInventoryResources are the forklift-inventory collections the UI reads.
 var ovaInventoryResources = map[string]bool{"vms": true, "networks": true, "disks": true}
 
-// HandleGetForkliftOvaInventory proxies inventory requests for OVA providers through the
+// GetOvaInventory proxies inventory requests for OVA providers through the
 // forklift-inventory service. OVA providers auto-deploy an OVA server pod that scans
 // NFS shares for OVF/OVA files. The inventory service exposes VMs, networks, and disks.
-func HandleGetForkliftOvaInventory(clients *kube.Clients) http.HandlerFunc {
+func GetOvaInventory(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -101,6 +103,14 @@ func HandleGetForkliftOvaInventory(clients *kube.Clients) http.HandlerFunc {
 		// are accepted; anything else could address other inventory paths.
 		if !ovaInventoryResources[resource] {
 			httpx.RespondWithError(w, http.StatusBadRequest, "Unsupported OVA inventory resource: "+resource)
+			return
+		}
+
+		// The namespace ends up in the inventory service's host name, so it must be a
+		// plain DNS label (the lookups below would reject anything else, but this keeps
+		// the proxy from ever building a URL out of unvalidated input).
+		if errs := validation.IsDNS1123Label(namespace); len(errs) > 0 {
+			httpx.RespondWithError(w, http.StatusBadRequest, "Invalid namespace: "+errs[0])
 			return
 		}
 
@@ -141,12 +151,15 @@ func HandleGetForkliftOvaInventory(clients *kube.Clients) http.HandlerFunc {
 		log.Debugf("Proxying OVA inventory request to: %s", inventoryURL)
 
 		// 4. Proxy the request
-		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, inventoryURL, nil)
+		// G704: every URL component is validated or server-assigned (DNS-label
+		// namespace of an existing service, provider UID, allow-listed resource, the
+		// service's own port); the host is always forklift-inventory.<ns>.svc.
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, inventoryURL, nil) //nolint:gosec
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to build inventory request: "+err.Error())
 			return
 		}
-		resp, err := inventoryClient.Do(req)
+		resp, err := inventoryClient.Do(req) //nolint:gosec // see above
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusBadGateway, "Failed to reach forklift-inventory: "+err.Error())
 			return

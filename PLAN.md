@@ -1,6 +1,6 @@
 # Harvester Migration Add-on — analysis and phased plan
 
-Status (2026-10-02): Phases 0–2 done and released; Phase 3 package extraction done and released as v0.3.0 (verified on the lab: 49/49 smoke checks) (current release v0.3.0, https://github.com/doccaz/harvester-migration-addon); Phase 3 in progress; Phases 4–6 not started. Last updated after the end-to-end export verification.
+Status (2026-10-02): Phases 0–2 done and released; Phase 3 package extraction done and released as v0.3.0 (verified on the lab: 49/49 smoke checks) (current release v0.3.1, https://github.com/doccaz/harvester-migration-addon); Phase 3 in progress; Phases 4–6 not started. Last updated after the end-to-end export verification.
 
 ## 1. What exists today
 

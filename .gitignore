@@ -8,3 +8,8 @@ ui-backend/vm-import-ui
 
 # Local API snapshots (contain real object names)
 .snapshots/
+
+# Exported appliances and partial downloads: never commit these
+*.ova
+*.ova.tmp
+.*.parts/

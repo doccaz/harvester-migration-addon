@@ -44,7 +44,11 @@ else echo "  skip  schema validation (needs xmllint and $XSD)"; fi
 
 echo "== Disk"
 DISK="$(grep -vE '\.(ovf|mf|cert)$' "$TMP/members" | head -1)"
-if [ -n "$DISK" ] && command -v qemu-img >/dev/null; then
+NEED_KB=$(( $(tar tvf "$OVA" 2>/dev/null | awk -v d="$DISK" '$NF==d {print $3}' | head -1) / 1024 + 1048576 ))
+FREE_KB="$(df -Pk "$TMP" | awk 'NR==2 {print $4}')"
+if [ -n "$DISK" ] && command -v qemu-img >/dev/null && [ "${FREE_KB:-0}" -lt "$NEED_KB" ]; then
+  echo "  skip  disk check: it extracts the disk and needs ~$((NEED_KB/1024)) MiB free in \$TMPDIR ($((FREE_KB/1024)) MiB free); set TMPDIR to a bigger disk"
+elif [ -n "$DISK" ] && command -v qemu-img >/dev/null; then
   tar xOf "$OVA" "$DISK" > "$TMP/disk" 2>/dev/null
   INFO="$(qemu-img info "$TMP/disk" 2>&1)"; echo "$INFO" | sed 's/^/    /' | head -8
   grep -q "file format: vmdk" <<<"$INFO" && ok "disk opens as VMDK" || bad "disk is not a readable VMDK"

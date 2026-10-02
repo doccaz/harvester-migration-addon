@@ -12,6 +12,7 @@
 set -uo pipefail
 : "${VM_NS:?set VM_NS}"; : "${VM_NAME:?set VM_NAME}"
 PROFILE="${PROFILE:-vmware}"; APP_NS="${APP_NS:-harvester-system}"; SVC="${SVC:-mig-harvester-migration-ui}"
+HELPER_IMAGE="${HELPER_IMAGE:-registry.suse.com/bci/bci-base:latest}"
 PORT="${PORT:-18082}"; TIMEOUT="${TIMEOUT:-3600}"; EXPORT_PVC="${EXPORT_PVC:-mig-harvester-migration-exports}"
 BASE="http://localhost:$PORT"; TMP="$(mktemp -d)"
 TOKEN="$(kubectl config view --raw --minify -o jsonpath='{.users[0].user.token}')"
@@ -77,7 +78,7 @@ metadata: {name: ova-fetch, namespace: $VM_NS}
 spec:
   restartPolicy: Never
   containers:
-  - {name: c, image: registry.suse.com/bci/bci-base:latest, command: [sleep, "7200"], securityContext: {runAsUser: 0}, volumeMounts: [{name: v, mountPath: /export, readOnly: true}]}
+  - {name: c, image: $HELPER_IMAGE, command: [sleep, "7200"], securityContext: {runAsUser: 0}, volumeMounts: [{name: v, mountPath: /export, readOnly: true}]}
   volumes: [{name: v, persistentVolumeClaim: {claimName: $EXPORT_PVC, readOnly: true}}]
 YAML
   kubectl -n "$VM_NS" wait --for=condition=Ready pod/ova-fetch --timeout=180s >/dev/null && kubectl -n "$VM_NS" exec ova-fetch -- ls -la /export
@@ -92,7 +93,7 @@ else
     spec:
       restartPolicy: Never
       containers:
-      - {name: c, image: registry.suse.com/bci/bci-base:latest, command: [sleep, "7200"], securityContext: {runAsUser: 0}, volumeMounts: [{name: v, mountPath: /export, readOnly: true}]}
+      - {name: c, image: $HELPER_IMAGE, command: [sleep, "7200"], securityContext: {runAsUser: 0}, volumeMounts: [{name: v, mountPath: /export, readOnly: true}]}
       volumes: [{name: v, persistentVolumeClaim: {claimName: $EXPORT_PVC, readOnly: true}}]
     YAML
     kubectl -n $VM_NS wait --for=condition=Ready pod/ova-fetch --timeout=180s

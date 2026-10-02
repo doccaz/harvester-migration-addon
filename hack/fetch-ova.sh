@@ -12,8 +12,12 @@
 #
 # Env: VM_NS (required)  PVC (mig-harvester-migration-exports)  CHUNK_MB (256)
 #      RETRIES (6)  KEEP_POD=1 to leave the helper pod  VERIFY_IN_CLUSTER=0 to skip
+#      HELPER_IMAGE (registry.suse.com/bci/bci-base:latest). It needs bash, tar, sha256sum, sed,
+#      grep, cut, tr, df, stat, dd. No awk needed. The UI image (ghcr.io/doccaz/harvester-
+#      migration-ui:<tag>) also works and adds qemu-img; bci-busybox does not (no bash).
 set -uo pipefail
 NS="${VM_NS:?set VM_NS}"; FILE="${1:?usage: fetch-ova.sh <file-on-volume> [outdir]}"; OUT="${2:-.}"
+HELPER_IMAGE="${HELPER_IMAGE:-registry.suse.com/bci/bci-base:latest}"
 PVC="${PVC:-mig-harvester-migration-exports}"; CHUNK_MB="${CHUNK_MB:-256}"; RETRIES="${RETRIES:-6}"; POD=ova-fetch
 HERE="$(cd "$(dirname "$0")" && pwd)"
 K() { kubectl -n "$NS" "$@"; }
@@ -44,7 +48,7 @@ metadata: {name: $POD, namespace: $NS}
 spec:
   restartPolicy: Never
   containers:
-  - {name: c, image: registry.suse.com/bci/bci-base:latest, command: [sleep, "7200"], securityContext: {runAsUser: 0}, volumeMounts: [{name: v, mountPath: /export, readOnly: true}]}
+  - {name: c, image: $HELPER_IMAGE, command: [sleep, "7200"], securityContext: {runAsUser: 0}, volumeMounts: [{name: v, mountPath: /export, readOnly: true}]}
   volumes: [{name: v, persistentVolumeClaim: {claimName: $PVC, readOnly: true}}]
 YAML
   OWN=1

@@ -42,7 +42,8 @@
   providers; about 19 sites), so a forbidden read looks like "not found". Not a 500,
   so left alone for now; in token mode it should become the API status too.
 - **Blanket 500s still to convert as packages move:** export (11), forklift (30),
-  harvester (4 list calls: next commit), support bundle (2), inventory (1).
+  support bundle (2), inventory (1). `harvester` is done (its four list calls were
+  converted in a follow-up; only the YAML marshal failure stays 500, which is internal).
 - List routes that return `list.Items` directly could answer `null` instead of `[]`
   for an empty result if a client library returns a nil slice; the tests accept
   either because the frontend only needs an empty list. Not confirmed against a

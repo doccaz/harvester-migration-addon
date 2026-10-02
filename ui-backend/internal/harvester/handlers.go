@@ -26,7 +26,7 @@ func ListNamespaces(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		namespaces, err := clients.Clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, err.Error())
 			return
 		}
 		httpx.RespondWithJSON(w, http.StatusOK, namespaces.Items)
@@ -73,7 +73,7 @@ func ListVlanConfigs(clients *kube.Clients) http.HandlerFunc {
 
 		list, err := clients.Dynamic.Resource(gvr).Namespace("").List(context.TODO(), listOptions)
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, err.Error())
 			return
 		}
 
@@ -86,7 +86,7 @@ func ListStorageClasses(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		scs, err := clients.Clientset.StorageV1().StorageClasses().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, err.Error())
 			return
 		}
 		httpx.RespondWithJSON(w, http.StatusOK, scs.Items)
@@ -148,7 +148,7 @@ func ListVMs(clients *kube.Clients) http.HandlerFunc {
 
 		list, err := clients.Dynamic.Resource(kube.VMGVR).Namespace(namespace).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list VirtualMachines: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to list VirtualMachines: "+err.Error())
 			return
 		}
 		httpx.RespondWithJSON(w, http.StatusOK, list.Items)

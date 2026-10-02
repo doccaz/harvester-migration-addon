@@ -239,3 +239,40 @@ func TestGetSourceYAML(t *testing.T) {
 		t.Errorf("missing object: status %d, want 404", rr.Code)
 	}
 }
+
+// A caller who may not list a resource gets the API server's 403, not a blanket
+// 500: in token mode this is what a limited user sees.
+func TestListFailuresKeepTheirStatus(t *testing.T) {
+	forbidden := apierrors.NewForbidden(schema.GroupResource{Resource: "x"}, "x", errors.New("no"))
+	kinds := map[schema.GroupVersionResource]string{
+		{Group: "k8s.cni.cncf.io", Version: "v1", Resource: "network-attachment-definitions"}: "NetworkAttachmentDefinitionList",
+		kube.VMGVR: "VirtualMachineList",
+	}
+	cases := []struct {
+		name     string
+		resource string
+		handler  func(*kube.Clients) http.HandlerFunc
+	}{
+		{"namespaces", "namespaces", ListNamespaces},
+		{"network attachments", "network-attachment-definitions", ListVlanConfigs},
+		{"storage classes", "storageclasses", ListStorageClasses},
+		{"virtual machines", "virtualmachines", ListVMs},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			clients := testutil.NewClientsWithListKinds(kinds)
+			testutil.Fail(clients, "list", tc.resource, forbidden)
+			rr := testutil.Do(tc.handler(clients), "GET", "/x", nil, map[string]string{"namespace": "ns"})
+			if rr.Code != http.StatusForbidden {
+				t.Errorf("status %d, want 403: %s", rr.Code, rr.Body)
+			}
+			// A failure that did not come from the API server is still a 500.
+			plain := testutil.NewClientsWithListKinds(kinds)
+			testutil.Fail(plain, "list", tc.resource, errors.New("connection reset"))
+			rr = testutil.Do(tc.handler(plain), "GET", "/x", nil, map[string]string{"namespace": "ns"})
+			if rr.Code != http.StatusInternalServerError {
+				t.Errorf("non-API error: status %d, want 500", rr.Code)
+			}
+		})
+	}
+}

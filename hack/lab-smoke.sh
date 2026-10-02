@@ -7,11 +7,11 @@
 #   KUBECONFIG=... hack/lab-smoke.sh                  # full run
 #   READONLY=1 KUBECONFIG=... hack/lab-smoke.sh       # reads and status checks only
 #
-# Env: EXPECT_VERSION (0.3.0)  APP_NS (harvester-system)  SVC (mig-harvester-migration-ui)
+# Env: EXPECT_VERSION (the version in addon/harvester-migration.yaml)  APP_NS (harvester-system)  SVC (mig-harvester-migration-ui)
 #      FL_NS (forklift)  SRC_NS (default)  PORT (18081)
 set -uo pipefail
 
-EXPECT="${EXPECT_VERSION:-0.3.0}"; APP_NS="${APP_NS:-harvester-system}"; SVC="${SVC:-mig-harvester-migration-ui}"
+EXPECT="${EXPECT_VERSION:-$(sed -n 's/^  version: *//p' "$(dirname "$0")/../addon/harvester-migration.yaml" | head -1)}"; [ -n "$EXPECT" ] || { echo "cannot read the expected version; set EXPECT_VERSION"; exit 2; }; APP_NS="${APP_NS:-harvester-system}"; SVC="${SVC:-mig-harvester-migration-ui}"
 FL_NS="${FL_NS:-forklift}"; SRC_NS="${SRC_NS:-default}"; PORT="${PORT:-18081}"; READONLY="${READONLY:-0}"
 BASE="http://localhost:$PORT"; TMP="$(mktemp -d)"
 TOKEN="$(kubectl config view --raw --minify -o jsonpath='{.users[0].user.token}')"

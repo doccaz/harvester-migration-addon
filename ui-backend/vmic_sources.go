@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
 
 	"github.com/gorilla/mux"
@@ -15,9 +17,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func ListVmwareSourcesHandler(clients *K8sClients) http.HandlerFunc {
+func ListVmwareSourcesHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		list, err := clients.Dynamic.Resource(vmwareSourceGVR).List(context.TODO(), metav1.ListOptions{})
+		list, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list VmwareSource CRs: "+err.Error())
 			return
@@ -35,7 +37,7 @@ type CreateVmwareSourcePayload struct {
 	Password   string `json:"password"`
 }
 
-func CreateVmwareSourceHandler(clients *K8sClients) http.HandlerFunc {
+func CreateVmwareSourceHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var payload CreateVmwareSourcePayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -81,7 +83,7 @@ func CreateVmwareSourceHandler(clients *K8sClients) http.HandlerFunc {
 			},
 		}
 
-		createdObj, err := clients.Dynamic.Resource(vmwareSourceGVR).Namespace(payload.Namespace).Create(context.TODO(), vmwareSource, metav1.CreateOptions{})
+		createdObj, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).Namespace(payload.Namespace).Create(context.TODO(), vmwareSource, metav1.CreateOptions{})
 		if err != nil {
 			// Clean up the secret if source creation fails
 			if cleanupErr := clients.Clientset.CoreV1().Secrets(payload.Namespace).Delete(context.TODO(), secretName, metav1.DeleteOptions{}); cleanupErr != nil {
@@ -95,19 +97,19 @@ func CreateVmwareSourceHandler(clients *K8sClients) http.HandlerFunc {
 	}
 }
 
-func GetVmwareSourceDetails(clients *K8sClients) http.HandlerFunc {
+func GetVmwareSourceDetails(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
 		name := vars["name"]
 
-		sourceObj, err := clients.Dynamic.Resource(vmwareSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		sourceObj, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get VmwareSource: "+err.Error())
 			return
 		}
 
-		secretName, found := getNestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
+		secretName, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
 		if !found {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "VmwareSource missing credentials secret name")
 			return
@@ -124,7 +126,7 @@ func GetVmwareSourceDetails(clients *K8sClients) http.HandlerFunc {
 	}
 }
 
-func UpdateVmwareSourceHandler(clients *K8sClients) http.HandlerFunc {
+func UpdateVmwareSourceHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -137,12 +139,12 @@ func UpdateVmwareSourceHandler(clients *K8sClients) http.HandlerFunc {
 		}
 
 		// 1. Get the existing VmwareSource to find the secret name
-		sourceObj, err := clients.Dynamic.Resource(vmwareSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		sourceObj, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get VmwareSource: "+err.Error())
 			return
 		}
-		secretName, found := getNestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
+		secretName, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
 		if !found {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "VmwareSource missing credentials secret name")
 			return
@@ -183,7 +185,7 @@ func UpdateVmwareSourceHandler(clients *K8sClients) http.HandlerFunc {
 			return
 		}
 
-		updatedObj, err := clients.Dynamic.Resource(vmwareSourceGVR).Namespace(namespace).Update(context.TODO(), sourceObj, metav1.UpdateOptions{})
+		updatedObj, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).Namespace(namespace).Update(context.TODO(), sourceObj, metav1.UpdateOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to update VmwareSource: "+err.Error())
 			return
@@ -193,22 +195,22 @@ func UpdateVmwareSourceHandler(clients *K8sClients) http.HandlerFunc {
 	}
 }
 
-func DeleteVmwareSourceHandler(clients *K8sClients) http.HandlerFunc {
+func DeleteVmwareSourceHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
 		name := vars["name"]
 
 		// 1. Get the VmwareSource to find the associated secret
-		sourceObj, err := clients.Dynamic.Resource(vmwareSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		sourceObj, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get VmwareSource: "+err.Error())
 			return
 		}
-		secretName, _ := getNestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
+		secretName, _ := kube.NestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
 
 		// 2. Delete the VmwareSource
-		err = clients.Dynamic.Resource(vmwareSourceGVR).Namespace(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+		err = clients.Dynamic.Resource(kube.VMwareSourceGVR).Namespace(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to delete VmwareSource: "+err.Error())
 			return
@@ -227,9 +229,9 @@ func DeleteVmwareSourceHandler(clients *K8sClients) http.HandlerFunc {
 	}
 }
 
-func ListOvaSourcesHandler(clients *K8sClients) http.HandlerFunc {
+func ListOvaSourcesHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		list, err := clients.Dynamic.Resource(ovaSourceGVR).List(context.TODO(), metav1.ListOptions{})
+		list, err := clients.Dynamic.Resource(kube.OVASourceGVR).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list OvaSource CRs: "+err.Error())
 			return
@@ -247,7 +249,7 @@ type CreateOvaSourcePayload struct {
 	Password           string `json:"password"`
 }
 
-func CreateOvaSourceHandler(clients *K8sClients) http.HandlerFunc {
+func CreateOvaSourceHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var payload CreateOvaSourcePayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -295,7 +297,7 @@ func CreateOvaSourceHandler(clients *K8sClients) http.HandlerFunc {
 			ovaSource.Object["spec"].(map[string]interface{})["httpTimeoutSeconds"] = int64(payload.HttpTimeoutSeconds)
 		}
 
-		createdObj, err := clients.Dynamic.Resource(ovaSourceGVR).Namespace(payload.Namespace).Create(context.TODO(), ovaSource, metav1.CreateOptions{})
+		createdObj, err := clients.Dynamic.Resource(kube.OVASourceGVR).Namespace(payload.Namespace).Create(context.TODO(), ovaSource, metav1.CreateOptions{})
 		if err != nil {
 			if cleanupErr := clients.Clientset.CoreV1().Secrets(payload.Namespace).Delete(context.TODO(), secretName, metav1.DeleteOptions{}); cleanupErr != nil {
 				log.Warnf("Best-effort cleanup: failed to delete secret %s/%s: %v", payload.Namespace, secretName, cleanupErr)
@@ -308,19 +310,19 @@ func CreateOvaSourceHandler(clients *K8sClients) http.HandlerFunc {
 	}
 }
 
-func GetOvaSourceDetails(clients *K8sClients) http.HandlerFunc {
+func GetOvaSourceDetails(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
 		name := vars["name"]
 
-		sourceObj, err := clients.Dynamic.Resource(ovaSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		sourceObj, err := clients.Dynamic.Resource(kube.OVASourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get OvaSource: "+err.Error())
 			return
 		}
 
-		secretName, found := getNestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
+		secretName, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
 		if !found {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "OvaSource missing credentials secret name")
 			return
@@ -337,7 +339,7 @@ func GetOvaSourceDetails(clients *K8sClients) http.HandlerFunc {
 	}
 }
 
-func UpdateOvaSourceHandler(clients *K8sClients) http.HandlerFunc {
+func UpdateOvaSourceHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -349,12 +351,12 @@ func UpdateOvaSourceHandler(clients *K8sClients) http.HandlerFunc {
 			return
 		}
 
-		sourceObj, err := clients.Dynamic.Resource(ovaSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		sourceObj, err := clients.Dynamic.Resource(kube.OVASourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get OvaSource: "+err.Error())
 			return
 		}
-		secretName, found := getNestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
+		secretName, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
 		if !found {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "OvaSource missing credentials secret name")
 			return
@@ -396,7 +398,7 @@ func UpdateOvaSourceHandler(clients *K8sClients) http.HandlerFunc {
 			unstructured.RemoveNestedField(sourceObj.Object, "spec", "httpTimeoutSeconds")
 		}
 
-		updatedObj, err := clients.Dynamic.Resource(ovaSourceGVR).Namespace(namespace).Update(context.TODO(), sourceObj, metav1.UpdateOptions{})
+		updatedObj, err := clients.Dynamic.Resource(kube.OVASourceGVR).Namespace(namespace).Update(context.TODO(), sourceObj, metav1.UpdateOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to update OvaSource: "+err.Error())
 			return
@@ -406,20 +408,20 @@ func UpdateOvaSourceHandler(clients *K8sClients) http.HandlerFunc {
 	}
 }
 
-func DeleteOvaSourceHandler(clients *K8sClients) http.HandlerFunc {
+func DeleteOvaSourceHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
 		name := vars["name"]
 
-		sourceObj, err := clients.Dynamic.Resource(ovaSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		sourceObj, err := clients.Dynamic.Resource(kube.OVASourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get OvaSource: "+err.Error())
 			return
 		}
-		secretName, _ := getNestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
+		secretName, _ := kube.NestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
 
-		err = clients.Dynamic.Resource(ovaSourceGVR).Namespace(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+		err = clients.Dynamic.Resource(kube.OVASourceGVR).Namespace(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to delete OvaSource: "+err.Error())
 			return

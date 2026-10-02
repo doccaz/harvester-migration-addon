@@ -1,5 +1,5 @@
-// pkg/k8s.go
-package main
+// clients.go
+package kube
 
 import (
 	"os"
@@ -12,12 +12,12 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-type K8sClients struct {
+type Clients struct {
 	Clientset kubernetes.Interface
 	Dynamic   dynamic.Interface
 }
 
-func NewK8sClients() (*K8sClients, error) {
+func NewClients() (*Clients, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		log.Debugf("Could not load in-cluster config: %v. Falling back to kubeconfig.", err)
@@ -58,7 +58,7 @@ func NewK8sClients() (*K8sClients, error) {
 		return nil, err
 	}
 
-	return &K8sClients{
+	return &Clients{
 		Clientset: clientset,
 		Dynamic:   dynamicClient,
 	}, nil

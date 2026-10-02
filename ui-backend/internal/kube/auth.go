@@ -1,5 +1,5 @@
 // auth.go
-package main
+package kube
 
 import (
 	"context"
@@ -37,11 +37,11 @@ const (
 	userTokenHeader = "X-Migration-Token"
 )
 
-// K8sProvider hands out Kubernetes clients for a request.
-type K8sProvider struct {
+// Provider hands out Kubernetes clients for a request.
+type Provider struct {
 	mode string
 	// shared is the ServiceAccount (or mock) client; nil in token mode.
-	shared *K8sClients
+	shared *Clients
 	// base is the connection config without credentials, used in token mode.
 	base *rest.Config
 
@@ -55,23 +55,29 @@ type K8sProvider struct {
 // or revoked token is therefore rejected within this window.
 const validationTTL = 30 * time.Second
 
-// NewK8sProvider builds the provider selected by USER_AUTH.
-func NewK8sProvider() (*K8sProvider, error) {
+// NewServiceAccountProvider returns a provider that always hands out the given
+// shared clients (nil is allowed, for mock mode and tests).
+func NewServiceAccountProvider(shared *Clients) *Provider {
+	return &Provider{mode: authServiceAccount, shared: shared}
+}
+
+// NewProvider builds the provider selected by USER_AUTH.
+func NewProvider() (*Provider, error) {
 	mode := strings.ToLower(os.Getenv("USER_AUTH"))
 	if mode == "" {
 		mode = authServiceAccount
 	}
 	switch mode {
 	case authServiceAccount:
-		clients, err := NewK8sClients()
-		return &K8sProvider{mode: mode, shared: clients}, err
+		clients, err := NewClients()
+		return &Provider{mode: mode, shared: clients}, err
 	case authToken:
 		base, err := tokenBaseConfig()
 		if err != nil {
 			return nil, err
 		}
 		log.Infof("User token auth enabled; Kubernetes API at %s", base.Host)
-		return &K8sProvider{mode: mode, base: base}, nil
+		return &Provider{mode: mode, base: base}, nil
 	default:
 		return nil, fmt.Errorf("unknown USER_AUTH %q (want %q or %q)", mode, authServiceAccount, authToken)
 	}
@@ -99,7 +105,7 @@ func tokenBaseConfig() (*rest.Config, error) {
 
 // For returns the clients to use for r. In token mode it fails when the request
 // carries no token. The token is never logged.
-func (p *K8sProvider) For(r *http.Request) (*K8sClients, error) {
+func (p *Provider) For(r *http.Request) (*Clients, error) {
 	if p.mode != authToken {
 		return p.shared, nil
 	}
@@ -118,11 +124,11 @@ func (p *K8sProvider) For(r *http.Request) (*K8sClients, error) {
 }
 
 // forUnvalidated builds clients from the request's token without checking it.
-func (p *K8sProvider) forUnvalidated(r *http.Request) (*K8sClients, error) {
+func (p *Provider) forUnvalidated(r *http.Request) (*Clients, error) {
 	return p.clientsForToken(strings.TrimSpace(r.Header.Get(userTokenHeader)))
 }
 
-func (p *K8sProvider) clientsForToken(token string) (*K8sClients, error) {
+func (p *Provider) clientsForToken(token string) (*Clients, error) {
 	cfg := rest.CopyConfig(p.base)
 	cfg.BearerToken = token
 	clientset, err := kubernetes.NewForConfig(cfg)
@@ -133,13 +139,13 @@ func (p *K8sProvider) clientsForToken(token string) (*K8sClients, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &K8sClients{Clientset: clientset, Dynamic: dyn}, nil
+	return &Clients{Clientset: clientset, Dynamic: dyn}, nil
 }
 
 // validate asks the API who the token belongs to. It turns a bad or expired token
 // into errUnauthorized (HTTP 401) up front, which is what lets the frontend mint a
 // fresh one; without it handlers would surface the failure as an opaque 500.
-func (p *K8sProvider) validate(ctx context.Context, token string, clients *K8sClients) error {
+func (p *Provider) validate(ctx context.Context, token string, clients *Clients) error {
 	key := sha256.Sum256([]byte(token))
 	p.mu.Lock()
 	if until, ok := p.validated[key]; ok && time.Now().Before(until) {
@@ -178,9 +184,9 @@ var errUnauthorized = fmt.Errorf("token rejected")
 
 var errNoToken = fmt.Errorf("missing %s header", userTokenHeader)
 
-// userScoped adapts a handler constructor to per-request clients, so existing
-// handlers keep their `func(*K8sClients) http.HandlerFunc` shape.
-func userScoped(p *K8sProvider, build func(*K8sClients) http.HandlerFunc) http.HandlerFunc {
+// Scoped adapts a handler constructor to per-request clients, so existing
+// handlers keep their `func(*Clients) http.HandlerFunc` shape.
+func Scoped(p *Provider, build func(*Clients) http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		clients, err := p.For(r)
 		if err != nil {

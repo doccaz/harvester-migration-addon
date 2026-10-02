@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
 
 	"github.com/gorilla/mux"
@@ -16,7 +18,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func ListNamespacesHandler(clients *K8sClients) http.HandlerFunc {
+func ListNamespacesHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		namespaces, err := clients.Clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
@@ -27,7 +29,7 @@ func ListNamespacesHandler(clients *K8sClients) http.HandlerFunc {
 	}
 }
 
-func CreateNamespaceHandler(clients *K8sClients) http.HandlerFunc {
+func CreateNamespaceHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var payload struct {
 			Name string `json:"name"`
@@ -49,7 +51,7 @@ func CreateNamespaceHandler(clients *K8sClients) http.HandlerFunc {
 	}
 }
 
-func ListVlanConfigsHandler(clients *K8sClients) http.HandlerFunc {
+func ListVlanConfigsHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Info("Listing Harvester VlanConfigs")
 		gvr := schema.GroupVersionResource{
@@ -76,7 +78,7 @@ func ListVlanConfigsHandler(clients *K8sClients) http.HandlerFunc {
 	}
 }
 
-func ListStorageClassesHandler(clients *K8sClients) http.HandlerFunc {
+func ListStorageClassesHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		scs, err := clients.Clientset.StorageV1().StorageClasses().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
@@ -88,7 +90,7 @@ func ListStorageClassesHandler(clients *K8sClients) http.HandlerFunc {
 }
 
 // HandleGetResource returns a namespaced resource as JSON
-func HandleGetResource(clients *K8sClients, gvr schema.GroupVersionResource) http.HandlerFunc {
+func HandleGetResource(clients *kube.Clients, gvr schema.GroupVersionResource) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -104,7 +106,7 @@ func HandleGetResource(clients *K8sClients, gvr schema.GroupVersionResource) htt
 	}
 }
 
-func HandleGetSourceYAML(clients *K8sClients, gvr schema.GroupVersionResource) http.HandlerFunc {
+func HandleGetSourceYAML(clients *kube.Clients, gvr schema.GroupVersionResource) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -132,12 +134,12 @@ func HandleGetSourceYAML(clients *K8sClients, gvr schema.GroupVersionResource) h
 	}
 }
 
-func ListVMsHandler(clients *K8sClients) http.HandlerFunc {
+func ListVMsHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
 
-		list, err := clients.Dynamic.Resource(vmGVR).Namespace(namespace).List(context.TODO(), metav1.ListOptions{})
+		list, err := clients.Dynamic.Resource(kube.VMGVR).Namespace(namespace).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list VirtualMachines: "+err.Error())
 			return

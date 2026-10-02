@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
 
 	log "github.com/sirupsen/logrus"
@@ -24,16 +26,16 @@ type CapabilityConfig struct {
 // feature flags. On error it returns an "unknown" config alongside the error,
 // so callers can choose to surface defaults (the HTTP handler) or record the
 // failure (the support bundle).
-func gatherCapabilities(ctx context.Context, clients *K8sClients) (CapabilityConfig, error) {
+func gatherCapabilities(ctx context.Context, clients *kube.Clients) (CapabilityConfig, error) {
 	if clients == nil || clients.Dynamic == nil {
 		return CapabilityConfig{HarvesterVersion: "unknown", HasAdvancedPower: false}, fmt.Errorf("kubernetes client unavailable")
 	}
-	setting, err := clients.Dynamic.Resource(settingsGVR).Get(ctx, "server-version", metav1.GetOptions{})
+	setting, err := clients.Dynamic.Resource(kube.SettingsGVR).Get(ctx, "server-version", metav1.GetOptions{})
 	if err != nil {
 		return CapabilityConfig{HarvesterVersion: "unknown", HasAdvancedPower: false}, err
 	}
 
-	version, _ := getNestedStringOrWarn(setting.Object, "value")
+	version, _ := kube.NestedStringOrWarn(setting.Object, "value")
 
 	// v1.6.0+ unlocks advanced power ops, disk bus type, and preflight checks.
 	hasAdvanced := strings.Contains(version, "v1.6") ||
@@ -45,7 +47,7 @@ func gatherCapabilities(ctx context.Context, clients *K8sClients) (CapabilityCon
 	return CapabilityConfig{HarvesterVersion: version, HasAdvancedPower: hasAdvanced}, nil
 }
 
-func GetCapabilitiesHandler(clients *K8sClients) http.HandlerFunc {
+func GetCapabilitiesHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		caps, err := gatherCapabilities(r.Context(), clients)
 		if err != nil {

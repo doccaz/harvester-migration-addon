@@ -19,6 +19,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
 
 	"github.com/gorilla/mux"
@@ -54,7 +56,7 @@ const previewNotice = `<!--
 // PreviewOVFHandler renders the OVF descriptor for a VM without touching the
 // cluster beyond a read. It is the fastest way to inspect what an export would
 // produce, and the feed for `xmllint --schema` / `ovftool --schemaValidate`.
-func PreviewOVFHandler(clients *K8sClients) http.HandlerFunc {
+func PreviewOVFHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req ExportPreviewRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -76,7 +78,7 @@ func PreviewOVFHandler(clients *K8sClients) http.HandlerFunc {
 		}
 
 		ctx := r.Context()
-		vm, err := clients.Dynamic.Resource(vmGVR).Namespace(req.Namespace).Get(ctx, req.Name, metav1.GetOptions{})
+		vm, err := clients.Dynamic.Resource(kube.VMGVR).Namespace(req.Namespace).Get(ctx, req.Name, metav1.GetOptions{})
 		if err != nil {
 			log.Errorf("Preview: failed to get VM %s/%s: %v", req.Namespace, req.Name, err)
 			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get VirtualMachine: "+err.Error())
@@ -231,7 +233,7 @@ type CreateExportRequest struct {
 
 // CreateExportHandler validates the request, re-checks that the VM is stopped,
 // and creates the Job that performs the export.
-func CreateExportHandler(clients *K8sClients) http.HandlerFunc {
+func CreateExportHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req CreateExportRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -280,7 +282,7 @@ func CreateExportHandler(clients *K8sClients) http.HandlerFunc {
 			return
 		}
 
-		vm, err := clients.Dynamic.Resource(vmGVR).Namespace(req.Namespace).Get(ctx, req.Name, metav1.GetOptions{})
+		vm, err := clients.Dynamic.Resource(kube.VMGVR).Namespace(req.Namespace).Get(ctx, req.Name, metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get VirtualMachine: "+err.Error())
 			return
@@ -403,7 +405,7 @@ func CreateExportHandler(clients *K8sClients) http.HandlerFunc {
 // namespace-scoped, so a Job in a VM's namespace can never mount the PVC this
 // pod itself mounts (EXPORT_ROOT) unless the VM happens to live in this pod's
 // own namespace — see cfg.PodNamespace / exportView for the read-side of that.
-func ensureExportPVC(ctx context.Context, clients *K8sClients, namespace string, cfg exportConfig) error {
+func ensureExportPVC(ctx context.Context, clients *kube.Clients, namespace string, cfg exportConfig) error {
 	pvcs := clients.Clientset.CoreV1().PersistentVolumeClaims(namespace)
 	if _, err := pvcs.Get(ctx, cfg.PVC, metav1.GetOptions{}); err == nil {
 		return nil
@@ -439,7 +441,7 @@ func ensureExportPVC(ctx context.Context, clients *K8sClients, namespace string,
 
 // vmIsRunning reports whether a VirtualMachineInstance exists for the VM, which
 // is the authoritative signal that its volumes are attached.
-func vmIsRunning(ctx context.Context, clients *K8sClients, namespace, name string) (bool, error) {
+func vmIsRunning(ctx context.Context, clients *kube.Clients, namespace, name string) (bool, error) {
 	_, err := clients.Dynamic.Resource(vmiGVRKubevirt).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err == nil {
 		return true, nil
@@ -450,7 +452,7 @@ func vmIsRunning(ctx context.Context, clients *K8sClients, namespace, name strin
 	return false, err
 }
 
-func listExportJobs(ctx context.Context, clients *K8sClients) ([]batchv1.Job, error) {
+func listExportJobs(ctx context.Context, clients *kube.Clients) ([]batchv1.Job, error) {
 	list, err := clients.Clientset.BatchV1().Jobs("").List(ctx, metav1.ListOptions{
 		LabelSelector: exportLabelMarker + "=true",
 	})
@@ -462,7 +464,7 @@ func listExportJobs(ctx context.Context, clients *K8sClients) ([]batchv1.Job, er
 
 // ListExportsHandler returns every export, newest first, merging each Job with
 // the status file its worker writes.
-func ListExportsHandler(clients *K8sClients) http.HandlerFunc {
+func ListExportsHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		jobs, err := listExportJobs(r.Context(), clients)
 		if err != nil {
@@ -482,7 +484,7 @@ func ListExportsHandler(clients *K8sClients) http.HandlerFunc {
 }
 
 // GetExportHandler returns one export.
-func GetExportHandler(clients *K8sClients) http.HandlerFunc {
+func GetExportHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		job, err := clients.Clientset.BatchV1().Jobs(vars["namespace"]).Get(r.Context(), exportJobName(vars["id"]), metav1.GetOptions{})
@@ -506,7 +508,7 @@ func GetExportHandler(clients *K8sClients) http.HandlerFunc {
 // The Job is deleted only after the files are dealt with (or scheduled), because
 // it is the export's only record: deleting it first and then failing would
 // strand the OVA with nothing left to retry from.
-func DeleteExportHandler(clients *K8sClients) http.HandlerFunc {
+func DeleteExportHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		ns, id := vars["namespace"], vars["id"]
@@ -715,7 +717,7 @@ func newExportID() string {
 //
 // http.ServeContent gives Range support and correct Content-Length without ever
 // buffering the file, which matters because these are multi-gigabyte artifacts.
-func DownloadExportHandler(clients *K8sClients) http.HandlerFunc {
+func DownloadExportHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		cfg := loadExportConfig()
@@ -784,7 +786,7 @@ func downloadMaxBytes() int64 {
 
 // GetExportLogsHandler tails the export Job's pod logs. It mirrors the existing
 // plan-log handler, and is the fallback when the status file is unavailable.
-func GetExportLogsHandler(clients *K8sClients) http.HandlerFunc {
+func GetExportLogsHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		ns, id := vars["namespace"], vars["id"]

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
+
 	"github.com/gorilla/mux"
 )
 
@@ -16,7 +18,7 @@ import (
 // frontend calls these routes, so a refactor must neither drop nor rename one by
 // accident. After an intentional change run: go test -run TestRoutesAreStable -update
 func TestRoutesAreStable(t *testing.T) {
-	router := newRouter(&K8sProvider{mode: authServiceAccount}, t.TempDir())
+	router := newRouter(kube.NewServiceAccountProvider(nil), t.TempDir())
 	var got []string
 	err := router.Walk(func(route *mux.Route, _ *mux.Router, _ []*mux.Route) error {
 		tmpl, err := route.GetPathTemplate()

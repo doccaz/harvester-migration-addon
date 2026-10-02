@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
+
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -19,7 +21,7 @@ import (
 // Forklift labels worker pods with "plan-name" = <planName> and "forklift.app" = virt-v2v | consumer | virt-v2v-inspection.
 // Worker pods run in the plan's targetNamespace; hooks run in the plan namespace.
 // Controller pods use structured JSON logging with "plan", "migration", "vm" fields.
-func HandleGetForkliftLogs(clients *K8sClients) http.HandlerFunc {
+func HandleGetForkliftLogs(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		planNamespace := vars["namespace"]
@@ -37,9 +39,9 @@ func HandleGetForkliftLogs(clients *K8sClients) http.HandlerFunc {
 		// Get the plan to find target namespace and VM IDs/names
 		var targetNamespace string
 		var vmIDs []string
-		planObj, err := clients.Dynamic.Resource(forkliftPlanGVR).Namespace(planNamespace).Get(context.TODO(), planName, metav1.GetOptions{})
+		planObj, err := clients.Dynamic.Resource(kube.ForkliftPlanGVR).Namespace(planNamespace).Get(context.TODO(), planName, metav1.GetOptions{})
 		if err == nil {
-			targetNamespace, _ = getNestedStringOrWarn(planObj.Object, "spec", "targetNamespace")
+			targetNamespace, _ = kube.NestedStringOrWarn(planObj.Object, "spec", "targetNamespace")
 			vms, _, vmsErr := unstructured.NestedSlice(planObj.Object, "spec", "vms")
 			if vmsErr != nil {
 				log.Warnf("Error reading spec.vms: %v", vmsErr)

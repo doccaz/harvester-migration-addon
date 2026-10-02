@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
 
 	"github.com/gorilla/mux"
@@ -16,7 +18,7 @@ import (
 )
 
 // HandleGetForkliftInventory fetches vCenter inventory using Forklift Provider credentials
-func HandleGetForkliftInventory(clients *K8sClients) http.HandlerFunc {
+func HandleGetForkliftInventory(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -24,23 +26,23 @@ func HandleGetForkliftInventory(clients *K8sClients) http.HandlerFunc {
 
 		log.Infof("Fetching inventory for Forklift Provider %s/%s", namespace, name)
 
-		providerObj, err := clients.Dynamic.Resource(forkliftProviderGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		providerObj, err := clients.Dynamic.Resource(kube.ForkliftProviderGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get Forklift Provider: "+err.Error())
 			return
 		}
 
-		providerURL, found := getNestedStringOrWarn(providerObj.Object, "spec", "url")
+		providerURL, found := kube.NestedStringOrWarn(providerObj.Object, "spec", "url")
 		if !found {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Forklift Provider missing URL")
 			return
 		}
-		secretName, found := getNestedStringOrWarn(providerObj.Object, "spec", "secret", "name")
+		secretName, found := kube.NestedStringOrWarn(providerObj.Object, "spec", "secret", "name")
 		if !found {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Forklift Provider missing secret name")
 			return
 		}
-		secretNamespace, found := getNestedStringOrWarn(providerObj.Object, "spec", "secret", "namespace")
+		secretNamespace, found := kube.NestedStringOrWarn(providerObj.Object, "spec", "secret", "namespace")
 		if !found {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Forklift Provider missing secret namespace")
 			return
@@ -83,7 +85,7 @@ var ovaInventoryResources = map[string]bool{"vms": true, "networks": true, "disk
 // HandleGetForkliftOvaInventory proxies inventory requests for OVA providers through the
 // forklift-inventory service. OVA providers auto-deploy an OVA server pod that scans
 // NFS shares for OVF/OVA files. The inventory service exposes VMs, networks, and disks.
-func HandleGetForkliftOvaInventory(clients *K8sClients) http.HandlerFunc {
+func HandleGetForkliftOvaInventory(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -101,7 +103,7 @@ func HandleGetForkliftOvaInventory(clients *K8sClients) http.HandlerFunc {
 		}
 
 		// 1. Get the Provider CR to obtain its UID
-		providerObj, err := clients.Dynamic.Resource(forkliftProviderGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		providerObj, err := clients.Dynamic.Resource(kube.ForkliftProviderGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get OVA provider: "+err.Error())
 			return

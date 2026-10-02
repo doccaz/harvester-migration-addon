@@ -5,6 +5,8 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
 
 	"github.com/gorilla/mux"
@@ -14,7 +16,7 @@ import (
 )
 
 // CreateForkliftMigrationHandler creates a Migration CR to start executing a Forklift Plan
-func CreateForkliftMigrationHandler(clients *K8sClients) http.HandlerFunc {
+func CreateForkliftMigrationHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -39,7 +41,7 @@ func CreateForkliftMigrationHandler(clients *K8sClients) http.HandlerFunc {
 			},
 		}
 
-		createdObj, err := clients.Dynamic.Resource(forkliftMigrationGVR).Namespace(namespace).Create(context.TODO(), migration, metav1.CreateOptions{})
+		createdObj, err := clients.Dynamic.Resource(kube.ForkliftMigrationGVR).Namespace(namespace).Create(context.TODO(), migration, metav1.CreateOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create Forklift Migration: "+err.Error())
 			return
@@ -50,7 +52,7 @@ func CreateForkliftMigrationHandler(clients *K8sClients) http.HandlerFunc {
 }
 
 // DeleteForkliftMigrationHandler deletes an existing Migration CR for a Plan
-func DeleteForkliftMigrationHandler(clients *K8sClients) http.HandlerFunc {
+func DeleteForkliftMigrationHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -59,7 +61,7 @@ func DeleteForkliftMigrationHandler(clients *K8sClients) http.HandlerFunc {
 		migrationName := name + "-migration"
 		log.Infof("Deleting Forklift Migration %s/%s", namespace, migrationName)
 
-		err := clients.Dynamic.Resource(forkliftMigrationGVR).Namespace(namespace).Delete(context.TODO(), migrationName, metav1.DeleteOptions{})
+		err := clients.Dynamic.Resource(kube.ForkliftMigrationGVR).Namespace(namespace).Delete(context.TODO(), migrationName, metav1.DeleteOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to delete Forklift Migration: "+err.Error())
 			return
@@ -70,14 +72,14 @@ func DeleteForkliftMigrationHandler(clients *K8sClients) http.HandlerFunc {
 }
 
 // GetForkliftMigrationStatus returns the status of Migrations for a Plan
-func GetForkliftMigrationStatus(clients *K8sClients) http.HandlerFunc {
+func GetForkliftMigrationStatus(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
 		name := vars["name"]
 
 		// List all migrations in the namespace
-		list, err := clients.Dynamic.Resource(forkliftMigrationGVR).Namespace(namespace).List(context.TODO(), metav1.ListOptions{})
+		list, err := clients.Dynamic.Resource(kube.ForkliftMigrationGVR).Namespace(namespace).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list Forklift Migrations: "+err.Error())
 			return
@@ -87,7 +89,7 @@ func GetForkliftMigrationStatus(clients *K8sClients) http.HandlerFunc {
 		var latestMigration map[string]interface{}
 		var latestTime string
 		for _, item := range list.Items {
-			planName, _ := getNestedStringOrWarn(item.Object, "spec", "plan", "name")
+			planName, _ := kube.NestedStringOrWarn(item.Object, "spec", "plan", "name")
 			if planName == name {
 				created := item.GetCreationTimestamp().Format("2006-01-02T15:04:05Z")
 				if created > latestTime {

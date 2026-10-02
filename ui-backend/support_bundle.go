@@ -15,6 +15,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
 
 	log "github.com/sirupsen/logrus"
@@ -76,7 +78,7 @@ func (b *supportBundle) step(name string, fn func() error) {
 // safeList lists a GVR cluster-wide, returning nil on error or panic (e.g. a
 // CRD that isn't installed). Used for secret-reference discovery, where the
 // underlying list errors are already surfaced by the matching dumpCRs step.
-func safeList(ctx context.Context, clients *K8sClients, gvr schema.GroupVersionResource) (items []unstructured.Unstructured) {
+func safeList(ctx context.Context, clients *kube.Clients, gvr schema.GroupVersionResource) (items []unstructured.Unstructured) {
 	defer func() { _ = recover() }()
 	list, err := clients.Dynamic.Resource(gvr).Namespace("").List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -89,7 +91,7 @@ func safeList(ctx context.Context, clients *K8sClients, gvr schema.GroupVersionR
 // JSON file per object. The full unstructured object is kept — including
 // status.conditions and managedFields, both of which are load-bearing for
 // diagnosing infra bugs (e.g. spotting a controller that set an invalid state).
-func (b *supportBundle) dumpCRs(ctx context.Context, clients *K8sClients, dir string, gvr schema.GroupVersionResource) {
+func (b *supportBundle) dumpCRs(ctx context.Context, clients *kube.Clients, dir string, gvr schema.GroupVersionResource) {
 	b.step(dir, func() error {
 		list, err := clients.Dynamic.Resource(gvr).Namespace("").List(ctx, metav1.ListOptions{})
 		if err != nil {
@@ -114,7 +116,7 @@ func (b *supportBundle) dumpCRs(ctx context.Context, clients *K8sClients, dir st
 //   - inventory=true   include vCenter inventory (slow/large; default off)
 //   - source=ns/name   scope inventory to a single VmwareSource
 //   - anonymize=true   hash identifying names in the inventory tree
-func SupportBundleHandler(clients *K8sClients) http.HandlerFunc {
+func SupportBundleHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		includeInv := r.URL.Query().Get("inventory") == "true"
@@ -184,14 +186,14 @@ func SupportBundleHandler(clients *K8sClients) http.HandlerFunc {
 		})
 
 		// --- raw CRs: inputs (sources/providers) and outputs (plans/maps/migrations) ---
-		b.dumpCRs(ctx, clients, "sources/vmware", vmwareSourceGVR)
-		b.dumpCRs(ctx, clients, "sources/ova", ovaSourceGVR)
-		b.dumpCRs(ctx, clients, "providers", forkliftProviderGVR)
-		b.dumpCRs(ctx, clients, "plans/vmic", vmiGVR)
-		b.dumpCRs(ctx, clients, "plans/forklift", forkliftPlanGVR)
-		b.dumpCRs(ctx, clients, "forklift/networkmaps", forkliftNetworkMapGVR)
-		b.dumpCRs(ctx, clients, "forklift/storagemaps", forkliftStorageMapGVR)
-		b.dumpCRs(ctx, clients, "forklift/migrations", forkliftMigrationGVR)
+		b.dumpCRs(ctx, clients, "sources/vmware", kube.VMwareSourceGVR)
+		b.dumpCRs(ctx, clients, "sources/ova", kube.OVASourceGVR)
+		b.dumpCRs(ctx, clients, "providers", kube.ForkliftProviderGVR)
+		b.dumpCRs(ctx, clients, "plans/vmic", kube.VMIGVR)
+		b.dumpCRs(ctx, clients, "plans/forklift", kube.ForkliftPlanGVR)
+		b.dumpCRs(ctx, clients, "forklift/networkmaps", kube.ForkliftNetworkMapGVR)
+		b.dumpCRs(ctx, clients, "forklift/storagemaps", kube.ForkliftStorageMapGVR)
+		b.dumpCRs(ctx, clients, "forklift/migrations", kube.ForkliftMigrationGVR)
 
 		// --- secrets: ONLY those referenced by sources/providers, metadata + key
 		// NAMES only. We never list every cluster secret — that's noise and leaks
@@ -207,7 +209,7 @@ func SupportBundleHandler(clients *K8sClients) http.HandlerFunc {
 			}
 
 			// VMIC sources reference credentials at spec.credentials.{name,namespace}.
-			for _, gvr := range []schema.GroupVersionResource{vmwareSourceGVR, ovaSourceGVR} {
+			for _, gvr := range []schema.GroupVersionResource{kube.VMwareSourceGVR, kube.OVASourceGVR} {
 				for _, item := range safeList(ctx, clients, gvr) {
 					name, _, _ := unstructured.NestedString(item.Object, "spec", "credentials", "name")
 					ns, _, _ := unstructured.NestedString(item.Object, "spec", "credentials", "namespace")
@@ -218,7 +220,7 @@ func SupportBundleHandler(clients *K8sClients) http.HandlerFunc {
 				}
 			}
 			// Forklift providers reference their secret at spec.secret.{name,namespace}.
-			for _, item := range safeList(ctx, clients, forkliftProviderGVR) {
+			for _, item := range safeList(ctx, clients, kube.ForkliftProviderGVR) {
 				name, _, _ := unstructured.NestedString(item.Object, "spec", "secret", "name")
 				ns, _, _ := unstructured.NestedString(item.Object, "spec", "secret", "namespace")
 				if ns == "" {
@@ -251,7 +253,7 @@ func SupportBundleHandler(clients *K8sClients) http.HandlerFunc {
 		// --- optional inventory (slow; per selected/all VmwareSource) ---
 		if includeInv {
 			b.step("inventory", func() error {
-				list, err := clients.Dynamic.Resource(vmwareSourceGVR).Namespace("").List(ctx, metav1.ListOptions{})
+				list, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).Namespace("").List(ctx, metav1.ListOptions{})
 				if err != nil {
 					return err
 				}

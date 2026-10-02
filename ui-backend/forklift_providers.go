@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
 
 	"github.com/gorilla/mux"
@@ -16,7 +18,7 @@ import (
 )
 
 // CheckForkliftAvailability checks if the Forklift "host" Provider exists
-func CheckForkliftAvailability(clients *K8sClients) http.HandlerFunc {
+func CheckForkliftAvailability(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		namespace := r.URL.Query().Get("namespace")
 		if namespace == "" {
@@ -24,7 +26,7 @@ func CheckForkliftAvailability(clients *K8sClients) http.HandlerFunc {
 		}
 
 		// Check if the "host" provider exists
-		_, err := clients.Dynamic.Resource(forkliftProviderGVR).Namespace(namespace).Get(context.TODO(), "host", metav1.GetOptions{})
+		_, err := clients.Dynamic.Resource(kube.ForkliftProviderGVR).Namespace(namespace).Get(context.TODO(), "host", metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
 				"available":        false,
@@ -42,9 +44,9 @@ func CheckForkliftAvailability(clients *K8sClients) http.HandlerFunc {
 }
 
 // ListForkliftProvidersHandler lists Forklift Provider CRs (vsphere type only)
-func ListForkliftProvidersHandler(clients *K8sClients) http.HandlerFunc {
+func ListForkliftProvidersHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		list, err := clients.Dynamic.Resource(forkliftProviderGVR).Namespace("").List(context.TODO(), metav1.ListOptions{})
+		list, err := clients.Dynamic.Resource(kube.ForkliftProviderGVR).Namespace("").List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list Forklift Providers: "+err.Error())
 			return
@@ -56,7 +58,7 @@ func ListForkliftProvidersHandler(clients *K8sClients) http.HandlerFunc {
 		// Filter to source providers (vsphere + ova), exclude "host" and "openshift"
 		var sourceProviders []unstructured.Unstructured
 		for _, item := range list.Items {
-			providerType, _ := getNestedStringOrWarn(item.Object, "spec", "type")
+			providerType, _ := kube.NestedStringOrWarn(item.Object, "spec", "type")
 			if typeFilter != "" {
 				// Exact type filter
 				if providerType == typeFilter {
@@ -74,7 +76,7 @@ func ListForkliftProvidersHandler(clients *K8sClients) http.HandlerFunc {
 }
 
 // CreateForkliftProviderHandler creates a Forklift Provider with its associated Secret
-func CreateForkliftProviderHandler(clients *K8sClients) http.HandlerFunc {
+func CreateForkliftProviderHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var payload CreateForkliftProviderPayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -179,7 +181,7 @@ func CreateForkliftProviderHandler(clients *K8sClients) http.HandlerFunc {
 			},
 		}
 
-		createdObj, err := clients.Dynamic.Resource(forkliftProviderGVR).Namespace(payload.Namespace).Create(context.TODO(), provider, metav1.CreateOptions{})
+		createdObj, err := clients.Dynamic.Resource(kube.ForkliftProviderGVR).Namespace(payload.Namespace).Create(context.TODO(), provider, metav1.CreateOptions{})
 		if err != nil {
 			// Clean up secret on failure
 			if cleanupErr := clients.Clientset.CoreV1().Secrets(payload.Namespace).Delete(context.TODO(), secretName, metav1.DeleteOptions{}); cleanupErr != nil {
@@ -194,20 +196,20 @@ func CreateForkliftProviderHandler(clients *K8sClients) http.HandlerFunc {
 }
 
 // GetForkliftProviderDetails returns a single Forklift Provider with its secret info
-func GetForkliftProviderDetails(clients *K8sClients) http.HandlerFunc {
+func GetForkliftProviderDetails(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
 		name := vars["name"]
 
-		providerObj, err := clients.Dynamic.Resource(forkliftProviderGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		providerObj, err := clients.Dynamic.Resource(kube.ForkliftProviderGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get Forklift Provider: "+err.Error())
 			return
 		}
 
 		// Enrich with info from secret
-		secretName, _ := getNestedStringOrWarn(providerObj.Object, "spec", "secret", "name")
+		secretName, _ := kube.NestedStringOrWarn(providerObj.Object, "spec", "secret", "name")
 		if secretName != "" {
 			secret, err := clients.Clientset.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 			if err == nil {
@@ -223,7 +225,7 @@ func GetForkliftProviderDetails(clients *K8sClients) http.HandlerFunc {
 }
 
 // UpdateForkliftProviderHandler updates a Forklift Provider and its Secret
-func UpdateForkliftProviderHandler(clients *K8sClients) http.HandlerFunc {
+func UpdateForkliftProviderHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -235,14 +237,14 @@ func UpdateForkliftProviderHandler(clients *K8sClients) http.HandlerFunc {
 			return
 		}
 
-		providerObj, err := clients.Dynamic.Resource(forkliftProviderGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		providerObj, err := clients.Dynamic.Resource(kube.ForkliftProviderGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get Forklift Provider: "+err.Error())
 			return
 		}
 
 		// Update secret if credentials or TLS settings provided
-		secretName, found := getNestedStringOrWarn(providerObj.Object, "spec", "secret", "name")
+		secretName, found := kube.NestedStringOrWarn(providerObj.Object, "spec", "secret", "name")
 		if !found {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Forklift Provider missing secret name")
 			return
@@ -318,7 +320,7 @@ func UpdateForkliftProviderHandler(clients *K8sClients) http.HandlerFunc {
 			}
 		}
 
-		updatedObj, err := clients.Dynamic.Resource(forkliftProviderGVR).Namespace(namespace).Update(context.TODO(), providerObj, metav1.UpdateOptions{})
+		updatedObj, err := clients.Dynamic.Resource(kube.ForkliftProviderGVR).Namespace(namespace).Update(context.TODO(), providerObj, metav1.UpdateOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to update Forklift Provider: "+err.Error())
 			return
@@ -329,20 +331,20 @@ func UpdateForkliftProviderHandler(clients *K8sClients) http.HandlerFunc {
 }
 
 // DeleteForkliftProviderHandler deletes a Forklift Provider and its associated Secret
-func DeleteForkliftProviderHandler(clients *K8sClients) http.HandlerFunc {
+func DeleteForkliftProviderHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
 		name := vars["name"]
 
-		providerObj, err := clients.Dynamic.Resource(forkliftProviderGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		providerObj, err := clients.Dynamic.Resource(kube.ForkliftProviderGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get Forklift Provider: "+err.Error())
 			return
 		}
-		secretName, _ := getNestedStringOrWarn(providerObj.Object, "spec", "secret", "name")
+		secretName, _ := kube.NestedStringOrWarn(providerObj.Object, "spec", "secret", "name")
 
-		err = clients.Dynamic.Resource(forkliftProviderGVR).Namespace(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+		err = clients.Dynamic.Resource(kube.ForkliftProviderGVR).Namespace(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to delete Forklift Provider: "+err.Error())
 			return

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
 
 	"github.com/gorilla/mux"
@@ -17,9 +19,9 @@ import (
 )
 
 // ListForkliftPlansHandler lists Forklift Plan CRs
-func ListForkliftPlansHandler(clients *K8sClients) http.HandlerFunc {
+func ListForkliftPlansHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		list, err := clients.Dynamic.Resource(forkliftPlanGVR).Namespace("").List(context.TODO(), metav1.ListOptions{})
+		list, err := clients.Dynamic.Resource(kube.ForkliftPlanGVR).Namespace("").List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list Forklift Plans: "+err.Error())
 			return
@@ -29,7 +31,7 @@ func ListForkliftPlansHandler(clients *K8sClients) http.HandlerFunc {
 }
 
 // CreateForkliftPlanHandler creates NetworkMap, StorageMap, and Plan atomically
-func CreateForkliftPlanHandler(clients *K8sClients) http.HandlerFunc {
+func CreateForkliftPlanHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var payload CreateForkliftPlanPayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -100,7 +102,7 @@ func CreateForkliftPlanHandler(clients *K8sClients) http.HandlerFunc {
 			},
 		}
 
-		_, err := clients.Dynamic.Resource(forkliftNetworkMapGVR).Namespace(payload.Namespace).Create(context.TODO(), networkMap, metav1.CreateOptions{})
+		_, err := clients.Dynamic.Resource(kube.ForkliftNetworkMapGVR).Namespace(payload.Namespace).Create(context.TODO(), networkMap, metav1.CreateOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create Forklift NetworkMap: "+err.Error())
 			return
@@ -166,10 +168,10 @@ func CreateForkliftPlanHandler(clients *K8sClients) http.HandlerFunc {
 			},
 		}
 
-		_, err = clients.Dynamic.Resource(forkliftStorageMapGVR).Namespace(payload.Namespace).Create(context.TODO(), storageMap, metav1.CreateOptions{})
+		_, err = clients.Dynamic.Resource(kube.ForkliftStorageMapGVR).Namespace(payload.Namespace).Create(context.TODO(), storageMap, metav1.CreateOptions{})
 		if err != nil {
 			// Cleanup NetworkMap
-			if cleanupErr := clients.Dynamic.Resource(forkliftNetworkMapGVR).Namespace(payload.Namespace).Delete(context.TODO(), networkMapName, metav1.DeleteOptions{}); cleanupErr != nil {
+			if cleanupErr := clients.Dynamic.Resource(kube.ForkliftNetworkMapGVR).Namespace(payload.Namespace).Delete(context.TODO(), networkMapName, metav1.DeleteOptions{}); cleanupErr != nil {
 				log.Warnf("Best-effort cleanup: failed to delete NetworkMap %s/%s: %v", payload.Namespace, networkMapName, cleanupErr)
 			}
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create Forklift StorageMap: "+err.Error())
@@ -266,13 +268,13 @@ func CreateForkliftPlanHandler(clients *K8sClients) http.HandlerFunc {
 			},
 		}
 
-		createdPlan, err := clients.Dynamic.Resource(forkliftPlanGVR).Namespace(payload.Namespace).Create(context.TODO(), plan, metav1.CreateOptions{})
+		createdPlan, err := clients.Dynamic.Resource(kube.ForkliftPlanGVR).Namespace(payload.Namespace).Create(context.TODO(), plan, metav1.CreateOptions{})
 		if err != nil {
 			// Cleanup NetworkMap and StorageMap
-			if cleanupErr := clients.Dynamic.Resource(forkliftNetworkMapGVR).Namespace(payload.Namespace).Delete(context.TODO(), networkMapName, metav1.DeleteOptions{}); cleanupErr != nil {
+			if cleanupErr := clients.Dynamic.Resource(kube.ForkliftNetworkMapGVR).Namespace(payload.Namespace).Delete(context.TODO(), networkMapName, metav1.DeleteOptions{}); cleanupErr != nil {
 				log.Warnf("Best-effort cleanup: failed to delete NetworkMap %s/%s: %v", payload.Namespace, networkMapName, cleanupErr)
 			}
-			if cleanupErr := clients.Dynamic.Resource(forkliftStorageMapGVR).Namespace(payload.Namespace).Delete(context.TODO(), storageMapName, metav1.DeleteOptions{}); cleanupErr != nil {
+			if cleanupErr := clients.Dynamic.Resource(kube.ForkliftStorageMapGVR).Namespace(payload.Namespace).Delete(context.TODO(), storageMapName, metav1.DeleteOptions{}); cleanupErr != nil {
 				log.Warnf("Best-effort cleanup: failed to delete StorageMap %s/%s: %v", payload.Namespace, storageMapName, cleanupErr)
 			}
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create Forklift Plan: "+err.Error())
@@ -284,24 +286,24 @@ func CreateForkliftPlanHandler(clients *K8sClients) http.HandlerFunc {
 }
 
 // DeleteForkliftPlanHandler deletes a Forklift Plan and its associated NetworkMap/StorageMap
-func DeleteForkliftPlanHandler(clients *K8sClients) http.HandlerFunc {
+func DeleteForkliftPlanHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
 		name := vars["name"]
 
 		// Get the plan to find associated maps
-		planObj, err := clients.Dynamic.Resource(forkliftPlanGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		planObj, err := clients.Dynamic.Resource(kube.ForkliftPlanGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get Forklift Plan: "+err.Error())
 			return
 		}
 
-		networkMapName, _ := getNestedStringOrWarn(planObj.Object, "spec", "map", "network", "name")
-		storageMapName, _ := getNestedStringOrWarn(planObj.Object, "spec", "map", "storage", "name")
+		networkMapName, _ := kube.NestedStringOrWarn(planObj.Object, "spec", "map", "network", "name")
+		storageMapName, _ := kube.NestedStringOrWarn(planObj.Object, "spec", "map", "storage", "name")
 
 		// Delete the Plan
-		err = clients.Dynamic.Resource(forkliftPlanGVR).Namespace(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+		err = clients.Dynamic.Resource(kube.ForkliftPlanGVR).Namespace(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to delete Forklift Plan: "+err.Error())
 			return
@@ -309,12 +311,12 @@ func DeleteForkliftPlanHandler(clients *K8sClients) http.HandlerFunc {
 
 		// Cleanup NetworkMap and StorageMap (best-effort)
 		if networkMapName != "" {
-			if delErr := clients.Dynamic.Resource(forkliftNetworkMapGVR).Namespace(namespace).Delete(context.TODO(), networkMapName, metav1.DeleteOptions{}); delErr != nil {
+			if delErr := clients.Dynamic.Resource(kube.ForkliftNetworkMapGVR).Namespace(namespace).Delete(context.TODO(), networkMapName, metav1.DeleteOptions{}); delErr != nil {
 				log.Warnf("Failed to delete associated NetworkMap %s/%s: %v", namespace, networkMapName, delErr)
 			}
 		}
 		if storageMapName != "" {
-			if delErr := clients.Dynamic.Resource(forkliftStorageMapGVR).Namespace(namespace).Delete(context.TODO(), storageMapName, metav1.DeleteOptions{}); delErr != nil {
+			if delErr := clients.Dynamic.Resource(kube.ForkliftStorageMapGVR).Namespace(namespace).Delete(context.TODO(), storageMapName, metav1.DeleteOptions{}); delErr != nil {
 				log.Warnf("Failed to delete associated StorageMap %s/%s: %v", namespace, storageMapName, delErr)
 			}
 		}
@@ -324,13 +326,13 @@ func DeleteForkliftPlanHandler(clients *K8sClients) http.HandlerFunc {
 }
 
 // HandleGetForkliftPlanYAML returns the YAML representation of a Forklift Plan
-func HandleGetForkliftPlanYAML(clients *K8sClients) http.HandlerFunc {
+func HandleGetForkliftPlanYAML(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
 		name := vars["name"]
 
-		item, err := clients.Dynamic.Resource(forkliftPlanGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		item, err := clients.Dynamic.Resource(kube.ForkliftPlanGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return

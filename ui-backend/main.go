@@ -7,6 +7,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
 
 	log "github.com/sirupsen/logrus"
@@ -50,12 +52,12 @@ func main() {
 
 	log.Infof("Starting VM Import UI Backend v%s", appVersion)
 
-	provider, err := NewK8sProvider()
+	provider, err := kube.NewProvider()
 	if err != nil && os.Getenv("USE_MOCK_DATA") != "true" {
 		log.Fatalf("Failed to create Kubernetes clients: %v", err)
 	}
 	if provider == nil {
-		provider = &K8sProvider{mode: authServiceAccount}
+		provider = kube.NewServiceAccountProvider(nil)
 	}
 
 	uiPath := "/ui"

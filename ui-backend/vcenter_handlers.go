@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
 
 	"github.com/gorilla/mux"
@@ -24,23 +26,23 @@ type VCenterCredentials struct {
 // gatherVCenterInventory resolves a VmwareSource's endpoint and credentials and
 // returns its inventory tree. Shared by the inventory endpoint and the support
 // bundle so both go through one code path.
-func gatherVCenterInventory(ctx context.Context, clients *K8sClients, namespace, name string) (*InventoryNode, error) {
-	sourceObj, err := clients.Dynamic.Resource(vmwareSourceGVR).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+func gatherVCenterInventory(ctx context.Context, clients *kube.Clients, namespace, name string) (*InventoryNode, error) {
+	sourceObj, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get VmwareSource: %w", err)
 	}
 
-	endpoint, found := getNestedStringOrWarn(sourceObj.Object, "spec", "endpoint")
+	endpoint, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "endpoint")
 	if !found {
 		return nil, fmt.Errorf("VmwareSource missing spec.endpoint")
 	}
-	datacenter, _ := getNestedStringOrWarn(sourceObj.Object, "spec", "dc")
+	datacenter, _ := kube.NestedStringOrWarn(sourceObj.Object, "spec", "dc")
 
-	secretName, found := getNestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
+	secretName, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
 	if !found {
 		return nil, fmt.Errorf("VmwareSource missing credentials secret name")
 	}
-	secretNamespace, found := getNestedStringOrWarn(sourceObj.Object, "spec", "credentials", "namespace")
+	secretNamespace, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "credentials", "namespace")
 	if !found {
 		return nil, fmt.Errorf("VmwareSource missing credentials secret namespace")
 	}
@@ -60,7 +62,7 @@ func gatherVCenterInventory(ctx context.Context, clients *K8sClients, namespace,
 	return GetVCenterInventory(ctx, creds)
 }
 
-func HandleGetInventory(clients *K8sClients) http.HandlerFunc {
+func HandleGetInventory(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -84,7 +86,7 @@ type VirtualMachinePowerRequest struct {
 	Operation string `json:"operation"` // "on", "off", "reset", "shutdown"
 }
 
-func HandleVMPowerOp(clients *K8sClients) http.HandlerFunc {
+func HandleVMPowerOp(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -98,24 +100,24 @@ func HandleVMPowerOp(clients *K8sClients) http.HandlerFunc {
 
 		log.Infof("Power operation '%s' requested for VM %s via VmwareSource %s/%s", req.Operation, req.VMName, namespace, name)
 
-		sourceObj, err := clients.Dynamic.Resource(vmwareSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		sourceObj, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get VmwareSource: "+err.Error())
 			return
 		}
 
-		endpoint, found := getNestedStringOrWarn(sourceObj.Object, "spec", "endpoint")
+		endpoint, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "endpoint")
 		if !found {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "VmwareSource missing spec.endpoint")
 			return
 		}
-		datacenter, _ := getNestedStringOrWarn(sourceObj.Object, "spec", "dc")
-		secretName, found := getNestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
+		datacenter, _ := kube.NestedStringOrWarn(sourceObj.Object, "spec", "dc")
+		secretName, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
 		if !found {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "VmwareSource missing credentials secret name")
 			return
 		}
-		secretNamespace, found := getNestedStringOrWarn(sourceObj.Object, "spec", "credentials", "namespace")
+		secretNamespace, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "credentials", "namespace")
 		if !found {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "VmwareSource missing credentials secret namespace")
 			return
@@ -149,7 +151,7 @@ type VirtualMachineRenameRequest struct {
 	NewName string `json:"newName"`
 }
 
-func HandleVMRename(clients *K8sClients) http.HandlerFunc {
+func HandleVMRename(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -163,24 +165,24 @@ func HandleVMRename(clients *K8sClients) http.HandlerFunc {
 
 		log.Infof("Rename operation requested from '%s' to '%s' via VmwareSource %s/%s", req.OldName, req.NewName, namespace, name)
 
-		sourceObj, err := clients.Dynamic.Resource(vmwareSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		sourceObj, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get VmwareSource: "+err.Error())
 			return
 		}
 
-		endpoint, found := getNestedStringOrWarn(sourceObj.Object, "spec", "endpoint")
+		endpoint, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "endpoint")
 		if !found {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "VmwareSource missing spec.endpoint")
 			return
 		}
-		datacenter, _ := getNestedStringOrWarn(sourceObj.Object, "spec", "dc")
-		secretName, found := getNestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
+		datacenter, _ := kube.NestedStringOrWarn(sourceObj.Object, "spec", "dc")
+		secretName, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
 		if !found {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "VmwareSource missing credentials secret name")
 			return
 		}
-		secretNamespace, found := getNestedStringOrWarn(sourceObj.Object, "spec", "credentials", "namespace")
+		secretNamespace, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "credentials", "namespace")
 		if !found {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "VmwareSource missing credentials secret namespace")
 			return
@@ -215,7 +217,7 @@ type UpdateVMMACRequest struct {
 	NewMAC    string `json:"newMac"`
 }
 
-func HandleUpdateVMMAC(clients *K8sClients) http.HandlerFunc {
+func HandleUpdateVMMAC(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -229,24 +231,24 @@ func HandleUpdateVMMAC(clients *K8sClients) http.HandlerFunc {
 
 		log.Infof("MAC address update requested for VM '%s' (device %d) to '%s' via VmwareSource %s/%s", req.VMName, req.DeviceKey, req.NewMAC, namespace, name)
 
-		sourceObj, err := clients.Dynamic.Resource(vmwareSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		sourceObj, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get VmwareSource: "+err.Error())
 			return
 		}
 
-		endpoint, found := getNestedStringOrWarn(sourceObj.Object, "spec", "endpoint")
+		endpoint, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "endpoint")
 		if !found {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "VmwareSource missing spec.endpoint")
 			return
 		}
-		datacenter, _ := getNestedStringOrWarn(sourceObj.Object, "spec", "dc")
-		secretName, found := getNestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
+		datacenter, _ := kube.NestedStringOrWarn(sourceObj.Object, "spec", "dc")
+		secretName, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
 		if !found {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "VmwareSource missing credentials secret name")
 			return
 		}
-		secretNamespace, found := getNestedStringOrWarn(sourceObj.Object, "spec", "credentials", "namespace")
+		secretNamespace, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "credentials", "namespace")
 		if !found {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "VmwareSource missing credentials secret namespace")
 			return

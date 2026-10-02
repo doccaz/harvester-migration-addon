@@ -1,5 +1,5 @@
 // auth_test.go
-package main
+package kube
 
 import (
 	"context"
@@ -16,12 +16,12 @@ import (
 func TestTokenModeRejectsMissingToken(t *testing.T) {
 	t.Setenv("USER_AUTH", "token")
 	t.Setenv("KUBE_API_URL", "https://rancher.invalid/k8s/clusters/local")
-	p, err := NewK8sProvider()
+	p, err := NewProvider()
 	if err != nil {
 		t.Fatal(err)
 	}
 	called := false
-	h := userScoped(p, func(*K8sClients) http.HandlerFunc {
+	h := Scoped(p, func(*Clients) http.HandlerFunc {
 		return func(http.ResponseWriter, *http.Request) { called = true }
 	})
 	rr := httptest.NewRecorder()
@@ -49,7 +49,7 @@ func TestTokenModeUsesCallersTokenAndKeepsPathPrefix(t *testing.T) {
 
 	t.Setenv("USER_AUTH", "token")
 	t.Setenv("KUBE_API_URL", api.URL+"/k8s/clusters/local")
-	p, err := NewK8sProvider()
+	p, err := NewProvider()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestTokenModeUsesCallersTokenAndKeepsPathPrefix(t *testing.T) {
 func TestTokensAreNotShared(t *testing.T) {
 	t.Setenv("USER_AUTH", "token")
 	t.Setenv("KUBE_API_URL", "https://rancher.invalid")
-	p, _ := NewK8sProvider()
+	p, _ := NewProvider()
 	a := httptest.NewRequest("GET", "/", nil)
 	a.Header.Set(userTokenHeader, "a")
 	b := httptest.NewRequest("GET", "/", nil)
@@ -98,8 +98,8 @@ func TestTokensAreNotShared(t *testing.T) {
 }
 
 func TestServiceAccountModeSharesClients(t *testing.T) {
-	shared := &K8sClients{}
-	p := &K8sProvider{mode: authServiceAccount, shared: shared}
+	shared := &Clients{}
+	p := &Provider{mode: authServiceAccount, shared: shared}
 	got, err := p.For(httptest.NewRequest("GET", "/", nil))
 	if err != nil || got != shared {
 		t.Fatalf("got %v, %v", got, err)
@@ -108,7 +108,7 @@ func TestServiceAccountModeSharesClients(t *testing.T) {
 
 func TestUnknownAuthModeFails(t *testing.T) {
 	t.Setenv("USER_AUTH", "bogus")
-	if _, err := NewK8sProvider(); err == nil {
+	if _, err := NewProvider(); err == nil {
 		t.Fatal("expected error")
 	}
 }
@@ -116,7 +116,7 @@ func TestUnknownAuthModeFails(t *testing.T) {
 func TestTokenModeRequiresAPIURL(t *testing.T) {
 	t.Setenv("USER_AUTH", "token")
 	t.Setenv("KUBE_API_URL", "")
-	if _, err := NewK8sProvider(); err == nil {
+	if _, err := NewProvider(); err == nil {
 		t.Fatal("expected error")
 	}
 }
@@ -144,9 +144,9 @@ func TestBadTokenGets401NotServerError(t *testing.T) {
 	defer api.Close()
 	t.Setenv("USER_AUTH", "token")
 	t.Setenv("KUBE_API_URL", api.URL)
-	p, _ := NewK8sProvider()
+	p, _ := NewProvider()
 	called := false
-	h := userScoped(p, func(*K8sClients) http.HandlerFunc {
+	h := Scoped(p, func(*Clients) http.HandlerFunc {
 		return func(http.ResponseWriter, *http.Request) { called = true }
 	})
 	req := httptest.NewRequest("GET", "/api/v1/x", nil)
@@ -164,7 +164,7 @@ func TestValidTokenIsCachedBriefly(t *testing.T) {
 	defer api.Close()
 	t.Setenv("USER_AUTH", "token")
 	t.Setenv("KUBE_API_URL", api.URL)
-	p, _ := NewK8sProvider()
+	p, _ := NewProvider()
 	for i := 0; i < 3; i++ {
 		req := httptest.NewRequest("GET", "/", nil)
 		req.Header.Set(userTokenHeader, "good")

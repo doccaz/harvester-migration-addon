@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
 
 	log "github.com/sirupsen/logrus"
@@ -39,11 +41,11 @@ type pvcInfo struct {
 // HandleGetHarvesterInventory returns the whole cluster's KubeVirt VMs as an
 // InventoryNode tree. It is read-only and best-effort: a namespace that fails to
 // list is logged and skipped rather than failing the whole request.
-func HandleGetHarvesterInventory(clients *K8sClients) http.HandlerFunc {
+func HandleGetHarvesterInventory(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		vms, err := clients.Dynamic.Resource(vmGVR).Namespace("").List(ctx, metav1.ListOptions{})
+		vms, err := clients.Dynamic.Resource(kube.VMGVR).Namespace("").List(ctx, metav1.ListOptions{})
 		if err != nil {
 			log.Errorf("Failed to list VirtualMachines: %v", err)
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list VirtualMachines: "+err.Error())
@@ -86,7 +88,7 @@ func HandleGetHarvesterInventory(clients *K8sClients) http.HandlerFunc {
 // runningVMNames returns the set of "namespace/name" that currently have a VMI.
 // A VMI existing is the authoritative signal that a VM's volumes are in use and
 // therefore MUST NOT be read for export.
-func runningVMNames(ctx context.Context, clients *K8sClients) map[string]bool {
+func runningVMNames(ctx context.Context, clients *kube.Clients) map[string]bool {
 	out := map[string]bool{}
 	list, err := clients.Dynamic.Resource(vmiGVRKubevirt).Namespace("").List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -102,7 +104,7 @@ func runningVMNames(ctx context.Context, clients *K8sClients) map[string]bool {
 }
 
 // pvcIndex maps "namespace/name" to the PVC details the export needs.
-func pvcIndex(ctx context.Context, clients *K8sClients) map[string]pvcInfo {
+func pvcIndex(ctx context.Context, clients *kube.Clients) map[string]pvcInfo {
 	out := map[string]pvcInfo{}
 	list, err := clients.Clientset.CoreV1().PersistentVolumeClaims("").List(ctx, metav1.ListOptions{})
 	if err != nil {

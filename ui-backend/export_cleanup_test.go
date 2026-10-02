@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
+
 	"github.com/gorilla/mux"
 	batchv1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -189,7 +191,7 @@ func exportJobIn(ns, id, target string, active int32) *batchv1.Job {
 	}
 }
 
-func callDelete(t *testing.T, clients *K8sClients, ns, id, query string) *httptest.ResponseRecorder {
+func callDelete(t *testing.T, clients *kube.Clients, ns, id, query string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/exports/"+ns+"/"+id+query, nil)
 	req = mux.SetURLVars(req, map[string]string{"namespace": ns, "id": id})
@@ -205,7 +207,7 @@ func cleanupEnv(t *testing.T, root string) {
 	t.Setenv("EXPORT_IMAGE", "img:1")
 }
 
-func jobExists(t *testing.T, clients *K8sClients, ns, name string) bool {
+func jobExists(t *testing.T, clients *kube.Clients, ns, name string) bool {
 	t.Helper()
 	_, err := clients.Clientset.BatchV1().Jobs(ns).Get(context.Background(), name, metav1.GetOptions{})
 	return err == nil

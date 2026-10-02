@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
 
 	"github.com/gorilla/mux"
@@ -20,7 +22,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func CreatePlanHandler(clients *K8sClients) http.HandlerFunc {
+func CreatePlanHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var plan VirtualMachineImport
 		if err := json.NewDecoder(r.Body).Decode(&plan); err != nil {
@@ -37,7 +39,7 @@ func CreatePlanHandler(clients *K8sClients) http.HandlerFunc {
 			return
 		}
 
-		createdObj, err := clients.Dynamic.Resource(vmiGVR).Namespace(plan.ObjectMeta.Namespace).Create(context.TODO(), &unstructured.Unstructured{Object: unstructuredObj}, metav1.CreateOptions{})
+		createdObj, err := clients.Dynamic.Resource(kube.VMIGVR).Namespace(plan.ObjectMeta.Namespace).Create(context.TODO(), &unstructured.Unstructured{Object: unstructuredObj}, metav1.CreateOptions{})
 		if err != nil {
 			log.Errorf("Failed to create VirtualMachineImport CR: %v", err)
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create VirtualMachineImport CR: "+err.Error())
@@ -48,9 +50,9 @@ func CreatePlanHandler(clients *K8sClients) http.HandlerFunc {
 	}
 }
 
-func ListPlansHandler(clients *K8sClients) http.HandlerFunc {
+func ListPlansHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		list, err := clients.Dynamic.Resource(vmiGVR).List(context.TODO(), metav1.ListOptions{})
+		list, err := clients.Dynamic.Resource(kube.VMIGVR).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list VirtualMachineImport CRs: "+err.Error())
 			return
@@ -59,14 +61,14 @@ func ListPlansHandler(clients *K8sClients) http.HandlerFunc {
 	}
 }
 
-func DeletePlanHandler(clients *K8sClients) http.HandlerFunc {
+func DeletePlanHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
 		name := vars["name"]
 
 		log.Infof("Deleting VirtualMachineImport CR: %s in namespace %s", name, namespace)
-		err := clients.Dynamic.Resource(vmiGVR).Namespace(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+		err := clients.Dynamic.Resource(kube.VMIGVR).Namespace(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -75,7 +77,7 @@ func DeletePlanHandler(clients *K8sClients) http.HandlerFunc {
 	}
 }
 
-func UpdatePlanHandler(clients *K8sClients) http.HandlerFunc {
+func UpdatePlanHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -87,7 +89,7 @@ func UpdatePlanHandler(clients *K8sClients) http.HandlerFunc {
 			return
 		}
 
-		item, err := clients.Dynamic.Resource(vmiGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		item, err := clients.Dynamic.Resource(kube.VMIGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusNotFound, "Plan not found: "+err.Error())
 			return
@@ -101,7 +103,7 @@ func UpdatePlanHandler(clients *K8sClients) http.HandlerFunc {
 			if *val == "" {
 				unstructured.RemoveNestedField(item.Object, path...)
 			} else {
-				setNested(item.Object, *val, path...)
+				kube.SetNested(item.Object, *val, path...)
 			}
 		}
 
@@ -112,16 +114,16 @@ func UpdatePlanHandler(clients *K8sClients) http.HandlerFunc {
 		setOrClearString(payload.DefaultDiskBusType, "spec", "defaultDiskBusType")
 
 		if payload.ForcePowerOff != nil {
-			setNested(item.Object, *payload.ForcePowerOff, "spec", "forcePowerOff")
+			kube.SetNested(item.Object, *payload.ForcePowerOff, "spec", "forcePowerOff")
 		}
 		if payload.SkipPreflightChecks != nil {
-			setNested(item.Object, *payload.SkipPreflightChecks, "spec", "skipPreflightChecks")
+			kube.SetNested(item.Object, *payload.SkipPreflightChecks, "spec", "skipPreflightChecks")
 		}
 		if payload.GracefulShutdownTimeoutSeconds != nil {
 			if *payload.GracefulShutdownTimeoutSeconds == 0 {
 				unstructured.RemoveNestedField(item.Object, "spec", "gracefulShutdownTimeoutSeconds")
 			} else {
-				setNested(item.Object, *payload.GracefulShutdownTimeoutSeconds, "spec", "gracefulShutdownTimeoutSeconds")
+				kube.SetNested(item.Object, *payload.GracefulShutdownTimeoutSeconds, "spec", "gracefulShutdownTimeoutSeconds")
 			}
 		}
 		if payload.NetworkMapping != nil {
@@ -146,7 +148,7 @@ func UpdatePlanHandler(clients *K8sClients) http.HandlerFunc {
 			}
 		}
 
-		updatedItem, err := clients.Dynamic.Resource(vmiGVR).Namespace(namespace).Update(context.TODO(), item, metav1.UpdateOptions{})
+		updatedItem, err := clients.Dynamic.Resource(kube.VMIGVR).Namespace(namespace).Update(context.TODO(), item, metav1.UpdateOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to update plan: "+err.Error())
 			return
@@ -158,8 +160,8 @@ func UpdatePlanHandler(clients *K8sClients) http.HandlerFunc {
 		// branch that re-validates. So after saving the edited spec we clear
 		// status.importStatus via the status subresource to force re-reconciliation;
 		// without this an edit silently leaves the plan stuck in its old state.
-		setNested(updatedItem.Object, "", "status", "importStatus")
-		finalItem, err := clients.Dynamic.Resource(vmiGVR).Namespace(namespace).UpdateStatus(context.TODO(), updatedItem, metav1.UpdateOptions{})
+		kube.SetNested(updatedItem.Object, "", "status", "importStatus")
+		finalItem, err := clients.Dynamic.Resource(kube.VMIGVR).Namespace(namespace).UpdateStatus(context.TODO(), updatedItem, metav1.UpdateOptions{})
 		if err != nil {
 			// Spec saved but status reset failed — the plan may stay in its terminal
 			// state until recreated. Surface a warning rather than failing the edit.
@@ -172,7 +174,7 @@ func UpdatePlanHandler(clients *K8sClients) http.HandlerFunc {
 	}
 }
 
-func RunPlanHandler(clients *K8sClients) http.HandlerFunc {
+func RunPlanHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -180,7 +182,7 @@ func RunPlanHandler(clients *K8sClients) http.HandlerFunc {
 
 		log.Infof("Triggering 'Run Now' for VirtualMachineImport CR: %s in namespace %s", name, namespace)
 
-		item, err := clients.Dynamic.Resource(vmiGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		item, err := clients.Dynamic.Resource(kube.VMIGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -188,7 +190,7 @@ func RunPlanHandler(clients *K8sClients) http.HandlerFunc {
 
 		unstructured.RemoveNestedField(item.Object, "spec", "schedule")
 
-		updatedItem, err := clients.Dynamic.Resource(vmiGVR).Namespace(namespace).Update(context.TODO(), item, metav1.UpdateOptions{})
+		updatedItem, err := clients.Dynamic.Resource(kube.VMIGVR).Namespace(namespace).Update(context.TODO(), item, metav1.UpdateOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -198,7 +200,7 @@ func RunPlanHandler(clients *K8sClients) http.HandlerFunc {
 	}
 }
 
-func HandleGetPlanLogs(clients *K8sClients) http.HandlerFunc {
+func HandleGetPlanLogs(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -207,13 +209,13 @@ func HandleGetPlanLogs(clients *K8sClients) http.HandlerFunc {
 		log.Infof("Fetching logs related to plan %s/%s", namespace, name)
 
 		// 1. Get the plan to find its source
-		planObj, err := clients.Dynamic.Resource(vmiGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		planObj, err := clients.Dynamic.Resource(kube.VMIGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get plan: "+err.Error())
 			return
 		}
-		sourceName, _ := getNestedStringOrWarn(planObj.Object, "spec", "sourceCluster", "name")
-		sourceNamespace, _ := getNestedStringOrWarn(planObj.Object, "spec", "sourceCluster", "namespace")
+		sourceName, _ := kube.NestedStringOrWarn(planObj.Object, "spec", "sourceCluster", "name")
+		sourceNamespace, _ := kube.NestedStringOrWarn(planObj.Object, "spec", "sourceCluster", "namespace")
 
 		// 2. Find the controller pod
 		pods, err := clients.Clientset.CoreV1().Pods("harvester-system").List(context.TODO(), metav1.ListOptions{
@@ -256,7 +258,7 @@ func HandleGetPlanLogs(clients *K8sClients) http.HandlerFunc {
 	}
 }
 
-func HandleGetPlanYAML(clients *K8sClients) http.HandlerFunc {
+func HandleGetPlanYAML(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -264,7 +266,7 @@ func HandleGetPlanYAML(clients *K8sClients) http.HandlerFunc {
 
 		log.Infof("Fetching YAML for plan %s/%s", namespace, name)
 
-		item, err := clients.Dynamic.Resource(vmiGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		item, err := clients.Dynamic.Resource(kube.VMIGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
 			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return

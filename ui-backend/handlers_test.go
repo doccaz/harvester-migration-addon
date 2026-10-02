@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
+
 	"github.com/gorilla/mux"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -18,23 +20,23 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 )
 
-// newTestClients creates K8sClients backed by fake clientsets for testing.
-func newTestClients(objects ...runtime.Object) *K8sClients {
+// newTestClients creates kube.Clients backed by fake clientsets for testing.
+func newTestClients(objects ...runtime.Object) *kube.Clients {
 	scheme := runtime.NewScheme()
 	fakeClientset := fake.NewSimpleClientset(objects...)
 	fakeDynamic := dynamicfake.NewSimpleDynamicClient(scheme)
-	return &K8sClients{
+	return &kube.Clients{
 		Clientset: fakeClientset,
 		Dynamic:   fakeDynamic,
 	}
 }
 
-// newTestClientsWithDynamic creates K8sClients with pre-seeded dynamic objects.
-func newTestClientsWithDynamic(coreObjects []runtime.Object, dynamicObjects ...runtime.Object) *K8sClients {
+// newTestClientsWithDynamic creates kube.Clients with pre-seeded dynamic objects.
+func newTestClientsWithDynamic(coreObjects []runtime.Object, dynamicObjects ...runtime.Object) *kube.Clients {
 	scheme := runtime.NewScheme()
 	fakeClientset := fake.NewSimpleClientset(coreObjects...)
 	fakeDynamic := dynamicfake.NewSimpleDynamicClient(scheme, dynamicObjects...)
-	return &K8sClients{
+	return &kube.Clients{
 		Clientset: fakeClientset,
 		Dynamic:   fakeDynamic,
 	}
@@ -60,59 +62,10 @@ func executeRequest(handler http.HandlerFunc, method, path string, body interfac
 
 // --- Tests ---
 
-func TestRespondWithJSON(t *testing.T) {
-	t.Run("normal payload", func(t *testing.T) {
-		rr := httptest.NewRecorder()
-		respondWithJSON(rr, http.StatusOK, map[string]string{"key": "value"})
-
-		if rr.Code != http.StatusOK {
-			t.Errorf("expected status 200, got %d", rr.Code)
-		}
-		if ct := rr.Header().Get("Content-Type"); ct != "application/json" {
-			t.Errorf("expected Content-Type application/json, got %s", ct)
-		}
-
-		var result map[string]string
-		if err := json.Unmarshal(rr.Body.Bytes(), &result); err != nil {
-			t.Fatalf("failed to unmarshal response: %v", err)
-		}
-		if result["key"] != "value" {
-			t.Errorf("expected value 'value', got '%s'", result["key"])
-		}
-	})
-
-	t.Run("unmarshalable input returns 500", func(t *testing.T) {
-		rr := httptest.NewRecorder()
-		// A channel cannot be marshaled to JSON
-		respondWithJSON(rr, http.StatusOK, make(chan int))
-
-		if rr.Code != http.StatusInternalServerError {
-			t.Errorf("expected status 500 for unmarshalable input, got %d", rr.Code)
-		}
-	})
-}
-
-func TestRespondWithError(t *testing.T) {
-	rr := httptest.NewRecorder()
-	respondWithError(rr, http.StatusBadRequest, "test error")
-
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected status 400, got %d", rr.Code)
-	}
-
-	var result map[string]string
-	if err := json.Unmarshal(rr.Body.Bytes(), &result); err != nil {
-		t.Fatalf("failed to unmarshal: %v", err)
-	}
-	if result["error"] != "test error" {
-		t.Errorf("expected error 'test error', got '%s'", result["error"])
-	}
-}
-
 func TestUpdatePlanHandler(t *testing.T) {
 	scheme := runtime.NewScheme()
 	gvrToListKind := map[schema.GroupVersionResource]string{
-		vmiGVR: "VirtualMachineImportList",
+		kube.VMIGVR: "VirtualMachineImportList",
 	}
 
 	plan := &unstructured.Unstructured{Object: map[string]interface{}{
@@ -134,7 +87,7 @@ func TestUpdatePlanHandler(t *testing.T) {
 	}}
 
 	fakeDynamic := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvrToListKind, plan)
-	clients := &K8sClients{Clientset: fake.NewSimpleClientset(), Dynamic: fakeDynamic}
+	clients := &kube.Clients{Clientset: fake.NewSimpleClientset(), Dynamic: fakeDynamic}
 
 	newName := "sles16"
 	newSC := "harvester-1replica"
@@ -153,7 +106,7 @@ func TestUpdatePlanHandler(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
 
-	got, err := fakeDynamic.Resource(vmiGVR).Namespace("techday").Get(context.TODO(), "stuck-plan", metav1.GetOptions{})
+	got, err := fakeDynamic.Resource(kube.VMIGVR).Namespace("techday").Get(context.TODO(), "stuck-plan", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("failed to get updated plan: %v", err)
 	}
@@ -182,14 +135,14 @@ func TestGetNestedStringOrWarn(t *testing.T) {
 	}
 
 	t.Run("found", func(t *testing.T) {
-		val, ok := getNestedStringOrWarn(obj, "spec", "type")
+		val, ok := kube.NestedStringOrWarn(obj, "spec", "type")
 		if !ok || val != "vsphere" {
 			t.Errorf("expected ('vsphere', true), got ('%s', %v)", val, ok)
 		}
 	})
 
 	t.Run("missing", func(t *testing.T) {
-		val, ok := getNestedStringOrWarn(obj, "spec", "nonexistent")
+		val, ok := kube.NestedStringOrWarn(obj, "spec", "nonexistent")
 		if ok || val != "" {
 			t.Errorf("expected ('', false), got ('%s', %v)", val, ok)
 		}
@@ -198,7 +151,7 @@ func TestGetNestedStringOrWarn(t *testing.T) {
 	t.Run("wrong type", func(t *testing.T) {
 		// Nested field exists but is not a string
 		obj["spec"].(map[string]interface{})["count"] = 42
-		val, ok := getNestedStringOrWarn(obj, "spec", "count")
+		val, ok := kube.NestedStringOrWarn(obj, "spec", "count")
 		if ok || val != "" {
 			t.Errorf("expected ('', false) for non-string field, got ('%s', %v)", val, ok)
 		}
@@ -360,7 +313,7 @@ func TestListForkliftProvidersHandler(t *testing.T) {
 	scheme := runtime.NewScheme()
 	gvr := schema.GroupVersionResource{Group: "forklift.konveyor.io", Version: "v1beta1", Resource: "providers"}
 	fakeDynamic := dynamicfake.NewSimpleDynamicClient(scheme, vsphereProvider, ovaProvider, hostProvider)
-	clients := &K8sClients{
+	clients := &kube.Clients{
 		Clientset: fake.NewSimpleClientset(),
 		Dynamic:   fakeDynamic,
 	}

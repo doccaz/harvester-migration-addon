@@ -35,6 +35,15 @@ testutil       fake clients, table-test helpers, failure injection (tests only)
 - **The Job entry points and the build stamp are pinned**: Job commands, the Dockerfile's
   install path and `-X main.appVersion`, and the release workflow's `VERSION` argument.
 
+## Testing a deployed build
+`hack/lab-smoke.sh` port-forwards to the UI pod and, with the kubeconfig user's token,
+checks: the stamped version, authentication (401 without a token, the page loads without
+one), every read route, status mapping, the support bundle (member count, version, no
+secret values), the export guard, and **writes**: it creates and deletes Forklift
+providers and a VMware source, verifying the stored `apiVersion` and the VDDK annotation
+(string literals no unit test sees) and that secrets are cleaned up. `READONLY=1` skips
+the writes. Run it after every release against the lab.
+
 ## Changing code safely
 `hack/run-snapshot.sh OUT` snapshots every GET route that is safe to call against a live
 cluster; `hack/snapshot-api.py diff A B` compares two snapshots. Take one before and after a

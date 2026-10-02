@@ -119,3 +119,11 @@ Addon CR.
   upstream controller. Their `VirtualMachineImport` objects were left untouched.
 - Fix: the chart now pins the controller subchart to the Harvester minor it targets (1.8.2);
   see PLAN.md for the version policy. Not yet exercised: a new import run end to end.
+
+## v0.3.1 on the lab (2026-10-02)
+
+Upgraded `mig` to 0.3.1 (`helm upgrade --version 0.3.1 --reuse-values`, controller enabled, built-in
+`vm-import-controller` add-on disabled). `hack/lab-smoke.sh`: **48/48**, backend and support-bundle
+`meta.json` report 0.3.1 (a first run showed 2 failures that were the script's hard-coded expected
+version; it now reads addon/harvester-migration.yaml). The bundled controller runs
+`rancher/harvester-vm-import-controller:v1.8.2` from the pinned 1.8.2 subchart.

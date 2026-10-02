@@ -33,6 +33,15 @@ const (
 	exportMountPath = "/export"
 )
 
+// The export and cleanup Jobs run this same binary as "<BinaryPath> <arg>", and
+// main() dispatches on the same arguments, so one image and one version serve the
+// API and its Jobs. The Dockerfile installs the binary at BinaryPath.
+const (
+	BinaryPath = "/usr/local/bin/vm-import-ui"
+	WorkerArg  = "export-worker"
+	CleanupArg = "export-cleanup"
+)
+
 // ExportJobOptions carries the cluster-side knobs the worker itself never sees.
 type ExportJobOptions struct {
 	Namespace     string
@@ -167,7 +176,7 @@ func buildExportJob(spec ExportSpec, opts ExportJobOptions) (*batchv1.Job, error
 					Containers: []corev1.Container{{
 						Name:    "export",
 						Image:   opts.Image,
-						Command: []string{"/usr/local/bin/vm-import-ui", "export-worker"},
+						Command: []string{BinaryPath, WorkerArg},
 						Env: []corev1.EnvVar{
 							{Name: "EXPORT_ROOT", Value: root},
 							{Name: "EXPORT_SPEC", Value: string(specJSON)},

@@ -20,7 +20,7 @@ func main() {
 	// The same binary runs in two modes: the API server, and the worker that
 	// performs one export inside a Kubernetes Job. Keeping them in one binary
 	// means one image, one version and one build to keep in sync.
-	if len(os.Args) > 1 && os.Args[1] == "export-worker" {
+	if len(os.Args) > 1 && os.Args[1] == export.WorkerArg {
 		log.SetFormatter(&log.JSONFormatter{})
 		if lvl, err := log.ParseLevel(os.Getenv("LOG_LEVEL")); err == nil {
 			log.SetLevel(lvl)
@@ -29,7 +29,7 @@ func main() {
 	}
 	// Removes one export's files from an export volume, inside a short-lived Job
 	// in the export's namespace (see export_cleanup.go).
-	if len(os.Args) > 1 && os.Args[1] == "export-cleanup" {
+	if len(os.Args) > 1 && os.Args[1] == export.CleanupArg {
 		log.SetFormatter(&log.JSONFormatter{})
 		os.Exit(export.RunCleanup())
 	}

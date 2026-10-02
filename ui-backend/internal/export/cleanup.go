@@ -159,7 +159,7 @@ func buildExportCleanupJob(opts ExportCleanupJobOptions) (*batchv1.Job, error) {
 					Containers: []corev1.Container{{
 						Name:    "cleanup",
 						Image:   opts.Image,
-						Command: []string{"/usr/local/bin/vm-import-ui", "export-cleanup"},
+						Command: []string{BinaryPath, CleanupArg},
 						// Passed as env, never interpolated into a shell command.
 						Env: []corev1.EnvVar{
 							{Name: "EXPORT_ROOT", Value: root},

@@ -16,6 +16,6 @@ dependencies:
   # the `harvester-vm-import-controller` key; `controller.enabled=false` skips
   # it for a UI-only install next to the built-in add-on.
   - name: harvester-vm-import-controller
-    version: 1.9.0
+    version: 1.8.2
     repository: https://charts.harvesterhci.io
     condition: controller.enabled

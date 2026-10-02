@@ -1,7 +1,7 @@
 # Contract with Harvester and the upstream controller chart
 
 Recorded 2026-10-01 from harvester/charts `harvester-vm-import-controller`
-(published 1.9.0, dev 1.10.0-dev.0) and harvester/harvester.
+(published 1.9.0 and 1.8.2, dev 1.10.0-dev.0; the add-on pins the line that matches the Harvester it targets, currently 1.8.2) and harvester/harvester.
 
 ## What Harvester hard-codes
 - `pkg/util/constants.go`: `HarvesterVMImportController = "vm-import-controller-harvester-vm-import-controller"`.

@@ -162,3 +162,13 @@ Lessons and open items:
 - Forklift packaging is experimental and heavy (Ansible operator, ~12 images, cert-manager, `ForkliftController` CR, VDDK image) and pinned to one upstream release — keep it a separate, optional add-on and detect it rather than bundle it.
 - Refactor regressions: mitigated by the four Phase 3 gates; the lab snapshot only covers GET routes, so write paths rely on the unit tests and the route golden.
 - Scope: UI + controller + Forklift + export is four products; Phase 5b/5c acceptance is the main uncertainty, which is why A (no fork) comes first.
+
+## Controller version policy (decided 2026-10-02)
+
+The bundled controller subchart must match the Harvester minor a chart release targets: the lab
+(Harvester 1.8.2) showed that the 1.9.0 subchart pulls a v1.9.0 controller image onto a 1.8.2
+cluster, which the built-in add-on never does. The 0.3.x line therefore pins `1.8.2`; a
+Harvester 1.9 line gets its own chart release pinning 1.9.x. To do: a chart check that warns when
+the cluster's Harvester minor differs from the subchart's, and a documented support matrix.
+Verified on the lab: the bundled controller works as a drop-in for the built-in one (CRDs, names
+and labels, existing objects), with the stale-image log loop identical on both versions.

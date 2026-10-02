@@ -1,6 +1,6 @@
 dependencies:
 - name: harvester-vm-import-controller
   repository: https://charts.harvesterhci.io
-  version: 1.9.0
-digest: sha256:627da3b496764e3faf4c329c0a5bd94be379693e06a364e844cc28858727fcdf
-generated: "2026-10-01T16:13:25.018097933-03:00"
+  version: 1.8.2
+digest: sha256:db06463bc198810e0ea104be8723fca8c67ae05a15b2263846fe181d6fb5bf79
+generated: "2026-10-02T17:04:55.403677656-03:00"

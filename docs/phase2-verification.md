@@ -100,3 +100,22 @@ with `hack/lab-export.sh`: the create call returned 202, the Job completed in 63
 Transfer lesson: `kubectl cp` and 256 MiB `kubectl exec ... dd` ranges were cut short (every
 failure at 96-99.9% of the range). `fetch-ova.sh` now adapts the range size; 128 MiB ranges ran
 without a single retry. Not yet exercised: importing this OVA back through Forklift's OVA provider.
+
+## Bundled controller on the lab (2026-10-02, v0.3.0)
+
+Switched the lab from the built-in `vm-import-controller` add-on to the controller bundled in
+the `mig` release (plain `helm upgrade`, `controller.enabled=true`, after disabling the
+built-in add-on; the conflict guard needs that). The lab release is a Helm release, not an
+Addon CR.
+
+- The controller came up as `harvester-vm-import-controller`, the four CRDs stayed served and
+  the existing `VirtualMachineImport` objects were picked up unchanged.
+- **Found: version mismatch.** v0.3.0 pins the upstream subchart at 1.9.0, so it ran
+  `rancher/harvester-vm-import-controller:v1.9.0` on a Harvester 1.8.2 cluster (the built-in
+  add-on ran v1.8.2). Overriding `harvester-vm-import-controller.image.tag=v1.8.2` worked.
+- Both versions log the same loop for five completed imports whose temporary
+  `VirtualMachineImage` objects no longer exist ("image-xxxxx not found, requeuing"). It is
+  therefore not caused by 1.9.0 or by this chart; it comes from those old objects and the
+  upstream controller. Their `VirtualMachineImport` objects were left untouched.
+- Fix: the chart now pins the controller subchart to the Harvester minor it targets (1.8.2);
+  see PLAN.md for the version policy. Not yet exercised: a new import run end to end.

@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/vcenter"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
@@ -57,14 +59,14 @@ func HandleGetForkliftInventory(clients *kube.Clients) http.HandlerFunc {
 		// Forklift secrets use "user" and "password" fields, and "url"
 		// The URL from the secret or Provider spec both work; use Provider spec URL
 		// Pass the full URL including /sdk path, same as VM Import Controller
-		creds := VCenterCredentials{
+		creds := vcenter.Credentials{
 			URL:        providerURL,
 			Username:   string(secret.Data["user"]),
 			Password:   string(secret.Data["password"]),
 			Datacenter: "", // Will be auto-discovered
 		}
 
-		inventory, err := GetVCenterInventoryAutoDiscover(r.Context(), creds)
+		inventory, err := vcenter.GetInventoryAutoDiscover(r.Context(), creds)
 		if err != nil {
 			log.Errorf("Failed to get vCenter inventory via Forklift Provider: %v", err)
 			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())

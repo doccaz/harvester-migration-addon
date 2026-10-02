@@ -4,10 +4,9 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 
-	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/inventory"
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/vcenter"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
 
@@ -18,52 +17,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type VCenterCredentials struct {
-	URL        string
-	Username   string
-	Password   string
-	Datacenter string
-}
-
-// gatherVCenterInventory resolves a VmwareSource's endpoint and credentials and
-// returns its inventory tree. Shared by the inventory endpoint and the support
-// bundle so both go through one code path.
-func gatherVCenterInventory(ctx context.Context, clients *kube.Clients, namespace, name string) (*inventory.Node, error) {
-	sourceObj, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get VmwareSource: %w", err)
-	}
-
-	endpoint, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "endpoint")
-	if !found {
-		return nil, fmt.Errorf("VmwareSource missing spec.endpoint")
-	}
-	datacenter, _ := kube.NestedStringOrWarn(sourceObj.Object, "spec", "dc")
-
-	secretName, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
-	if !found {
-		return nil, fmt.Errorf("VmwareSource missing credentials secret name")
-	}
-	secretNamespace, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "credentials", "namespace")
-	if !found {
-		return nil, fmt.Errorf("VmwareSource missing credentials secret namespace")
-	}
-
-	secret, err := clients.Clientset.CoreV1().Secrets(secretNamespace).Get(ctx, secretName, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get credentials secret: %w", err)
-	}
-
-	creds := VCenterCredentials{
-		URL:        endpoint,
-		Username:   string(secret.Data["username"]),
-		Password:   string(secret.Data["password"]),
-		Datacenter: datacenter,
-	}
-
-	return GetVCenterInventory(ctx, creds)
-}
-
 func HandleGetInventory(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -72,7 +25,7 @@ func HandleGetInventory(clients *kube.Clients) http.HandlerFunc {
 
 		log.Infof("Fetching inventory for VmwareSource %s/%s", namespace, name)
 
-		inventory, err := gatherVCenterInventory(r.Context(), clients, namespace, name)
+		inventory, err := vcenter.GatherInventory(r.Context(), clients, namespace, name)
 		if err != nil {
 			log.Errorf("Failed to get vCenter inventory: %v", err)
 			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
@@ -131,14 +84,14 @@ func HandleVMPowerOp(clients *kube.Clients) http.HandlerFunc {
 			return
 		}
 
-		creds := VCenterCredentials{
+		creds := vcenter.Credentials{
 			URL:        endpoint,
 			Username:   string(secret.Data["username"]),
 			Password:   string(secret.Data["password"]),
 			Datacenter: datacenter,
 		}
 
-		if err := PowerOpVM(r.Context(), creds, req.VMName, req.Operation); err != nil {
+		if err := vcenter.PowerOpVM(r.Context(), creds, req.VMName, req.Operation); err != nil {
 			log.Errorf("Failed to perform power operation: %v", err)
 			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -196,14 +149,14 @@ func HandleVMRename(clients *kube.Clients) http.HandlerFunc {
 			return
 		}
 
-		creds := VCenterCredentials{
+		creds := vcenter.Credentials{
 			URL:        endpoint,
 			Username:   string(secret.Data["username"]),
 			Password:   string(secret.Data["password"]),
 			Datacenter: datacenter,
 		}
 
-		if err := RenameVM(r.Context(), creds, req.OldName, req.NewName); err != nil {
+		if err := vcenter.RenameVM(r.Context(), creds, req.OldName, req.NewName); err != nil {
 			log.Errorf("Failed to rename VM: %v", err)
 			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -262,14 +215,14 @@ func HandleUpdateVMMAC(clients *kube.Clients) http.HandlerFunc {
 			return
 		}
 
-		creds := VCenterCredentials{
+		creds := vcenter.Credentials{
 			URL:        endpoint,
 			Username:   string(secret.Data["username"]),
 			Password:   string(secret.Data["password"]),
 			Datacenter: datacenter,
 		}
 
-		if err := UpdateVMNetworkMAC(r.Context(), creds, req.VMName, req.DeviceKey, req.NewMAC); err != nil {
+		if err := vcenter.UpdateVMNetworkMAC(r.Context(), creds, req.VMName, req.DeviceKey, req.NewMAC); err != nil {
 			log.Errorf("Failed to update VM MAC: %v", err)
 			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return

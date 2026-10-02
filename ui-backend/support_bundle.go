@@ -15,6 +15,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/vcenter"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/inventory"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
@@ -266,7 +268,7 @@ func SupportBundleHandler(clients *kube.Clients) http.HandlerFunc {
 						continue
 					}
 					file := fmt.Sprintf("inventory/vmware_%s_%s.json", src.GetNamespace(), src.GetName())
-					tree, ierr := gatherVCenterInventory(ctx, clients, src.GetNamespace(), src.GetName())
+					tree, ierr := vcenter.GatherInventory(ctx, clients, src.GetNamespace(), src.GetName())
 					if ierr != nil {
 						b.errs[file] = ierr.Error()
 						continue

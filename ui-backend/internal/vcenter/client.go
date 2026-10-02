@@ -1,5 +1,5 @@
-// pkg/vcenter.go
-package main
+// client.go
+package vcenter
 
 import (
 	"context"
@@ -18,8 +18,8 @@ import (
 	"github.com/vmware/govmomi/vim25/types"
 )
 
-// GetVCenterInventory connects to vCenter and returns the inventory tree.
-func GetVCenterInventory(ctx context.Context, creds VCenterCredentials) (*inventory.Node, error) {
+// GetInventory connects to vCenter and returns the inventory tree.
+func GetInventory(ctx context.Context, creds Credentials) (*inventory.Node, error) {
 	fullURL := creds.URL
 	if !strings.HasPrefix(fullURL, "https://") && !strings.HasPrefix(fullURL, "http://") {
 		fullURL = "https://" + fullURL
@@ -271,7 +271,7 @@ func processEntity(ctx context.Context, c *govmomi.Client, entity object.Referen
 }
 
 // PowerOpVM performs a power operation on a VM.
-func PowerOpVM(ctx context.Context, creds VCenterCredentials, vmName string, op string) error {
+func PowerOpVM(ctx context.Context, creds Credentials, vmName string, op string) error {
 	fullURL := creds.URL
 	if !strings.HasPrefix(fullURL, "https://") && !strings.HasPrefix(fullURL, "http://") {
 		fullURL = "https://" + fullURL
@@ -332,7 +332,7 @@ func PowerOpVM(ctx context.Context, creds VCenterCredentials, vmName string, op 
 }
 
 // RenameVM renames a VM in vCenter.
-func RenameVM(ctx context.Context, creds VCenterCredentials, oldName string, newName string) error {
+func RenameVM(ctx context.Context, creds Credentials, oldName string, newName string) error {
 	fullURL := creds.URL
 	if !strings.HasPrefix(fullURL, "https://") && !strings.HasPrefix(fullURL, "http://") {
 		fullURL = "https://" + fullURL
@@ -370,7 +370,7 @@ func RenameVM(ctx context.Context, creds VCenterCredentials, oldName string, new
 }
 
 // UpdateVMNetworkMAC updates the MAC address of a specific network device.
-func UpdateVMNetworkMAC(ctx context.Context, creds VCenterCredentials, vmName string, deviceKey int32, newMAC string) error {
+func UpdateVMNetworkMAC(ctx context.Context, creds Credentials, vmName string, deviceKey int32, newMAC string) error {
 	fullURL := creds.URL
 	if !strings.HasPrefix(fullURL, "https://") && !strings.HasPrefix(fullURL, "http://") {
 		fullURL = "https://" + fullURL
@@ -437,9 +437,9 @@ func UpdateVMNetworkMAC(ctx context.Context, creds VCenterCredentials, vmName st
 	return task.Wait(ctx)
 }
 
-// GetVCenterInventoryAutoDiscover connects to vCenter and auto-discovers the first datacenter.
+// GetInventoryAutoDiscover connects to vCenter and auto-discovers the first datacenter.
 // This is used by Forklift, which doesn't store the datacenter name in the Provider spec.
-func GetVCenterInventoryAutoDiscover(ctx context.Context, creds VCenterCredentials) (*inventory.Node, error) {
+func GetInventoryAutoDiscover(ctx context.Context, creds Credentials) (*inventory.Node, error) {
 	fullURL := creds.URL
 	if !strings.HasPrefix(fullURL, "https://") && !strings.HasPrefix(fullURL, "http://") {
 		fullURL = "https://" + fullURL

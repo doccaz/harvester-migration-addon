@@ -42,7 +42,7 @@ func CreatePlan(clients *kube.Clients) http.HandlerFunc {
 		createdObj, err := clients.Dynamic.Resource(kube.VMIGVR).Namespace(plan.ObjectMeta.Namespace).Create(context.TODO(), &unstructured.Unstructured{Object: unstructuredObj}, metav1.CreateOptions{})
 		if err != nil {
 			log.Errorf("Failed to create VirtualMachineImport CR: %v", err)
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create VirtualMachineImport CR: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to create VirtualMachineImport CR: "+err.Error())
 			return
 		}
 
@@ -54,7 +54,7 @@ func ListPlans(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		list, err := clients.Dynamic.Resource(kube.VMIGVR).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list VirtualMachineImport CRs: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to list VirtualMachineImport CRs: "+err.Error())
 			return
 		}
 		httpx.RespondWithJSON(w, http.StatusOK, list.Items)
@@ -70,7 +70,7 @@ func DeletePlan(clients *kube.Clients) http.HandlerFunc {
 		log.Infof("Deleting VirtualMachineImport CR: %s in namespace %s", name, namespace)
 		err := clients.Dynamic.Resource(kube.VMIGVR).Namespace(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, err.Error())
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -150,7 +150,7 @@ func UpdatePlan(clients *kube.Clients) http.HandlerFunc {
 
 		updatedItem, err := clients.Dynamic.Resource(kube.VMIGVR).Namespace(namespace).Update(context.TODO(), item, metav1.UpdateOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to update plan: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to update plan: "+err.Error())
 			return
 		}
 
@@ -184,7 +184,7 @@ func RunPlan(clients *kube.Clients) http.HandlerFunc {
 
 		item, err := clients.Dynamic.Resource(kube.VMIGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, err.Error())
 			return
 		}
 
@@ -192,7 +192,7 @@ func RunPlan(clients *kube.Clients) http.HandlerFunc {
 
 		updatedItem, err := clients.Dynamic.Resource(kube.VMIGVR).Namespace(namespace).Update(context.TODO(), item, metav1.UpdateOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, err.Error())
 			return
 		}
 
@@ -211,7 +211,7 @@ func GetPlanLogs(clients *kube.Clients) http.HandlerFunc {
 		// 1. Get the plan to find its source
 		planObj, err := clients.Dynamic.Resource(kube.VMIGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get plan: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get plan: "+err.Error())
 			return
 		}
 		sourceName, _ := kube.NestedStringOrWarn(planObj.Object, "spec", "sourceCluster", "name")
@@ -221,8 +221,12 @@ func GetPlanLogs(clients *kube.Clients) http.HandlerFunc {
 		pods, err := clients.Clientset.CoreV1().Pods("harvester-system").List(context.TODO(), metav1.ListOptions{
 			LabelSelector: "app.kubernetes.io/name=harvester-vm-import-controller",
 		})
-		if err != nil || len(pods.Items) == 0 {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Could not find vm-import-controller pod")
+		if err != nil {
+			httpx.RespondWithAPIErrorMsg(w, err, "Could not find vm-import-controller pod")
+			return
+		}
+		if len(pods.Items) == 0 {
+			httpx.RespondWithError(w, http.StatusNotFound, "Could not find vm-import-controller pod")
 			return
 		}
 		podName := pods.Items[0].Name
@@ -231,7 +235,7 @@ func GetPlanLogs(clients *kube.Clients) http.HandlerFunc {
 		req := clients.Clientset.CoreV1().Pods("harvester-system").GetLogs(podName, &v1.PodLogOptions{})
 		podLogs, err := req.Stream(context.TODO())
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to stream pod logs: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to stream pod logs: "+err.Error())
 			return
 		}
 		defer podLogs.Close()

@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 )
 
 // NewClients creates kube.Clients backed by fake clientsets for testing.
@@ -51,6 +52,15 @@ func NewClientsWithListKinds(listKinds map[schema.GroupVersionResource]string) *
 		Clientset: fake.NewSimpleClientset(),
 		Dynamic:   dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), listKinds),
 	}
+}
+
+// Fail makes the fake clients answer every request for verb ("get", "list",
+// "create", "update", "delete") on resource ("secrets", "virtualmachineimports",
+// ...) with err, so a test can see how a handler maps API errors to HTTP statuses.
+func Fail(clients *kube.Clients, verb, resource string, err error) {
+	react := func(k8stesting.Action) (bool, runtime.Object, error) { return true, nil, err }
+	clients.Clientset.(*fake.Clientset).PrependReactor(verb, resource, react)
+	clients.Dynamic.(*dynamicfake.FakeDynamicClient).PrependReactor(verb, resource, react)
 }
 
 // Do creates and executes a test HTTP request.

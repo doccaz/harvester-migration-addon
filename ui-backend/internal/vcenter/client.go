@@ -3,6 +3,7 @@ package vcenter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -318,7 +319,7 @@ func PowerOpVM(ctx context.Context, creds Credentials, vmName string, op string)
 			return nil // ShutdownGuest doesn't return a task, it's just an error if it fails to initiate
 		}
 	default:
-		return fmt.Errorf("unsupported power operation: %s", op)
+		return fmt.Errorf("%w: %s", ErrUnsupportedOperation, op)
 	}
 
 	if err != nil {
@@ -408,7 +409,7 @@ func UpdateVMNetworkMAC(ctx context.Context, creds Credentials, vmName string, d
 	deviceList := object.VirtualDeviceList(mvm.Config.Hardware.Device)
 	device := deviceList.FindByKey(deviceKey)
 	if device == nil {
-		return fmt.Errorf("device with key %d not found", deviceKey)
+		return &DeviceNotFoundError{Key: deviceKey}
 	}
 
 	nic, ok := device.(types.BaseVirtualEthernetCard)
@@ -519,4 +520,24 @@ func logout(ctx context.Context, c interface{ Logout(context.Context) error }) {
 	if err := c.Logout(ctx); err != nil {
 		log.Debugf("vCenter logout failed: %v", err)
 	}
+}
+
+// ErrUnsupportedOperation is returned by PowerOpVM for an operation other than
+// on, off, reset or shutdown. The message is "unsupported power operation: <op>".
+var ErrUnsupportedOperation = errors.New("unsupported power operation")
+
+// DeviceNotFoundError is returned when a VM has no device with the given key.
+type DeviceNotFoundError struct{ Key int32 }
+
+func (e *DeviceNotFoundError) Error() string {
+	return fmt.Sprintf("device with key %d not found", e.Key)
+}
+
+// IsNotFound reports whether err means that something the caller named (a VM, a
+// datacenter, a device key) does not exist, as opposed to vCenter being unreachable
+// or refusing the login.
+func IsNotFound(err error) bool {
+	var nf *find.NotFoundError
+	var dnf *DeviceNotFoundError
+	return errors.As(err, &nf) || errors.As(err, &dnf)
 }

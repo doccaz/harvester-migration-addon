@@ -3,6 +3,7 @@ package vcenter
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/inventory"
@@ -171,6 +172,38 @@ func TestUpdateVMNetworkMAC(t *testing.T) {
 		}
 		if err := UpdateVMNetworkMAC(ctx, creds, vm, 99999, mac); err == nil {
 			t.Error("unknown device key must fail")
+		}
+	})
+}
+
+// Handlers map these to HTTP statuses: a client mistake (unsupported operation,
+// unknown VM or device) must be distinguishable from a vCenter failure.
+func TestTypedErrors(t *testing.T) {
+	withSimulator(t, func(ctx context.Context, creds Credentials) {
+		err := PowerOpVM(ctx, creds, "DC0_H0_VM0", "explode")
+		if !errors.Is(err, ErrUnsupportedOperation) {
+			t.Errorf("unsupported operation: %v", err)
+		}
+		if err == nil || err.Error() != "unsupported power operation: explode" {
+			t.Errorf("message changed: %v", err)
+		}
+
+		if err := PowerOpVM(ctx, creds, "no-such-vm", "on"); !IsNotFound(err) {
+			t.Errorf("unknown VM is not reported as not found: %v", err)
+		}
+		if err := RenameVM(ctx, creds, "no-such-vm", "x"); !IsNotFound(err) {
+			t.Errorf("rename of an unknown VM: %v", err)
+		}
+		err = UpdateVMNetworkMAC(ctx, creds, "DC0_H0_VM0", 99999, "00:50:56:aa:bb:cc")
+		if !IsNotFound(err) || err.Error() != "device with key 99999 not found" {
+			t.Errorf("unknown device key: %v", err)
+		}
+
+		// A vCenter that cannot be reached is not "not found".
+		bad := creds
+		bad.URL = "http://127.0.0.1:1/sdk"
+		if err := PowerOpVM(ctx, bad, "DC0_H0_VM0", "on"); err == nil || IsNotFound(err) || errors.Is(err, ErrUnsupportedOperation) {
+			t.Errorf("an unreachable vCenter must stay a plain error: %v", err)
 		}
 	})
 }

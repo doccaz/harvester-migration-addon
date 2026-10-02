@@ -21,7 +21,7 @@ func ListVmwareSources(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		list, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list VmwareSource CRs: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to list VmwareSource CRs: "+err.Error())
 			return
 		}
 		httpx.RespondWithJSON(w, http.StatusOK, list.Items)
@@ -59,7 +59,7 @@ func CreateVmwareSource(clients *kube.Clients) http.HandlerFunc {
 		}
 		_, err := clients.Clientset.CoreV1().Secrets(payload.Namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create credentials secret: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to create credentials secret: "+err.Error())
 			return
 		}
 
@@ -89,7 +89,7 @@ func CreateVmwareSource(clients *kube.Clients) http.HandlerFunc {
 			if cleanupErr := clients.Clientset.CoreV1().Secrets(payload.Namespace).Delete(context.TODO(), secretName, metav1.DeleteOptions{}); cleanupErr != nil {
 				log.Warnf("Best-effort cleanup: failed to delete secret %s/%s: %v", payload.Namespace, secretName, cleanupErr)
 			}
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create VmwareSource CR: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to create VmwareSource CR: "+err.Error())
 			return
 		}
 
@@ -116,7 +116,7 @@ func GetVmwareSource(clients *kube.Clients) http.HandlerFunc {
 		}
 		secret, err := clients.Clientset.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get associated secret: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get associated secret: "+err.Error())
 			return
 		}
 
@@ -154,7 +154,7 @@ func UpdateVmwareSource(clients *kube.Clients) http.HandlerFunc {
 		if payload.Username != "" || payload.Password != "" {
 			secret, err := clients.Clientset.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 			if err != nil {
-				httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get associated secret: "+err.Error())
+				httpx.RespondWithAPIErrorMsg(w, err, "Failed to get associated secret: "+err.Error())
 				return
 			}
 
@@ -170,7 +170,7 @@ func UpdateVmwareSource(clients *kube.Clients) http.HandlerFunc {
 			}
 			_, err = clients.Clientset.CoreV1().Secrets(namespace).Update(context.TODO(), secret, metav1.UpdateOptions{})
 			if err != nil {
-				httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to update secret: "+err.Error())
+				httpx.RespondWithAPIErrorMsg(w, err, "Failed to update secret: "+err.Error())
 				return
 			}
 		}
@@ -187,7 +187,7 @@ func UpdateVmwareSource(clients *kube.Clients) http.HandlerFunc {
 
 		updatedObj, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).Namespace(namespace).Update(context.TODO(), sourceObj, metav1.UpdateOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to update VmwareSource: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to update VmwareSource: "+err.Error())
 			return
 		}
 
@@ -204,7 +204,7 @@ func DeleteVmwareSource(clients *kube.Clients) http.HandlerFunc {
 		// 1. Get the VmwareSource to find the associated secret
 		sourceObj, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get VmwareSource: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get VmwareSource: "+err.Error())
 			return
 		}
 		secretName, _ := kube.NestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
@@ -212,7 +212,7 @@ func DeleteVmwareSource(clients *kube.Clients) http.HandlerFunc {
 		// 2. Delete the VmwareSource
 		err = clients.Dynamic.Resource(kube.VMwareSourceGVR).Namespace(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to delete VmwareSource: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to delete VmwareSource: "+err.Error())
 			return
 		}
 
@@ -234,7 +234,7 @@ func ListOvaSources(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		list, err := clients.Dynamic.Resource(kube.OVASourceGVR).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list OvaSource CRs: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to list OvaSource CRs: "+err.Error())
 			return
 		}
 		httpx.RespondWithJSON(w, http.StatusOK, list.Items)
@@ -272,7 +272,7 @@ func CreateOvaSource(clients *kube.Clients) http.HandlerFunc {
 		}
 		_, err := clients.Clientset.CoreV1().Secrets(payload.Namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create credentials secret: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to create credentials secret: "+err.Error())
 			return
 		}
 
@@ -303,7 +303,7 @@ func CreateOvaSource(clients *kube.Clients) http.HandlerFunc {
 			if cleanupErr := clients.Clientset.CoreV1().Secrets(payload.Namespace).Delete(context.TODO(), secretName, metav1.DeleteOptions{}); cleanupErr != nil {
 				log.Warnf("Best-effort cleanup: failed to delete secret %s/%s: %v", payload.Namespace, secretName, cleanupErr)
 			}
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create OvaSource CR: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to create OvaSource CR: "+err.Error())
 			return
 		}
 
@@ -330,7 +330,7 @@ func GetOvaSource(clients *kube.Clients) http.HandlerFunc {
 		}
 		secret, err := clients.Clientset.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get associated secret: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get associated secret: "+err.Error())
 			return
 		}
 
@@ -366,7 +366,7 @@ func UpdateOvaSource(clients *kube.Clients) http.HandlerFunc {
 		if payload.Username != "" || payload.Password != "" {
 			secret, err := clients.Clientset.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 			if err != nil {
-				httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get associated secret: "+err.Error())
+				httpx.RespondWithAPIErrorMsg(w, err, "Failed to get associated secret: "+err.Error())
 				return
 			}
 
@@ -382,7 +382,7 @@ func UpdateOvaSource(clients *kube.Clients) http.HandlerFunc {
 			}
 			_, err = clients.Clientset.CoreV1().Secrets(namespace).Update(context.TODO(), secret, metav1.UpdateOptions{})
 			if err != nil {
-				httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to update secret: "+err.Error())
+				httpx.RespondWithAPIErrorMsg(w, err, "Failed to update secret: "+err.Error())
 				return
 			}
 		}
@@ -401,7 +401,7 @@ func UpdateOvaSource(clients *kube.Clients) http.HandlerFunc {
 
 		updatedObj, err := clients.Dynamic.Resource(kube.OVASourceGVR).Namespace(namespace).Update(context.TODO(), sourceObj, metav1.UpdateOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to update OvaSource: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to update OvaSource: "+err.Error())
 			return
 		}
 
@@ -417,14 +417,14 @@ func DeleteOvaSource(clients *kube.Clients) http.HandlerFunc {
 
 		sourceObj, err := clients.Dynamic.Resource(kube.OVASourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get OvaSource: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get OvaSource: "+err.Error())
 			return
 		}
 		secretName, _ := kube.NestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
 
 		err = clients.Dynamic.Resource(kube.OVASourceGVR).Namespace(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to delete OvaSource: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to delete OvaSource: "+err.Error())
 			return
 		}
 

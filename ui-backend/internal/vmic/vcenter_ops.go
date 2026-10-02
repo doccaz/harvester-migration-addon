@@ -4,6 +4,7 @@ package vmic
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/vcenter"
@@ -28,7 +29,7 @@ func GetInventory(clients *kube.Clients) http.HandlerFunc {
 		inventory, err := vcenter.GatherInventory(r.Context(), clients, namespace, name)
 		if err != nil {
 			log.Errorf("Failed to get vCenter inventory: %v", err)
-			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			respondWithVCenterError(w, err)
 			return
 		}
 
@@ -57,7 +58,7 @@ func PowerOp(clients *kube.Clients) http.HandlerFunc {
 
 		sourceObj, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get VmwareSource: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get VmwareSource: "+err.Error())
 			return
 		}
 
@@ -80,7 +81,7 @@ func PowerOp(clients *kube.Clients) http.HandlerFunc {
 
 		secret, err := clients.Clientset.CoreV1().Secrets(secretNamespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get credentials secret: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get credentials secret: "+err.Error())
 			return
 		}
 
@@ -93,7 +94,7 @@ func PowerOp(clients *kube.Clients) http.HandlerFunc {
 
 		if err := vcenter.PowerOpVM(r.Context(), creds, req.VMName, req.Operation); err != nil {
 			log.Errorf("Failed to perform power operation: %v", err)
-			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			respondWithVCenterError(w, err)
 			return
 		}
 
@@ -122,7 +123,7 @@ func RenameVM(clients *kube.Clients) http.HandlerFunc {
 
 		sourceObj, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get VmwareSource: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get VmwareSource: "+err.Error())
 			return
 		}
 
@@ -145,7 +146,7 @@ func RenameVM(clients *kube.Clients) http.HandlerFunc {
 
 		secret, err := clients.Clientset.CoreV1().Secrets(secretNamespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get credentials secret: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get credentials secret: "+err.Error())
 			return
 		}
 
@@ -158,7 +159,7 @@ func RenameVM(clients *kube.Clients) http.HandlerFunc {
 
 		if err := vcenter.RenameVM(r.Context(), creds, req.OldName, req.NewName); err != nil {
 			log.Errorf("Failed to rename VM: %v", err)
-			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			respondWithVCenterError(w, err)
 			return
 		}
 
@@ -188,7 +189,7 @@ func UpdateMAC(clients *kube.Clients) http.HandlerFunc {
 
 		sourceObj, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get VmwareSource: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get VmwareSource: "+err.Error())
 			return
 		}
 
@@ -211,7 +212,7 @@ func UpdateMAC(clients *kube.Clients) http.HandlerFunc {
 
 		secret, err := clients.Clientset.CoreV1().Secrets(secretNamespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get credentials secret: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get credentials secret: "+err.Error())
 			return
 		}
 
@@ -224,7 +225,7 @@ func UpdateMAC(clients *kube.Clients) http.HandlerFunc {
 
 		if err := vcenter.UpdateVMNetworkMAC(r.Context(), creds, req.VMName, req.DeviceKey, req.NewMAC); err != nil {
 			log.Errorf("Failed to update VM MAC: %v", err)
-			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			respondWithVCenterError(w, err)
 			return
 		}
 
@@ -233,3 +234,23 @@ func UpdateMAC(clients *kube.Clients) http.HandlerFunc {
 }
 
 // --- Forklift Handlers ---
+
+// respondWithVCenterError maps a failure of a vCenter operation to a status.
+// Kubernetes API errors raised while resolving the source keep the API server's
+// status (they arrive wrapped); an unsupported operation is the caller's mistake
+// (400), and an unknown VM, datacenter or device is a 404. Everything else (vCenter
+// unreachable, login refused, a failed task) stays 500 on purpose: it is the
+// upstream's failure, but a 502 could be replaced by an intermediary's own error
+// page and hide the message from the UI.
+func respondWithVCenterError(w http.ResponseWriter, err error) {
+	code := httpx.StatusFor(err)
+	if code == http.StatusInternalServerError {
+		switch {
+		case errors.Is(err, vcenter.ErrUnsupportedOperation):
+			code = http.StatusBadRequest
+		case vcenter.IsNotFound(err):
+			code = http.StatusNotFound
+		}
+	}
+	httpx.RespondWithError(w, code, err.Error())
+}

@@ -9,9 +9,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/testutil"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
 
-	"github.com/gorilla/mux"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -19,48 +20,6 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
 )
-
-// newTestClients creates kube.Clients backed by fake clientsets for testing.
-func newTestClients(objects ...runtime.Object) *kube.Clients {
-	scheme := runtime.NewScheme()
-	fakeClientset := fake.NewSimpleClientset(objects...)
-	fakeDynamic := dynamicfake.NewSimpleDynamicClient(scheme)
-	return &kube.Clients{
-		Clientset: fakeClientset,
-		Dynamic:   fakeDynamic,
-	}
-}
-
-// newTestClientsWithDynamic creates kube.Clients with pre-seeded dynamic objects.
-func newTestClientsWithDynamic(coreObjects []runtime.Object, dynamicObjects ...runtime.Object) *kube.Clients {
-	scheme := runtime.NewScheme()
-	fakeClientset := fake.NewSimpleClientset(coreObjects...)
-	fakeDynamic := dynamicfake.NewSimpleDynamicClient(scheme, dynamicObjects...)
-	return &kube.Clients{
-		Clientset: fakeClientset,
-		Dynamic:   fakeDynamic,
-	}
-}
-
-// executeRequest creates and executes a test HTTP request.
-func executeRequest(handler http.HandlerFunc, method, path string, body interface{}, vars map[string]string) *httptest.ResponseRecorder {
-	var req *http.Request
-	if body != nil {
-		bodyBytes, _ := json.Marshal(body)
-		req = httptest.NewRequest(method, path, bytes.NewReader(bodyBytes))
-		req.Header.Set("Content-Type", "application/json")
-	} else {
-		req = httptest.NewRequest(method, path, nil)
-	}
-	if vars != nil {
-		req = mux.SetURLVars(req, vars)
-	}
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-	return rr
-}
-
-// --- Tests ---
 
 func TestUpdatePlanHandler(t *testing.T) {
 	scheme := runtime.NewScheme()
@@ -98,7 +57,7 @@ func TestUpdatePlanHandler(t *testing.T) {
 		Folder:             &emptyFolder, // empty clears the field
 	}
 
-	rr := executeRequest(UpdatePlanHandler(clients), http.MethodPut,
+	rr := testutil.Do(UpdatePlanHandler(clients), http.MethodPut,
 		"/api/v1/plans/techday/stuck-plan", payload,
 		map[string]string{"namespace": "techday", "name": "stuck-plan"})
 
@@ -126,42 +85,10 @@ func TestUpdatePlanHandler(t *testing.T) {
 	}
 }
 
-func TestGetNestedStringOrWarn(t *testing.T) {
-	obj := map[string]interface{}{
-		"spec": map[string]interface{}{
-			"type": "vsphere",
-			"url":  "https://vcenter.example.com",
-		},
-	}
-
-	t.Run("found", func(t *testing.T) {
-		val, ok := kube.NestedStringOrWarn(obj, "spec", "type")
-		if !ok || val != "vsphere" {
-			t.Errorf("expected ('vsphere', true), got ('%s', %v)", val, ok)
-		}
-	})
-
-	t.Run("missing", func(t *testing.T) {
-		val, ok := kube.NestedStringOrWarn(obj, "spec", "nonexistent")
-		if ok || val != "" {
-			t.Errorf("expected ('', false), got ('%s', %v)", val, ok)
-		}
-	})
-
-	t.Run("wrong type", func(t *testing.T) {
-		// Nested field exists but is not a string
-		obj["spec"].(map[string]interface{})["count"] = 42
-		val, ok := kube.NestedStringOrWarn(obj, "spec", "count")
-		if ok || val != "" {
-			t.Errorf("expected ('', false) for non-string field, got ('%s', %v)", val, ok)
-		}
-	})
-}
-
 func TestListNamespacesHandler(t *testing.T) {
-	clients := newTestClients()
+	clients := testutil.NewClients()
 
-	rr := executeRequest(ListNamespacesHandler(clients), "GET", "/api/v1/harvester/namespaces", nil, nil)
+	rr := testutil.Do(ListNamespacesHandler(clients), "GET", "/api/v1/harvester/namespaces", nil, nil)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected status 200, got %d", rr.Code)
@@ -174,7 +101,7 @@ func TestListNamespacesHandler(t *testing.T) {
 }
 
 func TestCreateForkliftProviderHandler_VSphere(t *testing.T) {
-	clients := newTestClients()
+	clients := testutil.NewClients()
 
 	payload := CreateForkliftProviderPayload{
 		Name:         "test-provider",
@@ -186,7 +113,7 @@ func TestCreateForkliftProviderHandler_VSphere(t *testing.T) {
 		ProviderType: "vsphere",
 	}
 
-	rr := executeRequest(CreateForkliftProviderHandler(clients), "POST", "/api/v1/forklift/providers", payload, nil)
+	rr := testutil.Do(CreateForkliftProviderHandler(clients), "POST", "/api/v1/forklift/providers", payload, nil)
 
 	if rr.Code != http.StatusCreated {
 		t.Errorf("expected status 201, got %d; body: %s", rr.Code, rr.Body.String())
@@ -203,7 +130,7 @@ func TestCreateForkliftProviderHandler_VSphere(t *testing.T) {
 }
 
 func TestCreateForkliftProviderHandler_OVA(t *testing.T) {
-	clients := newTestClients()
+	clients := testutil.NewClients()
 
 	payload := CreateForkliftProviderPayload{
 		Name:         "ova-provider",
@@ -212,7 +139,7 @@ func TestCreateForkliftProviderHandler_OVA(t *testing.T) {
 		ProviderType: "ova",
 	}
 
-	rr := executeRequest(CreateForkliftProviderHandler(clients), "POST", "/api/v1/forklift/providers", payload, nil)
+	rr := testutil.Do(CreateForkliftProviderHandler(clients), "POST", "/api/v1/forklift/providers", payload, nil)
 
 	if rr.Code != http.StatusCreated {
 		t.Errorf("expected status 201, got %d; body: %s", rr.Code, rr.Body.String())
@@ -233,7 +160,7 @@ func TestCreateForkliftProviderHandler_OVA(t *testing.T) {
 }
 
 func TestCreateForkliftProviderHandler_InvalidJSON(t *testing.T) {
-	clients := newTestClients()
+	clients := testutil.NewClients()
 
 	req := httptest.NewRequest("POST", "/api/v1/forklift/providers", bytes.NewReader([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
@@ -246,7 +173,7 @@ func TestCreateForkliftProviderHandler_InvalidJSON(t *testing.T) {
 }
 
 func TestCreateForkliftProviderHandler_DefaultNamespace(t *testing.T) {
-	clients := newTestClients()
+	clients := testutil.NewClients()
 
 	payload := CreateForkliftProviderPayload{
 		Name:     "test-provider",
@@ -255,7 +182,7 @@ func TestCreateForkliftProviderHandler_DefaultNamespace(t *testing.T) {
 		Password: "secret",
 	}
 
-	rr := executeRequest(CreateForkliftProviderHandler(clients), "POST", "/api/v1/forklift/providers", payload, nil)
+	rr := testutil.Do(CreateForkliftProviderHandler(clients), "POST", "/api/v1/forklift/providers", payload, nil)
 
 	if rr.Code != http.StatusCreated {
 		t.Errorf("expected status 201, got %d; body: %s", rr.Code, rr.Body.String())
@@ -322,7 +249,7 @@ func TestListForkliftProvidersHandler(t *testing.T) {
 	_ = gvr
 
 	t.Run("list all source providers", func(t *testing.T) {
-		rr := executeRequest(ListForkliftProvidersHandler(clients), "GET", "/api/v1/forklift/providers", nil, nil)
+		rr := testutil.Do(ListForkliftProvidersHandler(clients), "GET", "/api/v1/forklift/providers", nil, nil)
 
 		if rr.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d; body: %s", rr.Code, rr.Body.String())
@@ -344,32 +271,11 @@ func TestListForkliftProvidersHandler(t *testing.T) {
 	})
 }
 
-func TestGetCapabilitiesHandler(t *testing.T) {
-	clients := newTestClients()
-
-	rr := executeRequest(GetCapabilitiesHandler(clients), "GET", "/api/v1/capabilities", nil, nil)
-
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", rr.Code)
-	}
-
-	var result map[string]interface{}
-	if err := json.Unmarshal(rr.Body.Bytes(), &result); err != nil {
-		t.Fatalf("failed to unmarshal: %v", err)
-	}
-
-	// Without settings CRD, should return defaults
-	if _, ok := result["harvesterVersion"]; !ok {
-		// harvesterVersion key should exist even if empty
-		t.Log("harvesterVersion not in response (expected if no settings CRD)")
-	}
-}
-
 func TestDeleteForkliftProviderHandler(t *testing.T) {
-	clients := newTestClients()
+	clients := testutil.NewClients()
 
 	// Try to delete a non-existent provider
-	rr := executeRequest(
+	rr := testutil.Do(
 		DeleteForkliftProviderHandler(clients),
 		"DELETE",
 		"/api/v1/forklift/providers/forklift/nonexistent",
@@ -384,9 +290,9 @@ func TestDeleteForkliftProviderHandler(t *testing.T) {
 }
 
 func TestOvaInventoryRejectsUnknownResource(t *testing.T) {
-	handler := HandleGetForkliftOvaInventory(newTestClientsWithDynamic(nil))
+	handler := HandleGetForkliftOvaInventory(testutil.NewClientsWithDynamic(nil))
 	for _, res := range []string{"../providers", "secrets", "vms/../../x"} {
-		rr := executeRequest(handler, "GET", "/x", nil,
+		rr := testutil.Do(handler, "GET", "/x", nil,
 			map[string]string{"namespace": "forklift", "name": "p", "resource": res})
 		if rr.Code != http.StatusBadRequest {
 			t.Errorf("resource %q: got %d, want 400", res, rr.Code)

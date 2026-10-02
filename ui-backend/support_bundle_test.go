@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/testutil"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/inventory"
 
 	v1 "k8s.io/api/core/v1"
@@ -93,9 +95,9 @@ func TestSupportBundleHandler(t *testing.T) {
 		},
 	}}
 
-	clients := newTestClientsWithDynamic([]runtime.Object{secret, unrelated}, vmi, source)
+	clients := testutil.NewClientsWithDynamic([]runtime.Object{secret, unrelated}, vmi, source)
 
-	rr := executeRequest(SupportBundleHandler(clients), "GET", "/api/v1/support-bundle", nil, nil)
+	rr := testutil.Do(SupportBundleHandler(clients), "GET", "/api/v1/support-bundle", nil, nil)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d; body: %s", rr.Code, rr.Body.String())

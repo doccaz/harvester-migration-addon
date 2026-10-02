@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/testutil"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
 
 	"github.com/gorilla/mux"
@@ -219,7 +221,7 @@ func jobExists(t *testing.T, clients *kube.Clients, ns, name string) bool {
 func TestDeleteExport_PurgeInOtherNamespaceUsesCleanupJob(t *testing.T) {
 	root := exportVolume(t) // this pod's own volume (namespace vm-import-ui)
 	cleanupEnv(t, root)
-	clients := newTestClients(exportJobIn("labs", "abc123", "mine", 0))
+	clients := testutil.NewClients(exportJobIn("labs", "abc123", "mine", 0))
 
 	rec := callDelete(t, clients, "labs", "abc123", "?purge=true")
 	if rec.Code != http.StatusOK {
@@ -246,7 +248,7 @@ func TestDeleteExport_PurgeInOtherNamespaceUsesCleanupJob(t *testing.T) {
 func TestDeleteExport_PurgeInOwnNamespaceRemovesFilesHere(t *testing.T) {
 	root := exportVolume(t)
 	cleanupEnv(t, root)
-	clients := newTestClients(exportJobIn("vm-import-ui", "abc123", "mine", 0))
+	clients := testutil.NewClients(exportJobIn("vm-import-ui", "abc123", "mine", 0))
 
 	if rec := callDelete(t, clients, "vm-import-ui", "abc123", "?purge=true"); rec.Code != http.StatusOK {
 		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
@@ -269,7 +271,7 @@ func TestDeleteExport_WithoutPurgeKeepsFiles(t *testing.T) {
 	root := exportVolume(t)
 	cleanupEnv(t, root)
 	for _, ns := range []string{"vm-import-ui", "labs"} {
-		clients := newTestClients(exportJobIn(ns, "abc123", "mine", 0))
+		clients := testutil.NewClients(exportJobIn(ns, "abc123", "mine", 0))
 		if rec := callDelete(t, clients, ns, "abc123", ""); rec.Code != http.StatusOK {
 			t.Fatalf("%s: status %d", ns, rec.Code)
 		}
@@ -289,7 +291,7 @@ func TestDeleteExport_WithoutPurgeKeepsFiles(t *testing.T) {
 // or the OVA is stranded with nothing left to retry from.
 func TestDeleteExport_KeepsExportWhenCleanupCannotBeScheduled(t *testing.T) {
 	cleanupEnv(t, exportVolume(t))
-	clients := newTestClients(exportJobIn("labs", "abc123", "mine", 0))
+	clients := testutil.NewClients(exportJobIn("labs", "abc123", "mine", 0))
 	clients.Clientset.(*fake.Clientset).PrependReactor("create", "jobs",
 		func(ktesting.Action) (bool, runtime.Object, error) {
 			return true, nil, fmt.Errorf("quota exceeded")
@@ -307,7 +309,7 @@ func TestDeleteExport_KeepsExportWhenCleanupCannotBeScheduled(t *testing.T) {
 func TestDeleteExport_RepeatedPurgeIsAccepted(t *testing.T) {
 	cleanupEnv(t, exportVolume(t))
 	existing := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "vm-export-cleanup-abc123", Namespace: "labs"}}
-	clients := newTestClients(exportJobIn("labs", "abc123", "mine", 0), existing)
+	clients := testutil.NewClients(exportJobIn("labs", "abc123", "mine", 0), existing)
 	if rec := callDelete(t, clients, "labs", "abc123", "?purge=true"); rec.Code != http.StatusOK {
 		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 	}
@@ -315,7 +317,7 @@ func TestDeleteExport_RepeatedPurgeIsAccepted(t *testing.T) {
 
 func TestDeleteExport_PurgeOfRunningExportDelaysCleanup(t *testing.T) {
 	cleanupEnv(t, exportVolume(t))
-	clients := newTestClients(exportJobIn("labs", "abc123", "mine", 1))
+	clients := testutil.NewClients(exportJobIn("labs", "abc123", "mine", 1))
 	if rec := callDelete(t, clients, "labs", "abc123", "?purge=true"); rec.Code != http.StatusOK {
 		t.Fatalf("status %d", rec.Code)
 	}
@@ -336,7 +338,7 @@ func TestDeleteExport_PurgeOfRunningExportDelaysCleanup(t *testing.T) {
 
 func TestDeleteExport_UnknownExportIs404(t *testing.T) {
 	cleanupEnv(t, exportVolume(t))
-	if rec := callDelete(t, newTestClients(), "labs", "abc123", "?purge=true"); rec.Code != http.StatusNotFound {
+	if rec := callDelete(t, testutil.NewClients(), "labs", "abc123", "?purge=true"); rec.Code != http.StatusNotFound {
 		t.Errorf("status %d, want 404", rec.Code)
 	}
 }

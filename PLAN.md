@@ -1,6 +1,6 @@
 # Harvester Migration Add-on — analysis and phased plan
 
-Status (2026-10-02): Phases 0–2 done and released (current release v0.2.0, https://github.com/doccaz/harvester-migration-addon); Phase 3 in progress; Phases 4–6 not started. Last updated alongside the Phase 3 `vcenter` extraction.
+Status (2026-10-02): Phases 0–2 done and released (current release v0.2.0, https://github.com/doccaz/harvester-migration-addon); Phase 3 in progress; Phases 4–6 not started. Last updated alongside the Phase 3 `capabilities` extraction.
 
 ## 1. What exists today
 
@@ -112,15 +112,17 @@ Done (all verified by the four gates):
 - Safety net: route golden test, snapshot tooling.
 - Lint adopted from the controller; 36 findings fixed (two added timeouts on calls that could hang: HTTP header read, OVA inventory proxy).
 - `handlers.go` (2383 lines) and `forklift_handlers.go` split by area, code motion only (declarations proven byte-identical).
-- Packages extracted under `ui-backend/internal/`: `httpx` (response helpers), `kube` (clients, token provider/`Scoped`, TLS policy, GVRs, unstructured helpers), `inventory` (VM tree types + Harvester inventory), `vcenter` (govmomi access, credentials, `GatherInventory`). The vcenter step added simulator-backed tests (govmomi `vcsim`: tree, auto-discover, power ops, rename, MAC), because the lab snapshot skips `/vcenter/*` routes and that code had no coverage; they were mutation-checked and will guard the later govmomi upgrade.
+- Packages extracted under `ui-backend/internal/`: `httpx` (response helpers), `kube` (clients, token provider/`Scoped`, TLS policy, GVRs, unstructured helpers), `inventory` (VM tree types + Harvester inventory), `vcenter` (govmomi access, credentials, `GatherInventory`), `capabilities` (version -> feature flags), `testutil` (shared fake clients and request runner for tests). The vcenter step added simulator-backed tests (govmomi `vcsim`: tree, auto-discover, power ops, rename, MAC), because the lab snapshot skips `/vcenter/*` routes and that code had no coverage; they were mutation-checked and will guard the later govmomi upgrade.
 
-Remaining, in dependency order (leaf first), one commit each: `capabilities` → `harvester` (namespaces, NADs, storage classes, VMs, generic GETs) → `vmic` (sources, plans, vCenter ops) → `forklift` → `export` (export, job, worker, cleanup, ova, ovf) → `supportbundle` → `api` (routes). `main.go` keeps the `export-worker` / `export-cleanup` command modes (Export Jobs invoke the binary by those arguments).
+Remaining, in dependency order (leaf first), one commit each: `harvester` (namespaces, NADs, storage classes, VMs, generic GETs) → `vmic` (sources, plans, vCenter ops) → `forklift` → `export` (export, job, worker, cleanup, ova, ovf) → `supportbundle` → `api` (routes). `main.go` keeps the `export-worker` / `export-cleanup` command modes (Export Jobs invoke the binary by those arguments).
 
 Changed from the original plan:
 - **No import of the controller's `pkg/apis`.** Its `go.mod` pins `k8s.io/client-go v12.0.0+incompatible` and depends on a `replace` block that consumers do not inherit. Typed VMIC objects are instead produced locally with `runtime.DefaultUnstructuredConverter`, with a contract test against the real `virtualmachineimports.migration.harvesterhci.io` CRD saved from the lab.
 - **Engine interface only where the engines really share behaviour** (detection/capabilities, plan list and status, logs). VMIC (sources + VirtualMachineImport) and Forklift (provider, inventory service, maps, plan, migration) differ too much for an upfront CreatePlan/RunPlan abstraction; routes stay as they are until Phase 4.
 - **Dependency bumps** (k8s 0.28 → current, govmomi 0.33 → 0.52, Go directive) are a separate optional last step; govmomi across 19 minors is where `vcenter.go` is most likely to break. If the `go` directive moves, move the Dockerfile's `golang:` tag in the same commit.
 - `logrus.WithFields` is adopted opportunistically in code being moved, not as a sweep.
+
+Test debt found and paid while extracting: the capabilities test only asserted a 200 (now it covers the version-to-feature mapping, mutation-checked), and a `kube` test had been left behind in `handlers_test.go` (moved). Expect similar finds in the remaining packages.
 
 Lessons and open items:
 - Two ~66 MB build binaries were committed by mistake when the backend was imported (removed from the tree; no credentials found). They remain in git history; rewriting history would change every SHA after `d218b1b` and move the release tags, so it is left to a deliberate decision.

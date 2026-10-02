@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/testutil"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -286,7 +288,7 @@ func TestLoadExportConfig_RespectsOverrides(t *testing.T) {
 // "persistentvolumeclaim ... not found" forever. ensureExportPVC must
 // provision the claim in the VM's namespace on first use.
 func TestEnsureExportPVC_CreatesClaimInVMNamespace(t *testing.T) {
-	clients := newTestClients()
+	clients := testutil.NewClients()
 	cfg := exportConfig{PVC: "exports", StorageClass: "nfs", StorageSize: "50Gi"}
 
 	if err := ensureExportPVC(context.Background(), clients, "labs", cfg); err != nil {
@@ -318,7 +320,7 @@ func TestEnsureExportPVC_LeavesExistingClaimAlone(t *testing.T) {
 	existing := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{Name: "exports", Namespace: "labs"},
 	}
-	clients := newTestClients(existing)
+	clients := testutil.NewClients(existing)
 	cfg := exportConfig{PVC: "exports", StorageSize: "200Gi"}
 
 	if err := ensureExportPVC(context.Background(), clients, "labs", cfg); err != nil {

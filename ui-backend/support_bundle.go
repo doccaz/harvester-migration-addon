@@ -15,6 +15,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/capabilities"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/vcenter"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/inventory"
@@ -155,7 +157,7 @@ func SupportBundleHandler(clients *kube.Clients) http.HandlerFunc {
 
 		// --- cluster context (feature gating + map targets) ---
 		b.step("cluster/capabilities", func() error {
-			caps, err := gatherCapabilities(ctx, clients)
+			caps, err := capabilities.Gather(ctx, clients)
 			b.addJSON("cluster/capabilities.json", caps) // record even the fallback config
 			return err
 		})

@@ -4,6 +4,8 @@ package main
 import (
 	"net/http"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/capabilities"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/inventory"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
@@ -19,7 +21,7 @@ func newRouter(provider *kube.Provider, uiPath string) *mux.Router {
 	api := router.PathPrefix("/api/v1").Subrouter()
 
 	// API Handlers
-	api.HandleFunc("/capabilities", kube.Scoped(provider, GetCapabilitiesHandler)).Methods("GET")
+	api.HandleFunc("/capabilities", kube.Scoped(provider, capabilities.Handler)).Methods("GET")
 	api.HandleFunc("/support-bundle", kube.Scoped(provider, SupportBundleHandler)).Methods("GET")
 	api.HandleFunc("/vcenter/inventory/{namespace}/{name}", kube.Scoped(provider, HandleGetInventory)).Methods("GET")
 	api.HandleFunc("/vcenter/vm/{namespace}/{name}/power", kube.Scoped(provider, HandleVMPowerOp)).Methods("POST")

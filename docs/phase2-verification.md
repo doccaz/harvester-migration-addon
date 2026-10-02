@@ -127,3 +127,14 @@ Upgraded `mig` to 0.3.1 (`helm upgrade --version 0.3.1 --reuse-values`, controll
 `meta.json` report 0.3.1 (a first run showed 2 failures that were the script's hard-coded expected
 version; it now reads addon/harvester-migration.yaml). The bundled controller runs
 `rancher/harvester-vm-import-controller:v1.8.2` from the pinned 1.8.2 subchart.
+
+## Manual browser pass (2026-10-02, v0.3.1)
+
+Done by hand on the lab: every tab of the UI works, support bundle creation works, VM export
+works from the Export page, and logging in and out (token mint and expiry) works. The menu shows
+two entries under Utilities: "VM Migration" (this add-on) and "VM Import UI" (the original
+standalone `vm-import-ui` in its own namespace, a NodePort install other people still use); the
+old one is deliberately left running for now.
+
+Not exercised: re-importing an exported OVA through Forklift's OVA provider (the earlier OVA was
+deleted; it needs a new export), and a new import run end to end.

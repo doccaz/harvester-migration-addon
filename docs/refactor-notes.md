@@ -1,7 +1,7 @@
 # Phase 3 refactor notes
 
 ## Safety net
-- `ui-backend/testdata/routes.golden`: every (method, path); `go test` fails if a
+- `ui-backend/internal/api/testdata/routes.golden`: every (method, path); `go test` fails if a
   route is dropped or renamed. Regenerate deliberately with
   `go test -run TestRoutesAreStable -update`.
 - `hack/run-snapshot.sh OUTDIR` + `hack/snapshot-api.py diff A B`: read-only

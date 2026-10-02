@@ -1,6 +1,6 @@
 # Harvester Migration Add-on — analysis and phased plan
 
-Status (2026-10-02): Phases 0–2 done and released (current release v0.2.0, https://github.com/doccaz/harvester-migration-addon); Phase 3 in progress; Phases 4–6 not started. Last updated alongside the Phase 3 `supportbundle` extraction.
+Status (2026-10-02): Phases 0–2 done and released (current release v0.2.0, https://github.com/doccaz/harvester-migration-addon); Phase 3 in progress; Phases 4–6 not started. Last updated at the end of the Phase 3 package extraction.
 
 ## 1. What exists today
 
@@ -105,16 +105,24 @@ Delivered: per-user token auth (default), TLS verification, RBAC derived from th
 - Secrets handling review (create/delete of credentials), run as non-root, read-only root FS where possible, NetworkPolicy.
 - Exit criteria: a user with only namespace-scoped rights cannot see or act on other namespaces.
 
-### Phase 3 — Backend alignment (≈2–3 weeks) — IN PROGRESS
+### Phase 3 — Backend alignment (≈2–3 weeks) — LAYOUT DONE; optional steps open
 Rule: no user-visible behaviour change. The REST API that `App.js` calls is the contract, protected at every step by four gates, each step is its own commit with CI green: (1) `testdata/routes.golden` (every method+path), (2) golangci-lint v2.12.2 with the controller's config at 0 issues, (3) unit tests, (4) a read-only snapshot of the 32 safe GET routes on the lab compared with a baseline (`hack/run-snapshot.sh`, `hack/snapshot-api.py`; two runs of identical code diff clean). Details and observations: `docs/refactor-notes.md`.
 
 Done (all verified by the four gates):
 - Safety net: route golden test, snapshot tooling.
 - Lint adopted from the controller; 36 findings fixed (two added timeouts on calls that could hang: HTTP header read, OVA inventory proxy).
 - `handlers.go` (2383 lines) and `forklift_handlers.go` split by area, code motion only (declarations proven byte-identical).
-- Packages extracted under `ui-backend/internal/`: `httpx` (response helpers), `kube` (clients, token provider/`Scoped`, TLS policy, GVRs, unstructured helpers), `inventory` (VM tree types + Harvester inventory), `vcenter` (govmomi access, credentials, `GatherInventory`), `capabilities` (version -> feature flags), `harvester` (namespaces, NADs, storage classes, VM list, generic resource/YAML GETs), `vmic` (VM-import plans, vmware/ova sources, vCenter operations, VMIC types, statuses fixed), `forklift` (providers, plans, migrations, inventory proxy, logs, payload types; statuses fixed), `export` (export handlers, Job builders, worker and cleanup entry points, OVF/OVA writers and their golden/XSD test data), `supportbundle` (diagnostics tar.gz, redaction, anonymisation), `testutil` (shared fake clients and request runner for tests). The vcenter step added simulator-backed tests (govmomi `vcsim`: tree, auto-discover, power ops, rename, MAC), because the lab snapshot skips `/vcenter/*` routes and that code had no coverage; they were mutation-checked and will guard the later govmomi upgrade.
+- Packages extracted under `ui-backend/internal/`: `httpx` (response helpers), `kube` (clients, token provider/`Scoped`, TLS policy, GVRs, unstructured helpers), `inventory` (VM tree types + Harvester inventory), `vcenter` (govmomi access, credentials, `GatherInventory`), `capabilities` (version -> feature flags), `harvester` (namespaces, NADs, storage classes, VM list, generic resource/YAML GETs), `vmic` (VM-import plans, vmware/ova sources, vCenter operations, VMIC types, statuses fixed), `forklift` (providers, plans, migrations, inventory proxy, logs, payload types; statuses fixed), `export` (export handlers, Job builders, worker and cleanup entry points, OVF/OVA writers and their golden/XSD test data), `supportbundle` (diagnostics tar.gz, redaction, anonymisation), `api` (router + panic recovery; `main.go` is now 85 lines). The layout and its tested rules are in docs/backend-layout.md. `testutil` (shared fake clients and request runner for tests). The vcenter step added simulator-backed tests (govmomi `vcsim`: tree, auto-discover, power ops, rename, MAC), because the lab snapshot skips `/vcenter/*` routes and that code had no coverage; they were mutation-checked and will guard the later govmomi upgrade.
 
-Remaining, in dependency order (leaf first), one commit each: `harvester` (namespaces, NADs, storage classes, VMs, generic GETs) → `vmic` (sources, plans, vCenter ops) → `forklift` → `export` (export, job, worker, cleanup, ova, ovf) → `supportbundle` → `api` (routes). `main.go` keeps the `export-worker` / `export-cleanup` command modes (Export Jobs invoke the binary by those arguments).
+Package extraction is complete (see docs/backend-layout.md for the map and the tested rules): `main.go` is 85 lines, and `api` owns the route table, which a test walks to prove every API route requires a user token.
+
+Remaining Phase 3 work, all optional and each its own gated step:
+1. **Typed VM-import objects**, produced locally (see below), with a contract test against the real `virtualmachineimports.migration.harvesterhci.io` CRD saved from the lab.
+2. **Engine interface** where the engines genuinely share behaviour (see below).
+3. **Dependency bumps** (k8s, govmomi, Go): the `vcenter` simulator tests are the safety net for govmomi.
+4. **~10 blanket 404s** that hide permission errors (vmic 6, forklift 3, harvester 1), each with a test.
+5. Two items for the Phase 4 capabilities detection: `forklift.CheckAvailability` treats any failure as "not available", and `inventory.PVCIndex` swallows a failed PVC list.
+6. Decide whether to rewrite git history to drop two accidentally committed binaries (see below).
 
 Changed from the original plan:
 - **No import of the controller's `pkg/apis`.** Its `go.mod` pins `k8s.io/client-go v12.0.0+incompatible` and depends on a `replace` block that consumers do not inherit. Typed VMIC objects are instead produced locally with `runtime.DefaultUnstructuredConverter`, with a contract test against the real `virtualmachineimports.migration.harvesterhci.io` CRD saved from the lab.
@@ -130,7 +138,7 @@ Lessons and open items:
 - Two ~66 MB build binaries were committed by mistake when the backend was imported (removed from the tree; no credentials found). They remain in git history; rewriting history would change every SHA after `d218b1b` and move the release tags, so it is left to a deliberate decision.
 - The extraction script initially did not persist removals, which left dead duplicates (found and removed in the `kube` step). The stale-name grep and `unused` lint are part of every step now.
 - Fixed (own commit, verified on the lab, baseline retaken): API errors now keep their HTTP status via `httpx.RespondWithAPIError` on the four YAML handlers and namespace creation (404 / 409 / 403 instead of a blanket 500). Done for `harvester`, `vmic` (24 sites + typed vCenter errors, 32 status rows + simulator-backed handler tests), `forklift` (21 sites, 19 status rows, proxy tests) and `export` (13 sites, first-ever handler tests, Job entry-point contract pinned); the sites that stay 500 are deliberate and listed in docs/refactor-notes.md. The blanket-500 sweep is complete (counts and the deliberate leftovers in docs/refactor-notes.md); about 10 blanket 404s that hide permission errors remain.
-- No release tag is needed for this phase until the full set of gates is clean after the last extraction.
+- No release tag has been cut for Phase 3 yet. The gates are clean after the last extraction, so the next tag (v0.3.0) would ship the refactor plus the deliberate behaviour changes listed in docs/refactor-notes.md (API statuses, `nosniff`, two timeouts, a DNS-label check on the OVA proxy namespace).
 
 ### Phase 4 — Frontend modularisation (≈3 weeks)
 - Break up `App.js` (5.7k lines) into engine modules and shared components; engine registry driven by `GET /api/v1/capabilities`.

@@ -11,7 +11,7 @@ valid baseline. Output may contain real object names: keep it out of git.
 """
 import gzip, io, json, os, re, sys, tarfile, urllib.error, urllib.request
 
-ROUTES = os.path.join(os.path.dirname(__file__), "..", "ui-backend", "testdata", "routes.golden")
+ROUTES = os.path.join(os.path.dirname(__file__), "..", "ui-backend", "internal", "api", "testdata", "routes.golden")
 # Live log streams grow between runs: only status and content type are compared.
 VOLATILE = ("/logs",)
 SKIP = ("/vcenter/", "/forklift/inventory/", "/download")  # outbound calls / large payloads

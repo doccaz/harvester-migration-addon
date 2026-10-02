@@ -1,5 +1,9 @@
-// routes.go
-package main
+// router.go
+
+// Package api wires every REST route and the static frontend into one router, and
+// holds the panic-recovery middleware. Handlers live in the engine packages; this is
+// the only place that knows the whole route table.
+package api
 
 import (
 	"net/http"
@@ -23,16 +27,16 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// newRouter wires every API route and the static frontend. It is separate from
+// NewRouter wires every API route and the static frontend. It is separate from
 // main() so a test can enumerate the routes: the REST API is the contract with the
 // frontend, and a route dropped during a refactor must fail a test.
-func newRouter(provider *kube.Provider, uiPath string) *mux.Router {
+func NewRouter(provider *kube.Provider, uiPath, version string) *mux.Router {
 	router := mux.NewRouter()
 	api := router.PathPrefix("/api/v1").Subrouter()
 
 	// API Handlers
 	api.HandleFunc("/capabilities", kube.Scoped(provider, capabilities.Handler)).Methods("GET")
-	api.HandleFunc("/support-bundle", kube.Scoped(provider, supportbundle.Handler(appVersion))).Methods("GET")
+	api.HandleFunc("/support-bundle", kube.Scoped(provider, supportbundle.Handler(version))).Methods("GET")
 	api.HandleFunc("/vcenter/inventory/{namespace}/{name}", kube.Scoped(provider, vmic.GetInventory)).Methods("GET")
 	api.HandleFunc("/vcenter/vm/{namespace}/{name}/power", kube.Scoped(provider, vmic.PowerOp)).Methods("POST")
 	api.HandleFunc("/vcenter/vm/{namespace}/{name}/rename", kube.Scoped(provider, vmic.RenameVM)).Methods("POST")

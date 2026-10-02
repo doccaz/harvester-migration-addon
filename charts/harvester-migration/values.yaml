@@ -54,13 +54,14 @@ ui:
   rbac:
     create: true
   # How the UI authorises Kubernetes calls.
+  #   token (default): every call uses the signed-in user's own Rancher token, so
+  #     Kubernetes RBAC applies per user. The ServiceAccount gets no cluster
+  #     rights and no mounted token. Verified on Harvester 1.8.2 (docs/identity.md).
   #   serviceaccount: every user acts with the UI's ServiceAccount (see
-  #     docs/rbac-audit.md). Only for trusted, admin-only environments.
-  #   token: every call uses the signed-in user's own Rancher token, so Kubernetes
-  #     RBAC applies per user. The ServiceAccount gets no cluster rights and no
-  #     mounted token. Not yet verified in-cluster: see docs/identity.md.
+  #     docs/rbac-audit.md). Only for trusted, admin-only environments, or where
+  #     Rancher is not available.
   auth:
-    mode: serviceaccount
+    mode: token
     # Where user tokens are presented. Rancher tokens are valid at Rancher only.
     apiUrl: https://rancher.cattle-system.svc/k8s/clusters/local
     # CA that signed the endpoint's certificate. By default the chart copies the
@@ -72,6 +73,15 @@ ui:
       existingSecret: ""
       key: ca.crt
     insecureSkipTLSVerify: false
+  # Who may open the UI through the Kubernetes service proxy (the menu entry).
+  # Cluster admins always can. Everyone else needs `get/create/update/delete` on
+  # services/proxy for the UI Service; this creates that Role and binds it to the
+  # listed Rancher users/groups. This only controls who can *reach* the UI: what a
+  # user can then do is decided by their own permissions on the resources.
+  access:
+    createRole: true
+    users: []   # e.g. ["user-abc12"]
+    groups: []  # e.g. ["local://g-xyz78"] or a Harvester/Rancher group principal
   # Restricts ingress to the UI port. With no `from` entries any source may
   # connect to 8080; set `from` (podSelector/namespaceSelector/ipBlock) to narrow.
   # Off by default: it needs a CNI that enforces policies and a known source.

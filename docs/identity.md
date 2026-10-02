@@ -114,7 +114,9 @@ Measured on the lab (2026-10-01, `hack/verify-token-auth.sh`):
   The CA is valid to 2035 and changes only if the Secret is regenerated: re-run
   `helm upgrade` (or an addon re-apply) to refresh the copy.
 
-Still NOT verified:
+Verified later (v0.1.2): browser path through the menu entry works; see docs/phase2-verification.md.
+
+Was NOT verified at this point:
 1. Browser same-origin minting through the menu entry: paste the snippet printed
    by the script into the Harvester UI console (needs the CSRF cookie) and record
    the line it logs. Until then the default stays `ui.auth.mode=serviceaccount`.

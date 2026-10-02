@@ -1,0 +1,47 @@
+{{- if .Values.ui.access.createRole }}
+{{- $svc := include "harvester-migration.ui.fullname" . }}
+{{- $port := .Values.ui.service.port }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $svc }}-access
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "harvester-migration.ui.labels" . | nindent 4 }}
+rules:
+  # The apiserver authorises a service proxy request on the name segment as written
+  # in the URL, so the common spellings are all listed.
+  - apiGroups: [""]
+    resources: ["services/proxy"]
+    resourceNames:
+      - {{ $svc | quote }}
+      - {{ printf "%s:%v" $svc $port | quote }}
+      - {{ printf "http:%s:%v" $svc $port | quote }}
+      - {{ printf "http:%s:http" $svc | quote }}
+    verbs: ["get", "create", "update", "delete"]
+{{- if or .Values.ui.access.users .Values.ui.access.groups }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $svc }}-access
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "harvester-migration.ui.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $svc }}-access
+subjects:
+  {{- range .Values.ui.access.users }}
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: {{ . | quote }}
+  {{- end }}
+  {{- range .Values.ui.access.groups }}
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: {{ . | quote }}
+  {{- end }}
+{{- end }}
+{{- end }}

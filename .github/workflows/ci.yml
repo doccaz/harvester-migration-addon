@@ -59,26 +59,35 @@ jobs:
       - name: Add the upstream chart repository
         run: helm repo add harvester https://charts.harvesterhci.io
       - run: helm dependency build
-      - run: helm lint .
+      # Token mode (the default) copies the Rancher CA with lookup(), which is empty
+      # without a cluster, so offline renders pass an explicit CA secret.
+      - run: helm lint . --set ui.auth.ca.existingSecret=ca
       - name: Render every mode
         run: |
           set -euo pipefail
-          # No cluster here, so lookup() is empty: token mode needs an explicit CA secret.
-          helm template t . > /dev/null
-          helm template t . --set controller.enabled=false > /dev/null
-          helm template t . --set ui.networkPolicy.enabled=true > /dev/null
-          helm template t . --set export.enabled=true --set export.storage.create=true > /dev/null
-          helm template t . --set ui.auth.mode=token --set ui.auth.ca.existingSecret=ca > /dev/null
-          helm template t . --set ui.auth.mode=token --set ui.auth.insecureSkipTLSVerify=true > /dev/null
-      - name: Token mode without a CA must fail loudly
+          CA="--set ui.auth.ca.existingSecret=ca"
+          helm template t . $CA > /dev/null
+          helm template t . $CA --set controller.enabled=false > /dev/null
+          helm template t . $CA --set ui.networkPolicy.enabled=true > /dev/null
+          helm template t . $CA --set export.enabled=true --set export.storage.create=true > /dev/null
+          helm template t . --set ui.auth.insecureSkipTLSVerify=true > /dev/null
+          helm template t . --set ui.auth.mode=serviceaccount > /dev/null
+          helm template t . $CA --set 'ui.access.users={user-abc}' --set 'ui.access.groups={local://g-1}' | grep -q 'kind: RoleBinding'
+      - name: Default (token) mode without a CA must fail loudly
         run: |
-          if helm template t . --set ui.auth.mode=token 2> err.txt; then
+          if helm template t . 2> err.txt; then
             echo "expected failure"; exit 1
           fi
           grep -q "tls-rancher" err.txt
+      - name: Token mode leaves the UI ServiceAccount without cluster rights
+        run: |
+          out="$(helm template t . --set ui.auth.ca.existingSecret=ca)"
+          # no ClusterRole for the UI (only the controller's own role remains)
+          [ "$(echo "$out" | grep -c '^kind: ClusterRole$')" -eq 1 ]
+          echo "$out" | grep -q 'automountServiceAccountToken: false'
       - name: Controller names Harvester depends on are preserved
         run: |
-          out="$(helm template t .)"
+          out="$(helm template t . --set ui.auth.ca.existingSecret=ca)"
           echo "$out" | grep -q 'app.kubernetes.io/name: harvester-vm-import-controller'
           echo "$out" | grep -qE '^  name: harvester-vm-import-controller$'
 

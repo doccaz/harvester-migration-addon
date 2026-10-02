@@ -1,5 +1,5 @@
-// vmic_plans.go
-package main
+// plans.go
+package vmic
 
 import (
 	"bufio"
@@ -22,7 +22,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func CreatePlanHandler(clients *kube.Clients) http.HandlerFunc {
+func CreatePlan(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var plan VirtualMachineImport
 		if err := json.NewDecoder(r.Body).Decode(&plan); err != nil {
@@ -50,7 +50,7 @@ func CreatePlanHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-func ListPlansHandler(clients *kube.Clients) http.HandlerFunc {
+func ListPlans(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		list, err := clients.Dynamic.Resource(kube.VMIGVR).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
@@ -61,7 +61,7 @@ func ListPlansHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-func DeletePlanHandler(clients *kube.Clients) http.HandlerFunc {
+func DeletePlan(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -77,7 +77,7 @@ func DeletePlanHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-func UpdatePlanHandler(clients *kube.Clients) http.HandlerFunc {
+func UpdatePlan(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -174,7 +174,7 @@ func UpdatePlanHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-func RunPlanHandler(clients *kube.Clients) http.HandlerFunc {
+func RunPlan(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -200,7 +200,7 @@ func RunPlanHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-func HandleGetPlanLogs(clients *kube.Clients) http.HandlerFunc {
+func GetPlanLogs(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -258,7 +258,7 @@ func HandleGetPlanLogs(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-func HandleGetPlanYAML(clients *kube.Clients) http.HandlerFunc {
+func GetPlanYAML(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -280,8 +280,11 @@ func HandleGetPlanYAML(clients *kube.Clients) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/yaml")
+		// Object names and values come from the cluster; never let a browser sniff
+		// this body into something it would render.
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write(yamlBytes); err != nil {
+		if _, err := w.Write(yamlBytes); err != nil { //nolint:gosec // G705: application/yaml + nosniff, and the requester's own object
 			log.Warnf("Failed to write response: %v", err)
 		}
 	}

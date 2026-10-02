@@ -1,5 +1,5 @@
-// vmic_sources.go
-package main
+// sources.go
+package vmic
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func ListVmwareSourcesHandler(clients *kube.Clients) http.HandlerFunc {
+func ListVmwareSources(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		list, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
@@ -37,7 +37,7 @@ type CreateVmwareSourcePayload struct {
 	Password   string `json:"password"`
 }
 
-func CreateVmwareSourceHandler(clients *kube.Clients) http.HandlerFunc {
+func CreateVmwareSource(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var payload CreateVmwareSourcePayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -97,7 +97,7 @@ func CreateVmwareSourceHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-func GetVmwareSourceDetails(clients *kube.Clients) http.HandlerFunc {
+func GetVmwareSource(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -126,7 +126,7 @@ func GetVmwareSourceDetails(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-func UpdateVmwareSourceHandler(clients *kube.Clients) http.HandlerFunc {
+func UpdateVmwareSource(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -195,7 +195,7 @@ func UpdateVmwareSourceHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-func DeleteVmwareSourceHandler(clients *kube.Clients) http.HandlerFunc {
+func DeleteVmwareSource(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -230,7 +230,7 @@ func DeleteVmwareSourceHandler(clients *kube.Clients) http.HandlerFunc {
 }
 
 // --- OvaSource Handlers ---
-func ListOvaSourcesHandler(clients *kube.Clients) http.HandlerFunc {
+func ListOvaSources(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		list, err := clients.Dynamic.Resource(kube.OVASourceGVR).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
@@ -250,7 +250,7 @@ type CreateOvaSourcePayload struct {
 	Password           string `json:"password"`
 }
 
-func CreateOvaSourceHandler(clients *kube.Clients) http.HandlerFunc {
+func CreateOvaSource(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var payload CreateOvaSourcePayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -311,7 +311,7 @@ func CreateOvaSourceHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-func GetOvaSourceDetails(clients *kube.Clients) http.HandlerFunc {
+func GetOvaSource(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -340,7 +340,7 @@ func GetOvaSourceDetails(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-func UpdateOvaSourceHandler(clients *kube.Clients) http.HandlerFunc {
+func UpdateOvaSource(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -409,7 +409,7 @@ func UpdateOvaSourceHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-func DeleteOvaSourceHandler(clients *kube.Clients) http.HandlerFunc {
+func DeleteOvaSource(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]

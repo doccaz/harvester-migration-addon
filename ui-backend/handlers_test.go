@@ -21,70 +21,6 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 )
 
-func TestUpdatePlanHandler(t *testing.T) {
-	scheme := runtime.NewScheme()
-	gvrToListKind := map[schema.GroupVersionResource]string{
-		kube.VMIGVR: "VirtualMachineImportList",
-	}
-
-	plan := &unstructured.Unstructured{Object: map[string]interface{}{
-		"apiVersion": "migration.harvesterhci.io/v1beta1",
-		"kind":       "VirtualMachineImport",
-		"metadata": map[string]interface{}{
-			"name":      "stuck-plan",
-			"namespace": "techday",
-		},
-		"spec": map[string]interface{}{
-			"virtualMachineName": "OLD NAME",
-			"storageClass":       "old-sc",
-			"folder":             "/dc/old",
-		},
-		"status": map[string]interface{}{
-			"importStatus":               "virtualMachineImportInvalid",
-			"importedVirtualMachineName": "old name",
-		},
-	}}
-
-	fakeDynamic := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, gvrToListKind, plan)
-	clients := &kube.Clients{Clientset: fake.NewSimpleClientset(), Dynamic: fakeDynamic}
-
-	newName := "sles16"
-	newSC := "harvester-1replica"
-	emptyFolder := ""
-	payload := UpdatePlanPayload{
-		VirtualMachineName: &newName,
-		StorageClass:       &newSC,
-		Folder:             &emptyFolder, // empty clears the field
-	}
-
-	rr := testutil.Do(UpdatePlanHandler(clients), http.MethodPut,
-		"/api/v1/plans/techday/stuck-plan", payload,
-		map[string]string{"namespace": "techday", "name": "stuck-plan"})
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
-	}
-
-	got, err := fakeDynamic.Resource(kube.VMIGVR).Namespace("techday").Get(context.TODO(), "stuck-plan", metav1.GetOptions{})
-	if err != nil {
-		t.Fatalf("failed to get updated plan: %v", err)
-	}
-
-	if name, _, _ := unstructured.NestedString(got.Object, "spec", "virtualMachineName"); name != "sles16" {
-		t.Errorf("expected virtualMachineName 'sles16', got '%s'", name)
-	}
-	if sc, _, _ := unstructured.NestedString(got.Object, "spec", "storageClass"); sc != "harvester-1replica" {
-		t.Errorf("expected storageClass 'harvester-1replica', got '%s'", sc)
-	}
-	if _, found, _ := unstructured.NestedString(got.Object, "spec", "folder"); found {
-		t.Errorf("expected folder to be cleared, but it is still present")
-	}
-	// The crux: status.importStatus must be reset so the controller re-runs preflight.
-	if status, _, _ := unstructured.NestedString(got.Object, "status", "importStatus"); status != "" {
-		t.Errorf("expected importStatus reset to empty, got '%s'", status)
-	}
-}
-
 func TestCreateForkliftProviderHandler_VSphere(t *testing.T) {
 	clients := testutil.NewClients()
 
@@ -292,14 +228,14 @@ func yamlObj(apiVersion, kind, ns, name string) *unstructured.Unstructured {
 	}}
 }
 
-// Both plan YAML routes answer 404 for a missing plan (they used to answer 500).
+// The Forklift plan YAML route answers 404 for a missing plan (it used to answer 500).
+// The VMIC one is tested in internal/vmic.
 func TestPlanYAMLHandlers(t *testing.T) {
 	cases := []struct {
 		name    string
 		handler func(*kube.Clients) http.HandlerFunc
 		obj     *unstructured.Unstructured
 	}{
-		{"VMIC plan", HandleGetPlanYAML, yamlObj("migration.harvesterhci.io/v1beta1", "VirtualMachineImport", "ns", "p1")},
 		{"Forklift plan", HandleGetForkliftPlanYAML, yamlObj("forklift.konveyor.io/v1beta1", "Plan", "ns", "p1")},
 	}
 	for _, tc := range cases {

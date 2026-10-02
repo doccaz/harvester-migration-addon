@@ -4,6 +4,8 @@ package main
 import (
 	"net/http"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/vmic"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/harvester"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/capabilities"
@@ -25,31 +27,31 @@ func newRouter(provider *kube.Provider, uiPath string) *mux.Router {
 	// API Handlers
 	api.HandleFunc("/capabilities", kube.Scoped(provider, capabilities.Handler)).Methods("GET")
 	api.HandleFunc("/support-bundle", kube.Scoped(provider, SupportBundleHandler)).Methods("GET")
-	api.HandleFunc("/vcenter/inventory/{namespace}/{name}", kube.Scoped(provider, HandleGetInventory)).Methods("GET")
-	api.HandleFunc("/vcenter/vm/{namespace}/{name}/power", kube.Scoped(provider, HandleVMPowerOp)).Methods("POST")
-	api.HandleFunc("/vcenter/vm/{namespace}/{name}/rename", kube.Scoped(provider, HandleVMRename)).Methods("POST")
-	api.HandleFunc("/vcenter/vm/{namespace}/{name}/mac", kube.Scoped(provider, HandleUpdateVMMAC)).Methods("POST")
-	api.HandleFunc("/plans", kube.Scoped(provider, CreatePlanHandler)).Methods("POST")
-	api.HandleFunc("/plans", kube.Scoped(provider, ListPlansHandler)).Methods("GET")
-	api.HandleFunc("/plans/{namespace}/{name}", kube.Scoped(provider, UpdatePlanHandler)).Methods("PUT")
-	api.HandleFunc("/plans/{namespace}/{name}", kube.Scoped(provider, DeletePlanHandler)).Methods("DELETE")
-	api.HandleFunc("/plans/{namespace}/{name}/run", kube.Scoped(provider, RunPlanHandler)).Methods("POST")
-	api.HandleFunc("/plans/{namespace}/{name}/logs", kube.Scoped(provider, HandleGetPlanLogs)).Methods("GET")
-	api.HandleFunc("/plans/{namespace}/{name}/yaml", kube.Scoped(provider, HandleGetPlanYAML)).Methods("GET")
+	api.HandleFunc("/vcenter/inventory/{namespace}/{name}", kube.Scoped(provider, vmic.GetInventory)).Methods("GET")
+	api.HandleFunc("/vcenter/vm/{namespace}/{name}/power", kube.Scoped(provider, vmic.PowerOp)).Methods("POST")
+	api.HandleFunc("/vcenter/vm/{namespace}/{name}/rename", kube.Scoped(provider, vmic.RenameVM)).Methods("POST")
+	api.HandleFunc("/vcenter/vm/{namespace}/{name}/mac", kube.Scoped(provider, vmic.UpdateMAC)).Methods("POST")
+	api.HandleFunc("/plans", kube.Scoped(provider, vmic.CreatePlan)).Methods("POST")
+	api.HandleFunc("/plans", kube.Scoped(provider, vmic.ListPlans)).Methods("GET")
+	api.HandleFunc("/plans/{namespace}/{name}", kube.Scoped(provider, vmic.UpdatePlan)).Methods("PUT")
+	api.HandleFunc("/plans/{namespace}/{name}", kube.Scoped(provider, vmic.DeletePlan)).Methods("DELETE")
+	api.HandleFunc("/plans/{namespace}/{name}/run", kube.Scoped(provider, vmic.RunPlan)).Methods("POST")
+	api.HandleFunc("/plans/{namespace}/{name}/logs", kube.Scoped(provider, vmic.GetPlanLogs)).Methods("GET")
+	api.HandleFunc("/plans/{namespace}/{name}/yaml", kube.Scoped(provider, vmic.GetPlanYAML)).Methods("GET")
 
 	// Harvester Resource Handlers
-	api.HandleFunc("/harvester/vmwaresources", kube.Scoped(provider, ListVmwareSourcesHandler)).Methods("GET")
-	api.HandleFunc("/harvester/vmwaresources", kube.Scoped(provider, CreateVmwareSourceHandler)).Methods("POST")
-	api.HandleFunc("/harvester/vmwaresources/{namespace}/{name}", kube.Scoped(provider, GetVmwareSourceDetails)).Methods("GET")
-	api.HandleFunc("/harvester/vmwaresources/{namespace}/{name}", kube.Scoped(provider, UpdateVmwareSourceHandler)).Methods("PUT")
-	api.HandleFunc("/harvester/vmwaresources/{namespace}/{name}", kube.Scoped(provider, DeleteVmwareSourceHandler)).Methods("DELETE")
+	api.HandleFunc("/harvester/vmwaresources", kube.Scoped(provider, vmic.ListVmwareSources)).Methods("GET")
+	api.HandleFunc("/harvester/vmwaresources", kube.Scoped(provider, vmic.CreateVmwareSource)).Methods("POST")
+	api.HandleFunc("/harvester/vmwaresources/{namespace}/{name}", kube.Scoped(provider, vmic.GetVmwareSource)).Methods("GET")
+	api.HandleFunc("/harvester/vmwaresources/{namespace}/{name}", kube.Scoped(provider, vmic.UpdateVmwareSource)).Methods("PUT")
+	api.HandleFunc("/harvester/vmwaresources/{namespace}/{name}", kube.Scoped(provider, vmic.DeleteVmwareSource)).Methods("DELETE")
 	api.HandleFunc("/harvester/vmwaresources/{namespace}/{name}/yaml", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return harvester.GetSourceYAML(c, kube.VMwareSourceGVR) })).Methods("GET")
 
-	api.HandleFunc("/harvester/ovasources", kube.Scoped(provider, ListOvaSourcesHandler)).Methods("GET")
-	api.HandleFunc("/harvester/ovasources", kube.Scoped(provider, CreateOvaSourceHandler)).Methods("POST")
-	api.HandleFunc("/harvester/ovasources/{namespace}/{name}", kube.Scoped(provider, GetOvaSourceDetails)).Methods("GET")
-	api.HandleFunc("/harvester/ovasources/{namespace}/{name}", kube.Scoped(provider, UpdateOvaSourceHandler)).Methods("PUT")
-	api.HandleFunc("/harvester/ovasources/{namespace}/{name}", kube.Scoped(provider, DeleteOvaSourceHandler)).Methods("DELETE")
+	api.HandleFunc("/harvester/ovasources", kube.Scoped(provider, vmic.ListOvaSources)).Methods("GET")
+	api.HandleFunc("/harvester/ovasources", kube.Scoped(provider, vmic.CreateOvaSource)).Methods("POST")
+	api.HandleFunc("/harvester/ovasources/{namespace}/{name}", kube.Scoped(provider, vmic.GetOvaSource)).Methods("GET")
+	api.HandleFunc("/harvester/ovasources/{namespace}/{name}", kube.Scoped(provider, vmic.UpdateOvaSource)).Methods("PUT")
+	api.HandleFunc("/harvester/ovasources/{namespace}/{name}", kube.Scoped(provider, vmic.DeleteOvaSource)).Methods("DELETE")
 	api.HandleFunc("/harvester/ovasources/{namespace}/{name}/yaml", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return harvester.GetSourceYAML(c, kube.OVASourceGVR) })).Methods("GET")
 
 	api.HandleFunc("/harvester/namespaces", kube.Scoped(provider, harvester.ListNamespaces)).Methods("GET")

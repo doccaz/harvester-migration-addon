@@ -1,5 +1,5 @@
-// vcenter_handlers.go
-package main
+// vcenter_ops.go
+package vmic
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func HandleGetInventory(clients *kube.Clients) http.HandlerFunc {
+func GetInventory(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -41,7 +41,7 @@ type VirtualMachinePowerRequest struct {
 	Operation string `json:"operation"` // "on", "off", "reset", "shutdown"
 }
 
-func HandleVMPowerOp(clients *kube.Clients) http.HandlerFunc {
+func PowerOp(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -106,7 +106,7 @@ type VirtualMachineRenameRequest struct {
 	NewName string `json:"newName"`
 }
 
-func HandleVMRename(clients *kube.Clients) http.HandlerFunc {
+func RenameVM(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -172,7 +172,7 @@ type UpdateVMMACRequest struct {
 	NewMAC    string `json:"newMac"`
 }
 
-func HandleUpdateVMMAC(clients *kube.Clients) http.HandlerFunc {
+func UpdateMAC(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]

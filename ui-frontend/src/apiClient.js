@@ -57,7 +57,13 @@ export function createApiFetch(originalFetch, { apiBase = '', storage, doc = doc
     try { if (storage) storage.removeItem(STORAGE_KEY); } catch (e) { /* ignore */ }
   };
 
-  const csrfHeaders = () => ({ 'Content-Type': 'application/json', 'X-Api-Csrf': readCookie(doc, 'CSRF') });
+  // Accept is required: without it Rancher answers a browser with its HTML "API
+  // browser" page (HTTP 201, token embedded in the markup) instead of JSON.
+  const csrfHeaders = () => ({
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    'X-Api-Csrf': readCookie(doc, 'CSRF'),
+  });
 
   // Best effort: do not leave a token behind that we cannot use.
   const discard = (id) => {
@@ -75,7 +81,12 @@ export function createApiFetch(originalFetch, { apiBase = '', storage, doc = doc
         headers: csrfHeaders(),
         body: JSON.stringify({ type: 'token', description: 'Harvester migration UI', ttl: TOKEN_TTL_MS }),
       })
-        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`token request failed: HTTP ${r.status}`))))
+        .then((r) => {
+          if (!r.ok) throw new Error(`token request failed: HTTP ${r.status}`);
+          const type = (r.headers && r.headers.get && r.headers.get('content-type')) || '';
+          if (type && !type.includes('json')) throw new Error(`token request returned ${type.split(';')[0]}, not JSON`);
+          return r.json();
+        })
         .then((body) => {
           if (!body || !body.token) {
             discard(body && body.id);

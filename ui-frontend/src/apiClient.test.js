@@ -4,7 +4,12 @@ const memStorage = () => {
   const m = {};
   return { getItem: (k) => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = v; }, removeItem: (k) => { delete m[k]; } };
 };
-const res = (status, body) => ({ status, ok: status >= 200 && status < 300, json: async () => body });
+const res = (status, body, contentType = 'application/json') => ({
+  status,
+  ok: status >= 200 && status < 300,
+  headers: { get: (n) => (n.toLowerCase() === 'content-type' ? contentType : null) },
+  json: async () => body,
+});
 const doc = { cookie: 'CSRF=abc123; other=1' };
 
 test('rewrites /api paths and leaves other URLs alone', async () => {
@@ -29,6 +34,7 @@ test('on 401 mints a token with the CSRF header, retries once, and caches it', a
   expect(r1.status).toBe(200);
   const mintCall = calls.find((c) => c[0] === '/v3/tokens');
   expect(mintCall[1].headers['X-Api-Csrf']).toBe('abc123');
+  expect(mintCall[1].headers.Accept).toBe('application/json');
   expect(mintCall[1].credentials).toBe('same-origin');
   const before = calls.length;
   await api('/api/v1/plans'); // cached: no new mint, one request
@@ -143,4 +149,14 @@ test('the token stays usable when sessionStorage is unavailable', async () => {
   await api('/api/v1/c');
   expect(mints).toBe(1);
   console.info.mockRestore();
+});
+
+test('an HTML answer to the token request is reported as such and backs off', async () => {
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  const fetchFn = jest.fn((url) => Promise.resolve(
+    url === '/v3/tokens' ? res(201, {}, 'text/html; charset=utf-8') : res(401, {})));
+  const api = createApiFetch(fetchFn, { storage: memStorage(), doc });
+  expect((await api('/api/v1/plans')).status).toBe(401);
+  expect(warn.mock.calls[0][0]).toMatch(/returned text\/html, not JSON/);
+  warn.mockRestore();
 });

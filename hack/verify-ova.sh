@@ -16,7 +16,7 @@ TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 
 echo "== Container"
 tar tf "$OVA" > "$TMP/members" 2>"$TMP/tarerr" && ok "readable tar ($(wc -l <"$TMP/members") members, $(du -h "$OVA" | cut -f1))" || { bad "not a readable tar: $(head -c 200 "$TMP/tarerr")"; exit 1; }
-if tar tvf "$OVA" 2>/dev/null | head -1 | awk '{print $1}' | grep -q '^-'; then ok "regular-file entries"; fi
+FIRSTLINE="$(tar tvf "$OVA" 2>/dev/null | head -1)"; [[ "$FIRSTLINE" == -* ]] && ok "regular-file entries"
 FIRST="$(sed -n 1p "$TMP/members")"; SECOND="$(sed -n 2p "$TMP/members")"
 [[ "$FIRST" == *.ovf ]] && ok "first member is the descriptor ($FIRST)" || bad "first member is '$FIRST', not the .ovf"
 [[ "$SECOND" == *.mf ]] && ok "second member is the manifest ($SECOND)" || bad "second member is '$SECOND', not the .mf"
@@ -29,7 +29,7 @@ LINES=0
 while IFS= read -r line; do
   [[ "$line" =~ ^SHA(256|1)\((.+)\)=\ ([0-9a-fA-F]+)$ ]] || { [ -n "$line" ] && bad "unparsable manifest line: $line"; continue; }
   alg="${BASH_REMATCH[1]}"; name="${BASH_REMATCH[2]}"; want="${BASH_REMATCH[3],,}"; LINES=$((LINES+1))
-  got="$(tar xOf "$OVA" "$name" 2>/dev/null | "sha${alg}sum" | awk '{print $1}')"
+  got="$(tar xOf "$OVA" "$name" 2>/dev/null | "sha${alg}sum")"; got="${got%% *}"
   [ "$got" = "$want" ] && ok "SHA$alg($name) matches" || bad "SHA$alg($name): manifest $want, actual $got"
 done < "$TMP/mf"
 [ "$LINES" -gt 0 ] && ok "$LINES manifest entries checked" || bad "manifest has no usable entries"
@@ -44,8 +44,11 @@ else echo "  skip  schema validation (needs xmllint and $XSD)"; fi
 
 echo "== Disk"
 DISK="$(grep -vE '\.(ovf|mf|cert)$' "$TMP/members" | head -1)"
-NEED_KB=$(( $(tar tvf "$OVA" 2>/dev/null | awk -v d="$DISK" '$NF==d {print $3}' | head -1) / 1024 + 1048576 ))
-FREE_KB="$(df -Pk "$TMP" | awk 'NR==2 {print $4}')"
+# (only coreutils, grep, sed and bash: this also runs inside a minimal container image)
+DISK_BYTES=0
+while read -r _ _ size _ _ name; do [ "$name" = "$DISK" ] && { DISK_BYTES="$size"; break; }; done < <(tar tvf "$OVA" 2>/dev/null)
+NEED_KB=$(( DISK_BYTES / 1024 + 1048576 ))
+FREE_KB="$(df -Pk "$TMP" | tail -1 | tr -s ' ' | cut -d' ' -f4)"
 if [ -n "$DISK" ] && command -v qemu-img >/dev/null && [ "${FREE_KB:-0}" -lt "$NEED_KB" ]; then
   echo "  skip  disk check: it extracts the disk and needs ~$((NEED_KB/1024)) MiB free in \$TMPDIR ($((FREE_KB/1024)) MiB free); set TMPDIR to a bigger disk"
 elif [ -n "$DISK" ] && command -v qemu-img >/dev/null; then

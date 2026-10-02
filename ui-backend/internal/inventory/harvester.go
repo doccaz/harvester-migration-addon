@@ -41,7 +41,7 @@ func HandleGetHarvesterInventory(clients *kube.Clients) http.HandlerFunc {
 		vms, err := clients.Dynamic.Resource(kube.VMGVR).Namespace("").List(ctx, metav1.ListOptions{})
 		if err != nil {
 			log.Errorf("Failed to list VirtualMachines: %v", err)
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list VirtualMachines: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to list VirtualMachines: "+err.Error())
 			return
 		}
 

@@ -2,10 +2,26 @@
 package inventory
 
 import (
+	"encoding/json"
+	"errors"
+	"net/http"
 	"strings"
 	"testing"
 
+	dynamicfake "k8s.io/client-go/dynamic/fake"
+	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
+
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/testutil"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 // vmFixture builds a KubeVirt VirtualMachine shaped like the ones on a real
@@ -201,4 +217,127 @@ func TestParseQuantityBytes(t *testing.T) {
 			t.Errorf("parseQuantityBytes(%q)=%d, want %d", c.in, got, c.want)
 		}
 	}
+}
+
+func inventoryVM(name, ns string) *unstructured.Unstructured {
+	vm := vmFixture()
+	vm.SetName(name)
+	vm.SetNamespace(ns)
+	return vm
+}
+
+func runningInstance(name, ns string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "kubevirt.io/v1", "kind": "VirtualMachineInstance",
+		"metadata": map[string]interface{}{"name": name, "namespace": ns},
+	}}
+}
+
+func claim(ns, name string, gi int64) *corev1.PersistentVolumeClaim {
+	block, sc := corev1.PersistentVolumeBlock, "harvester-longhorn"
+	return &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			VolumeMode: &block, StorageClassName: &sc,
+			Resources: corev1.ResourceRequirements{Requests: corev1.ResourceList{corev1.ResourceStorage: *resource.NewQuantity(gi<<30, resource.BinarySI)}},
+		},
+	}
+}
+
+func TestHandleGetHarvesterInventoryBuildsTheTree(t *testing.T) {
+	// The API server's list order is not something the handler may rely on, so the
+	// fake returns the VMs in a deliberately scrambled order (no rotation of it is
+	// sorted): the tree can only come out sorted if the handler sorts it.
+	scrambled := []struct{ ns, name string }{
+		{"zeta", "stopped-vm"}, {"alpha", "stopped-vm"}, {"mid", "stopped-vm"},
+		{"dev", "stopped-vm"}, {"dev", "busy-vm"}, {"labs", "stopped-vm"}, {"beta", "stopped-vm"},
+	}
+	items := make([]unstructured.Unstructured, 0, len(scrambled))
+	var claims []runtime.Object
+	seen := map[string]bool{}
+	for _, v := range scrambled {
+		items = append(items, *inventoryVM(v.name, v.ns))
+		if !seen[v.ns] {
+			seen[v.ns] = true
+			claims = append(claims, claim(v.ns, "root-pvc", 50), claim(v.ns, "iso-pvc", 5))
+		}
+	}
+
+	clients := testutil.NewClientsWithListKinds(map[schema.GroupVersionResource]string{
+		kube.VMGVR: "VirtualMachineList", kube.VMIKubevirtGVR: "VirtualMachineInstanceList",
+	})
+	clients.Clientset = fake.NewSimpleClientset(claims...)
+	clients.Dynamic.(*dynamicfake.FakeDynamicClient).PrependReactor("list", "virtualmachines",
+		func(k8stesting.Action) (bool, runtime.Object, error) {
+			return true, &unstructured.UnstructuredList{
+				Object: map[string]interface{}{"apiVersion": "kubevirt.io/v1", "kind": "VirtualMachineList"},
+				Items:  items,
+			}, nil
+		})
+	if _, err := clients.Dynamic.Resource(kube.VMIKubevirtGVR).Namespace("dev").Create(t.Context(), runningInstance("busy-vm", "dev"), metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+
+	rr := testutil.Do(HandleGetHarvesterInventory(clients), "GET", "/x", nil, nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rr.Code, rr.Body)
+	}
+	var root Node
+	if err := json.Unmarshal(rr.Body.Bytes(), &root); err != nil {
+		t.Fatal(err)
+	}
+	if root.ID != "harvester" || root.Type != "datacenter" {
+		t.Fatalf("root = %s/%s", root.ID, root.Type)
+	}
+	got := make([]string, 0, len(root.Children))
+	var dev Node
+	for _, ns := range root.Children {
+		got = append(got, ns.Name)
+		if ns.Name == "dev" {
+			dev = ns
+		}
+	}
+	if want := "alpha,beta,dev,labs,mid,zeta"; strings.Join(got, ",") != want {
+		t.Errorf("namespaces = %v, want sorted %s", got, want)
+	}
+
+	// VMs inside a namespace are sorted too, and a running VM must not be offered for
+	// export while a stopped one may be.
+	if len(dev.Children) != 2 || dev.Children[0].Name != "busy-vm" || dev.Children[1].Name != "stopped-vm" {
+		t.Fatalf("VMs in dev = %+v", dev.Children)
+	}
+	busy, stopped := dev.Children[0], dev.Children[1]
+	if !strings.Contains(strings.Join(busy.ExportBlockers, " "), "running") {
+		t.Errorf("a running VM must carry an export blocker: %v", busy.ExportBlockers)
+	}
+	if len(stopped.ExportBlockers) != 0 {
+		t.Errorf("a stopped VM with PVC-backed disks is exportable: %v", stopped.ExportBlockers)
+	}
+}
+
+func TestHandleGetHarvesterInventoryFailures(t *testing.T) {
+	forbidden := apierrors.NewForbidden(schema.GroupResource{Resource: "virtualmachines"}, "x", errors.New("no"))
+	kinds := map[schema.GroupVersionResource]string{kube.VMGVR: "VirtualMachineList", kube.VMIKubevirtGVR: "VirtualMachineInstanceList"}
+
+	// A caller who may not list VMs gets the API server's 403; any other failure stays 500.
+	for name, tc := range map[string]struct {
+		err  error
+		want int
+	}{"forbidden is 403": {forbidden, http.StatusForbidden}, "a non-API error is 500": {errors.New("connection reset"), http.StatusInternalServerError}} {
+		t.Run(name, func(t *testing.T) {
+			clients := testutil.NewClientsWithListKinds(kinds)
+			testutil.Fail(clients, "list", "virtualmachines", tc.err)
+			if rr := testutil.Do(HandleGetHarvesterInventory(clients), "GET", "/x", nil, nil); rr.Code != tc.want {
+				t.Errorf("status %d, want %d: %s", rr.Code, tc.want, rr.Body)
+			}
+		})
+	}
+
+	t.Run("an empty cluster is an empty tree, not an error", func(t *testing.T) {
+		rr := testutil.Do(HandleGetHarvesterInventory(testutil.NewClientsWithListKinds(kinds)), "GET", "/x", nil, nil)
+		var root Node
+		if rr.Code != http.StatusOK || json.Unmarshal(rr.Body.Bytes(), &root) != nil || len(root.Children) != 0 {
+			t.Errorf("status %d body %s", rr.Code, rr.Body)
+		}
+	})
 }

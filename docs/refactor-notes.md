@@ -85,7 +85,14 @@
   of a lookup (`GetResource`, the source detail routes, parts of export and forklift
   providers; about 10 sites after export was fixed: vmic 6, forklift 3, harvester 1), so a forbidden read looks like "not found". Not a 500,
   so left alone for now; in token mode it should become the API status too.
-- **Blanket 500s still to convert as packages move:** support bundle (2), inventory (1). Everything else left at 500 is on purpose (see the vmic and forklift
+- **Blanket-500 sweep: complete.** Every remaining `StatusInternalServerError` in
+  non-test code is deliberate: internal conversion/marshal/`SetNested*` failures, a
+  stored object missing a required field, building a Job or a request, file removal,
+  `Stat`, stream finalisation, an unreachable vCenter (see above), plus the status-
+  mapping helpers themselves. The last site (the Harvester inventory's VM list) now
+  keeps the API status; the handler had no tests and now has tree-shape tests (with a
+  deliberately scrambled list order, so sorting cannot pass by luck) and the failure
+  mapping. Everything else left at 500 is on purpose (see the vmic and forklift
   entries above). `harvester` is done (its four list calls were
   converted in a follow-up; only the YAML marshal failure stays 500, which is internal).
 - List routes that return `list.Items` directly could answer `null` instead of `[]`

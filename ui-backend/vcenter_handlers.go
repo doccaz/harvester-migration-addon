@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
+
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -69,11 +71,11 @@ func HandleGetInventory(clients *K8sClients) http.HandlerFunc {
 		inventory, err := gatherVCenterInventory(r.Context(), clients, namespace, name)
 		if err != nil {
 			log.Errorf("Failed to get vCenter inventory: %v", err)
-			respondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		respondWithJSON(w, http.StatusOK, inventory)
+		httpx.RespondWithJSON(w, http.StatusOK, inventory)
 	}
 }
 
@@ -90,7 +92,7 @@ func HandleVMPowerOp(clients *K8sClients) http.HandlerFunc {
 
 		var req VirtualMachinePowerRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondWithError(w, http.StatusBadRequest, "Invalid request body")
+			httpx.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
@@ -98,30 +100,30 @@ func HandleVMPowerOp(clients *K8sClients) http.HandlerFunc {
 
 		sourceObj, err := clients.Dynamic.Resource(vmwareSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to get VmwareSource: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get VmwareSource: "+err.Error())
 			return
 		}
 
 		endpoint, found := getNestedStringOrWarn(sourceObj.Object, "spec", "endpoint")
 		if !found {
-			respondWithError(w, http.StatusInternalServerError, "VmwareSource missing spec.endpoint")
+			httpx.RespondWithError(w, http.StatusInternalServerError, "VmwareSource missing spec.endpoint")
 			return
 		}
 		datacenter, _ := getNestedStringOrWarn(sourceObj.Object, "spec", "dc")
 		secretName, found := getNestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
 		if !found {
-			respondWithError(w, http.StatusInternalServerError, "VmwareSource missing credentials secret name")
+			httpx.RespondWithError(w, http.StatusInternalServerError, "VmwareSource missing credentials secret name")
 			return
 		}
 		secretNamespace, found := getNestedStringOrWarn(sourceObj.Object, "spec", "credentials", "namespace")
 		if !found {
-			respondWithError(w, http.StatusInternalServerError, "VmwareSource missing credentials secret namespace")
+			httpx.RespondWithError(w, http.StatusInternalServerError, "VmwareSource missing credentials secret namespace")
 			return
 		}
 
 		secret, err := clients.Clientset.CoreV1().Secrets(secretNamespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to get credentials secret: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get credentials secret: "+err.Error())
 			return
 		}
 
@@ -134,11 +136,11 @@ func HandleVMPowerOp(clients *K8sClients) http.HandlerFunc {
 
 		if err := PowerOpVM(r.Context(), creds, req.VMName, req.Operation); err != nil {
 			log.Errorf("Failed to perform power operation: %v", err)
-			respondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		respondWithJSON(w, http.StatusOK, map[string]string{"message": "Power operation successful"})
+		httpx.RespondWithJSON(w, http.StatusOK, map[string]string{"message": "Power operation successful"})
 	}
 }
 
@@ -155,7 +157,7 @@ func HandleVMRename(clients *K8sClients) http.HandlerFunc {
 
 		var req VirtualMachineRenameRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondWithError(w, http.StatusBadRequest, "Invalid request body")
+			httpx.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
@@ -163,30 +165,30 @@ func HandleVMRename(clients *K8sClients) http.HandlerFunc {
 
 		sourceObj, err := clients.Dynamic.Resource(vmwareSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to get VmwareSource: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get VmwareSource: "+err.Error())
 			return
 		}
 
 		endpoint, found := getNestedStringOrWarn(sourceObj.Object, "spec", "endpoint")
 		if !found {
-			respondWithError(w, http.StatusInternalServerError, "VmwareSource missing spec.endpoint")
+			httpx.RespondWithError(w, http.StatusInternalServerError, "VmwareSource missing spec.endpoint")
 			return
 		}
 		datacenter, _ := getNestedStringOrWarn(sourceObj.Object, "spec", "dc")
 		secretName, found := getNestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
 		if !found {
-			respondWithError(w, http.StatusInternalServerError, "VmwareSource missing credentials secret name")
+			httpx.RespondWithError(w, http.StatusInternalServerError, "VmwareSource missing credentials secret name")
 			return
 		}
 		secretNamespace, found := getNestedStringOrWarn(sourceObj.Object, "spec", "credentials", "namespace")
 		if !found {
-			respondWithError(w, http.StatusInternalServerError, "VmwareSource missing credentials secret namespace")
+			httpx.RespondWithError(w, http.StatusInternalServerError, "VmwareSource missing credentials secret namespace")
 			return
 		}
 
 		secret, err := clients.Clientset.CoreV1().Secrets(secretNamespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to get credentials secret: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get credentials secret: "+err.Error())
 			return
 		}
 
@@ -199,11 +201,11 @@ func HandleVMRename(clients *K8sClients) http.HandlerFunc {
 
 		if err := RenameVM(r.Context(), creds, req.OldName, req.NewName); err != nil {
 			log.Errorf("Failed to rename VM: %v", err)
-			respondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		respondWithJSON(w, http.StatusOK, map[string]string{"message": "Rename successful"})
+		httpx.RespondWithJSON(w, http.StatusOK, map[string]string{"message": "Rename successful"})
 	}
 }
 
@@ -221,7 +223,7 @@ func HandleUpdateVMMAC(clients *K8sClients) http.HandlerFunc {
 
 		var req UpdateVMMACRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondWithError(w, http.StatusBadRequest, "Invalid request body")
+			httpx.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
@@ -229,30 +231,30 @@ func HandleUpdateVMMAC(clients *K8sClients) http.HandlerFunc {
 
 		sourceObj, err := clients.Dynamic.Resource(vmwareSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to get VmwareSource: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get VmwareSource: "+err.Error())
 			return
 		}
 
 		endpoint, found := getNestedStringOrWarn(sourceObj.Object, "spec", "endpoint")
 		if !found {
-			respondWithError(w, http.StatusInternalServerError, "VmwareSource missing spec.endpoint")
+			httpx.RespondWithError(w, http.StatusInternalServerError, "VmwareSource missing spec.endpoint")
 			return
 		}
 		datacenter, _ := getNestedStringOrWarn(sourceObj.Object, "spec", "dc")
 		secretName, found := getNestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
 		if !found {
-			respondWithError(w, http.StatusInternalServerError, "VmwareSource missing credentials secret name")
+			httpx.RespondWithError(w, http.StatusInternalServerError, "VmwareSource missing credentials secret name")
 			return
 		}
 		secretNamespace, found := getNestedStringOrWarn(sourceObj.Object, "spec", "credentials", "namespace")
 		if !found {
-			respondWithError(w, http.StatusInternalServerError, "VmwareSource missing credentials secret namespace")
+			httpx.RespondWithError(w, http.StatusInternalServerError, "VmwareSource missing credentials secret namespace")
 			return
 		}
 
 		secret, err := clients.Clientset.CoreV1().Secrets(secretNamespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to get credentials secret: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get credentials secret: "+err.Error())
 			return
 		}
 
@@ -265,11 +267,11 @@ func HandleUpdateVMMAC(clients *K8sClients) http.HandlerFunc {
 
 		if err := UpdateVMNetworkMAC(r.Context(), creds, req.VMName, req.DeviceKey, req.NewMAC); err != nil {
 			log.Errorf("Failed to update VM MAC: %v", err)
-			respondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		respondWithJSON(w, http.StatusOK, map[string]string{"message": "MAC address updated successfully"})
+		httpx.RespondWithJSON(w, http.StatusOK, map[string]string{"message": "MAC address updated successfully"})
 	}
 }
 

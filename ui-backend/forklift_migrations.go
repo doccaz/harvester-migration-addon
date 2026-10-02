@@ -5,6 +5,8 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
+
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,11 +41,11 @@ func CreateForkliftMigrationHandler(clients *K8sClients) http.HandlerFunc {
 
 		createdObj, err := clients.Dynamic.Resource(forkliftMigrationGVR).Namespace(namespace).Create(context.TODO(), migration, metav1.CreateOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to create Forklift Migration: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create Forklift Migration: "+err.Error())
 			return
 		}
 
-		respondWithJSON(w, http.StatusCreated, createdObj)
+		httpx.RespondWithJSON(w, http.StatusCreated, createdObj)
 	}
 }
 
@@ -59,11 +61,11 @@ func DeleteForkliftMigrationHandler(clients *K8sClients) http.HandlerFunc {
 
 		err := clients.Dynamic.Resource(forkliftMigrationGVR).Namespace(namespace).Delete(context.TODO(), migrationName, metav1.DeleteOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to delete Forklift Migration: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to delete Forklift Migration: "+err.Error())
 			return
 		}
 
-		respondWithJSON(w, http.StatusOK, map[string]string{"message": "Migration deleted"})
+		httpx.RespondWithJSON(w, http.StatusOK, map[string]string{"message": "Migration deleted"})
 	}
 }
 
@@ -77,7 +79,7 @@ func GetForkliftMigrationStatus(clients *K8sClients) http.HandlerFunc {
 		// List all migrations in the namespace
 		list, err := clients.Dynamic.Resource(forkliftMigrationGVR).Namespace(namespace).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to list Forklift Migrations: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list Forklift Migrations: "+err.Error())
 			return
 		}
 
@@ -96,10 +98,10 @@ func GetForkliftMigrationStatus(clients *K8sClients) http.HandlerFunc {
 			}
 		}
 		if latestMigration != nil {
-			respondWithJSON(w, http.StatusOK, latestMigration)
+			httpx.RespondWithJSON(w, http.StatusOK, latestMigration)
 			return
 		}
 
-		respondWithJSON(w, http.StatusOK, map[string]interface{}{"message": "No migration found for this plan"})
+		httpx.RespondWithJSON(w, http.StatusOK, map[string]interface{}{"message": "No migration found for this plan"})
 	}
 }

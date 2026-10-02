@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
+
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,29 +26,29 @@ func HandleGetForkliftInventory(clients *K8sClients) http.HandlerFunc {
 
 		providerObj, err := clients.Dynamic.Resource(forkliftProviderGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to get Forklift Provider: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get Forklift Provider: "+err.Error())
 			return
 		}
 
 		providerURL, found := getNestedStringOrWarn(providerObj.Object, "spec", "url")
 		if !found {
-			respondWithError(w, http.StatusInternalServerError, "Forklift Provider missing URL")
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Forklift Provider missing URL")
 			return
 		}
 		secretName, found := getNestedStringOrWarn(providerObj.Object, "spec", "secret", "name")
 		if !found {
-			respondWithError(w, http.StatusInternalServerError, "Forklift Provider missing secret name")
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Forklift Provider missing secret name")
 			return
 		}
 		secretNamespace, found := getNestedStringOrWarn(providerObj.Object, "spec", "secret", "namespace")
 		if !found {
-			respondWithError(w, http.StatusInternalServerError, "Forklift Provider missing secret namespace")
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Forklift Provider missing secret namespace")
 			return
 		}
 
 		secret, err := clients.Clientset.CoreV1().Secrets(secretNamespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to get Forklift credentials secret: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get Forklift credentials secret: "+err.Error())
 			return
 		}
 
@@ -63,11 +65,11 @@ func HandleGetForkliftInventory(clients *K8sClients) http.HandlerFunc {
 		inventory, err := GetVCenterInventoryAutoDiscover(r.Context(), creds)
 		if err != nil {
 			log.Errorf("Failed to get vCenter inventory via Forklift Provider: %v", err)
-			respondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		respondWithJSON(w, http.StatusOK, inventory)
+		httpx.RespondWithJSON(w, http.StatusOK, inventory)
 	}
 }
 
@@ -94,14 +96,14 @@ func HandleGetForkliftOvaInventory(clients *K8sClients) http.HandlerFunc {
 		// The value is spliced into the inventory URL, so only known resources
 		// are accepted; anything else could address other inventory paths.
 		if !ovaInventoryResources[resource] {
-			respondWithError(w, http.StatusBadRequest, "Unsupported OVA inventory resource: "+resource)
+			httpx.RespondWithError(w, http.StatusBadRequest, "Unsupported OVA inventory resource: "+resource)
 			return
 		}
 
 		// 1. Get the Provider CR to obtain its UID
 		providerObj, err := clients.Dynamic.Resource(forkliftProviderGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusNotFound, "Failed to get OVA provider: "+err.Error())
+			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get OVA provider: "+err.Error())
 			return
 		}
 		providerUID := string(providerObj.GetUID())
@@ -115,7 +117,7 @@ func HandleGetForkliftOvaInventory(clients *K8sClients) http.HandlerFunc {
 			forkliftNs = "forklift"
 			svc, err = clients.Clientset.CoreV1().Services(forkliftNs).Get(context.TODO(), "forklift-inventory", metav1.GetOptions{})
 			if err != nil {
-				respondWithError(w, http.StatusInternalServerError, "Cannot find forklift-inventory service: "+err.Error())
+				httpx.RespondWithError(w, http.StatusInternalServerError, "Cannot find forklift-inventory service: "+err.Error())
 				return
 			}
 		}
@@ -137,12 +139,12 @@ func HandleGetForkliftOvaInventory(clients *K8sClients) http.HandlerFunc {
 		// 4. Proxy the request
 		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, inventoryURL, nil)
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to build inventory request: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to build inventory request: "+err.Error())
 			return
 		}
 		resp, err := inventoryClient.Do(req)
 		if err != nil {
-			respondWithError(w, http.StatusBadGateway, "Failed to reach forklift-inventory: "+err.Error())
+			httpx.RespondWithError(w, http.StatusBadGateway, "Failed to reach forklift-inventory: "+err.Error())
 			return
 		}
 		defer resp.Body.Close()

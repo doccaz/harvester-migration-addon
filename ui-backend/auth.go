@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
+
 	log "github.com/sirupsen/logrus"
 	authv1 "k8s.io/api/authentication/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -183,11 +185,11 @@ func userScoped(p *K8sProvider, build func(*K8sClients) http.HandlerFunc) http.H
 		clients, err := p.For(r)
 		if err != nil {
 			if err == errNoToken || err == errUnauthorized {
-				respondWithError(w, http.StatusUnauthorized, err.Error())
+				httpx.RespondWithError(w, http.StatusUnauthorized, err.Error())
 				return
 			}
 			log.Errorf("Failed to build Kubernetes clients: %v", err)
-			respondWithError(w, http.StatusInternalServerError, "Failed to build Kubernetes clients")
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to build Kubernetes clients")
 			return
 		}
 		build(clients)(w, r)

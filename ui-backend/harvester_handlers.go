@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
+
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -18,10 +20,10 @@ func ListNamespacesHandler(clients *K8sClients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		namespaces, err := clients.Clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		respondWithJSON(w, http.StatusOK, namespaces.Items)
+		httpx.RespondWithJSON(w, http.StatusOK, namespaces.Items)
 	}
 }
 
@@ -31,7 +33,7 @@ func CreateNamespaceHandler(clients *K8sClients) http.HandlerFunc {
 			Name string `json:"name"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			respondWithError(w, http.StatusBadRequest, "Invalid request body")
+			httpx.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
@@ -39,11 +41,11 @@ func CreateNamespaceHandler(clients *K8sClients) http.HandlerFunc {
 		nsSpec := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: payload.Name}}
 		_, err := clients.Clientset.CoreV1().Namespaces().Create(context.TODO(), nsSpec, metav1.CreateOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		respondWithJSON(w, http.StatusCreated, map[string]string{"status": "namespace created"})
+		httpx.RespondWithJSON(w, http.StatusCreated, map[string]string{"status": "namespace created"})
 	}
 }
 
@@ -65,12 +67,12 @@ func ListVlanConfigsHandler(clients *K8sClients) http.HandlerFunc {
 
 		list, err := clients.Dynamic.Resource(gvr).Namespace("").List(context.TODO(), listOptions)
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
 		log.Debugf("Fetched VLAN definitions: %+v", list.Items)
-		respondWithJSON(w, http.StatusOK, list.Items)
+		httpx.RespondWithJSON(w, http.StatusOK, list.Items)
 	}
 }
 
@@ -78,10 +80,10 @@ func ListStorageClassesHandler(clients *K8sClients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		scs, err := clients.Clientset.StorageV1().StorageClasses().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		respondWithJSON(w, http.StatusOK, scs.Items)
+		httpx.RespondWithJSON(w, http.StatusOK, scs.Items)
 	}
 }
 
@@ -94,11 +96,11 @@ func HandleGetResource(clients *K8sClients, gvr schema.GroupVersionResource) htt
 
 		item, err := clients.Dynamic.Resource(gvr).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusNotFound, err.Error())
+			httpx.RespondWithError(w, http.StatusNotFound, err.Error())
 			return
 		}
 
-		respondWithJSON(w, http.StatusOK, item.Object)
+		httpx.RespondWithJSON(w, http.StatusOK, item.Object)
 	}
 }
 
@@ -112,13 +114,13 @@ func HandleGetSourceYAML(clients *K8sClients, gvr schema.GroupVersionResource) h
 
 		item, err := clients.Dynamic.Resource(gvr).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
 		yamlBytes, err := yaml.Marshal(item.Object)
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to marshal source to YAML: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to marshal source to YAML: "+err.Error())
 			return
 		}
 
@@ -137,10 +139,10 @@ func ListVMsHandler(clients *K8sClients) http.HandlerFunc {
 
 		list, err := clients.Dynamic.Resource(vmGVR).Namespace(namespace).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to list VirtualMachines: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list VirtualMachines: "+err.Error())
 			return
 		}
-		respondWithJSON(w, http.StatusOK, list.Items)
+		httpx.RespondWithJSON(w, http.StatusOK, list.Items)
 	}
 }
 

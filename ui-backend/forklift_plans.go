@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
+
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,10 +21,10 @@ func ListForkliftPlansHandler(clients *K8sClients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		list, err := clients.Dynamic.Resource(forkliftPlanGVR).Namespace("").List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to list Forklift Plans: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list Forklift Plans: "+err.Error())
 			return
 		}
-		respondWithJSON(w, http.StatusOK, list.Items)
+		httpx.RespondWithJSON(w, http.StatusOK, list.Items)
 	}
 }
 
@@ -31,7 +33,7 @@ func CreateForkliftPlanHandler(clients *K8sClients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var payload CreateForkliftPlanPayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			respondWithError(w, http.StatusBadRequest, "Invalid request body")
+			httpx.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
@@ -100,7 +102,7 @@ func CreateForkliftPlanHandler(clients *K8sClients) http.HandlerFunc {
 
 		_, err := clients.Dynamic.Resource(forkliftNetworkMapGVR).Namespace(payload.Namespace).Create(context.TODO(), networkMap, metav1.CreateOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to create Forklift NetworkMap: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create Forklift NetworkMap: "+err.Error())
 			return
 		}
 
@@ -170,7 +172,7 @@ func CreateForkliftPlanHandler(clients *K8sClients) http.HandlerFunc {
 			if cleanupErr := clients.Dynamic.Resource(forkliftNetworkMapGVR).Namespace(payload.Namespace).Delete(context.TODO(), networkMapName, metav1.DeleteOptions{}); cleanupErr != nil {
 				log.Warnf("Best-effort cleanup: failed to delete NetworkMap %s/%s: %v", payload.Namespace, networkMapName, cleanupErr)
 			}
-			respondWithError(w, http.StatusInternalServerError, "Failed to create Forklift StorageMap: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create Forklift StorageMap: "+err.Error())
 			return
 		}
 
@@ -273,11 +275,11 @@ func CreateForkliftPlanHandler(clients *K8sClients) http.HandlerFunc {
 			if cleanupErr := clients.Dynamic.Resource(forkliftStorageMapGVR).Namespace(payload.Namespace).Delete(context.TODO(), storageMapName, metav1.DeleteOptions{}); cleanupErr != nil {
 				log.Warnf("Best-effort cleanup: failed to delete StorageMap %s/%s: %v", payload.Namespace, storageMapName, cleanupErr)
 			}
-			respondWithError(w, http.StatusInternalServerError, "Failed to create Forklift Plan: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create Forklift Plan: "+err.Error())
 			return
 		}
 
-		respondWithJSON(w, http.StatusCreated, createdPlan)
+		httpx.RespondWithJSON(w, http.StatusCreated, createdPlan)
 	}
 }
 
@@ -291,7 +293,7 @@ func DeleteForkliftPlanHandler(clients *K8sClients) http.HandlerFunc {
 		// Get the plan to find associated maps
 		planObj, err := clients.Dynamic.Resource(forkliftPlanGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to get Forklift Plan: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get Forklift Plan: "+err.Error())
 			return
 		}
 
@@ -301,7 +303,7 @@ func DeleteForkliftPlanHandler(clients *K8sClients) http.HandlerFunc {
 		// Delete the Plan
 		err = clients.Dynamic.Resource(forkliftPlanGVR).Namespace(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to delete Forklift Plan: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to delete Forklift Plan: "+err.Error())
 			return
 		}
 
@@ -330,13 +332,13 @@ func HandleGetForkliftPlanYAML(clients *K8sClients) http.HandlerFunc {
 
 		item, err := clients.Dynamic.Resource(forkliftPlanGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
 		yamlBytes, err := yaml.Marshal(item.Object)
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to marshal Forklift Plan to YAML: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to marshal Forklift Plan to YAML: "+err.Error())
 			return
 		}
 

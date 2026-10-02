@@ -7,6 +7,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -84,7 +86,7 @@ func recoverMiddleware(next http.Handler) http.Handler {
 		defer func() {
 			if rec := recover(); rec != nil {
 				log.Errorf("panic serving %s %s: %v", r.Method, r.URL.Path, rec)
-				respondWithError(w, http.StatusInternalServerError, "internal server error")
+				httpx.RespondWithError(w, http.StatusInternalServerError, "internal server error")
 			}
 		}()
 		next.ServeHTTP(w, r)

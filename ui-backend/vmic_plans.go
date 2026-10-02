@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
+
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -22,7 +24,7 @@ func CreatePlanHandler(clients *K8sClients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var plan VirtualMachineImport
 		if err := json.NewDecoder(r.Body).Decode(&plan); err != nil {
-			respondWithError(w, http.StatusBadRequest, "Invalid request body")
+			httpx.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
@@ -31,18 +33,18 @@ func CreatePlanHandler(clients *K8sClients) http.HandlerFunc {
 
 		unstructuredObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&plan)
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to convert plan to unstructured object: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to convert plan to unstructured object: "+err.Error())
 			return
 		}
 
 		createdObj, err := clients.Dynamic.Resource(vmiGVR).Namespace(plan.ObjectMeta.Namespace).Create(context.TODO(), &unstructured.Unstructured{Object: unstructuredObj}, metav1.CreateOptions{})
 		if err != nil {
 			log.Errorf("Failed to create VirtualMachineImport CR: %v", err)
-			respondWithError(w, http.StatusInternalServerError, "Failed to create VirtualMachineImport CR: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create VirtualMachineImport CR: "+err.Error())
 			return
 		}
 
-		respondWithJSON(w, http.StatusCreated, createdObj)
+		httpx.RespondWithJSON(w, http.StatusCreated, createdObj)
 	}
 }
 
@@ -50,10 +52,10 @@ func ListPlansHandler(clients *K8sClients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		list, err := clients.Dynamic.Resource(vmiGVR).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to list VirtualMachineImport CRs: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list VirtualMachineImport CRs: "+err.Error())
 			return
 		}
-		respondWithJSON(w, http.StatusOK, list.Items)
+		httpx.RespondWithJSON(w, http.StatusOK, list.Items)
 	}
 }
 
@@ -66,7 +68,7 @@ func DeletePlanHandler(clients *K8sClients) http.HandlerFunc {
 		log.Infof("Deleting VirtualMachineImport CR: %s in namespace %s", name, namespace)
 		err := clients.Dynamic.Resource(vmiGVR).Namespace(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -81,13 +83,13 @@ func UpdatePlanHandler(clients *K8sClients) http.HandlerFunc {
 
 		var payload UpdatePlanPayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			respondWithError(w, http.StatusBadRequest, "Invalid request body")
+			httpx.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
 		item, err := clients.Dynamic.Resource(vmiGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusNotFound, "Plan not found: "+err.Error())
+			httpx.RespondWithError(w, http.StatusNotFound, "Plan not found: "+err.Error())
 			return
 		}
 
@@ -138,7 +140,7 @@ func UpdatePlanHandler(clients *K8sClients) http.HandlerFunc {
 				unstructured.RemoveNestedField(item.Object, "spec", "networkMapping")
 			} else {
 				if err := unstructured.SetNestedSlice(item.Object, mappings, "spec", "networkMapping"); err != nil {
-					respondWithError(w, http.StatusInternalServerError, "Failed to set network mapping: "+err.Error())
+					httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to set network mapping: "+err.Error())
 					return
 				}
 			}
@@ -146,7 +148,7 @@ func UpdatePlanHandler(clients *K8sClients) http.HandlerFunc {
 
 		updatedItem, err := clients.Dynamic.Resource(vmiGVR).Namespace(namespace).Update(context.TODO(), item, metav1.UpdateOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to update plan: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to update plan: "+err.Error())
 			return
 		}
 
@@ -162,11 +164,11 @@ func UpdatePlanHandler(clients *K8sClients) http.HandlerFunc {
 			// Spec saved but status reset failed — the plan may stay in its terminal
 			// state until recreated. Surface a warning rather than failing the edit.
 			log.Warnf("Plan %s/%s spec updated but status reset failed (plan may remain invalid until recreated): %v", namespace, name, err)
-			respondWithJSON(w, http.StatusOK, updatedItem)
+			httpx.RespondWithJSON(w, http.StatusOK, updatedItem)
 			return
 		}
 
-		respondWithJSON(w, http.StatusOK, finalItem)
+		httpx.RespondWithJSON(w, http.StatusOK, finalItem)
 	}
 }
 
@@ -180,7 +182,7 @@ func RunPlanHandler(clients *K8sClients) http.HandlerFunc {
 
 		item, err := clients.Dynamic.Resource(vmiGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
@@ -188,11 +190,11 @@ func RunPlanHandler(clients *K8sClients) http.HandlerFunc {
 
 		updatedItem, err := clients.Dynamic.Resource(vmiGVR).Namespace(namespace).Update(context.TODO(), item, metav1.UpdateOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		respondWithJSON(w, http.StatusOK, updatedItem)
+		httpx.RespondWithJSON(w, http.StatusOK, updatedItem)
 	}
 }
 
@@ -207,7 +209,7 @@ func HandleGetPlanLogs(clients *K8sClients) http.HandlerFunc {
 		// 1. Get the plan to find its source
 		planObj, err := clients.Dynamic.Resource(vmiGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to get plan: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get plan: "+err.Error())
 			return
 		}
 		sourceName, _ := getNestedStringOrWarn(planObj.Object, "spec", "sourceCluster", "name")
@@ -218,7 +220,7 @@ func HandleGetPlanLogs(clients *K8sClients) http.HandlerFunc {
 			LabelSelector: "app.kubernetes.io/name=harvester-vm-import-controller",
 		})
 		if err != nil || len(pods.Items) == 0 {
-			respondWithError(w, http.StatusInternalServerError, "Could not find vm-import-controller pod")
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Could not find vm-import-controller pod")
 			return
 		}
 		podName := pods.Items[0].Name
@@ -227,7 +229,7 @@ func HandleGetPlanLogs(clients *K8sClients) http.HandlerFunc {
 		req := clients.Clientset.CoreV1().Pods("harvester-system").GetLogs(podName, &v1.PodLogOptions{})
 		podLogs, err := req.Stream(context.TODO())
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to stream pod logs: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to stream pod logs: "+err.Error())
 			return
 		}
 		defer podLogs.Close()
@@ -264,14 +266,14 @@ func HandleGetPlanYAML(clients *K8sClients) http.HandlerFunc {
 
 		item, err := clients.Dynamic.Resource(vmiGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
 		// Convert unstructured object to YAML
 		yamlBytes, err := yaml.Marshal(item.Object)
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to marshal plan to YAML: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to marshal plan to YAML: "+err.Error())
 			return
 		}
 

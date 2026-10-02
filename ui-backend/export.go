@@ -19,6 +19,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
+
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"
@@ -56,11 +58,11 @@ func PreviewOVFHandler(clients *K8sClients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req ExportPreviewRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondWithError(w, http.StatusBadRequest, "Invalid request body: "+err.Error())
+			httpx.RespondWithError(w, http.StatusBadRequest, "Invalid request body: "+err.Error())
 			return
 		}
 		if req.Namespace == "" || req.Name == "" {
-			respondWithError(w, http.StatusBadRequest, "namespace and name are required")
+			httpx.RespondWithError(w, http.StatusBadRequest, "namespace and name are required")
 			return
 		}
 		profile := Profile(req.Profile)
@@ -69,7 +71,7 @@ func PreviewOVFHandler(clients *K8sClients) http.HandlerFunc {
 		}
 		rules, err := rulesFor(profile)
 		if err != nil {
-			respondWithError(w, http.StatusBadRequest, err.Error())
+			httpx.RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
@@ -77,7 +79,7 @@ func PreviewOVFHandler(clients *K8sClients) http.HandlerFunc {
 		vm, err := clients.Dynamic.Resource(vmGVR).Namespace(req.Namespace).Get(ctx, req.Name, metav1.GetOptions{})
 		if err != nil {
 			log.Errorf("Preview: failed to get VM %s/%s: %v", req.Namespace, req.Name, err)
-			respondWithError(w, http.StatusNotFound, "Failed to get VirtualMachine: "+err.Error())
+			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get VirtualMachine: "+err.Error())
 			return
 		}
 
@@ -93,7 +95,7 @@ func PreviewOVFHandler(clients *K8sClients) http.HandlerFunc {
 
 		descriptor, err := BuildOVF(in, profile)
 		if err != nil {
-			respondWithError(w, http.StatusUnprocessableEntity, "Failed to build OVF descriptor: "+err.Error())
+			httpx.RespondWithError(w, http.StatusUnprocessableEntity, "Failed to build OVF descriptor: "+err.Error())
 			return
 		}
 
@@ -233,11 +235,11 @@ func CreateExportHandler(clients *K8sClients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req CreateExportRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			respondWithError(w, http.StatusBadRequest, "Invalid request body: "+err.Error())
+			httpx.RespondWithError(w, http.StatusBadRequest, "Invalid request body: "+err.Error())
 			return
 		}
 		if req.Namespace == "" || req.Name == "" {
-			respondWithError(w, http.StatusBadRequest, "namespace and name are required")
+			httpx.RespondWithError(w, http.StatusBadRequest, "namespace and name are required")
 			return
 		}
 		profile := Profile(req.Profile)
@@ -246,13 +248,13 @@ func CreateExportHandler(clients *K8sClients) http.HandlerFunc {
 		}
 		rules, err := rulesFor(profile)
 		if err != nil {
-			respondWithError(w, http.StatusBadRequest, err.Error())
+			httpx.RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		cfg := loadExportConfig()
 		if cfg.PVC == "" || cfg.Image == "" {
-			respondWithError(w, http.StatusServiceUnavailable,
+			httpx.RespondWithError(w, http.StatusServiceUnavailable,
 				"Export is not configured on this deployment: set export.storage and export.image in the chart values")
 			return
 		}
@@ -263,7 +265,7 @@ func CreateExportHandler(clients *K8sClients) http.HandlerFunc {
 		// with more replicas it is advisory, not a distributed lock.
 		active, err := listExportJobs(ctx, clients)
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to list existing exports: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list existing exports: "+err.Error())
 			return
 		}
 		running := 0
@@ -273,14 +275,14 @@ func CreateExportHandler(clients *K8sClients) http.HandlerFunc {
 			}
 		}
 		if running >= cfg.MaxConcurrent {
-			respondWithError(w, http.StatusTooManyRequests,
+			httpx.RespondWithError(w, http.StatusTooManyRequests,
 				fmt.Sprintf("%d exports are already running (limit %d); wait for one to finish", running, cfg.MaxConcurrent))
 			return
 		}
 
 		vm, err := clients.Dynamic.Resource(vmGVR).Namespace(req.Namespace).Get(ctx, req.Name, metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusNotFound, "Failed to get VirtualMachine: "+err.Error())
+			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get VirtualMachine: "+err.Error())
 			return
 		}
 
@@ -290,11 +292,11 @@ func CreateExportHandler(clients *K8sClients) http.HandlerFunc {
 		// Kubernetes prevents it, so this is the load-bearing safety check.
 		running2, err := vmIsRunning(ctx, clients, req.Namespace, req.Name)
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Could not determine VM power state: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Could not determine VM power state: "+err.Error())
 			return
 		}
 		if running2 {
-			respondWithError(w, http.StatusConflict,
+			httpx.RespondWithError(w, http.StatusConflict,
 				"VM is running. Power it off before exporting: reading its disks while they are attached produces a corrupt image.")
 			return
 		}
@@ -305,14 +307,14 @@ func CreateExportHandler(clients *K8sClients) http.HandlerFunc {
 		ovfIn.GuestOSID = req.GuestOSID
 		ovfIn.GuestOSName = req.GuestOSName
 		if len(ovfIn.Disks) == 0 {
-			respondWithError(w, http.StatusUnprocessableEntity, "VM has no PVC-backed disks to export")
+			httpx.RespondWithError(w, http.StatusUnprocessableEntity, "VM has no PVC-backed disks to export")
 			return
 		}
 		// Surface an unreadable PVC as a clear 422 now, rather than letting the
 		// Job start and fail minutes later inside BuildOVF.
 		for _, d := range ovfIn.Disks {
 			if d.CapacityBytes <= 0 {
-				respondWithError(w, http.StatusUnprocessableEntity,
+				httpx.RespondWithError(w, http.StatusUnprocessableEntity,
 					"Could not determine the capacity of disk "+d.Href+"; check that its PersistentVolumeClaim exists and is readable")
 				return
 			}
@@ -341,7 +343,7 @@ func CreateExportHandler(clients *K8sClients) http.HandlerFunc {
 		// namespaces. Provision one there on first use rather than failing the
 		// Job at schedule time with an opaque "persistentvolumeclaim not found".
 		if err := ensureExportPVC(ctx, clients, req.Namespace, cfg); err != nil {
-			respondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
@@ -373,20 +375,20 @@ func CreateExportHandler(clients *K8sClients) http.HandlerFunc {
 			FSGroup:      cfg.FSGroup,
 		})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
 		created, err := clients.Clientset.BatchV1().Jobs(req.Namespace).Create(ctx, job, metav1.CreateOptions{})
 		if err != nil {
 			log.Errorf("Failed to create export Job for %s/%s: %v", req.Namespace, req.Name, err)
-			respondWithError(w, http.StatusInternalServerError, "Failed to create export job: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create export job: "+err.Error())
 			return
 		}
 		log.Infof("Created export job %s/%s for VM %s (profile %s, %d disk(s))",
 			created.Namespace, created.Name, req.Name, profile, len(diskSpecs))
 
-		respondWithJSON(w, http.StatusAccepted, map[string]interface{}{
+		httpx.RespondWithJSON(w, http.StatusAccepted, map[string]interface{}{
 			"exportId":  exportID,
 			"namespace": req.Namespace,
 			"jobName":   created.Name,
@@ -464,7 +466,7 @@ func ListExportsHandler(clients *K8sClients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		jobs, err := listExportJobs(r.Context(), clients)
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to list exports: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list exports: "+err.Error())
 			return
 		}
 		cfg := loadExportConfig()
@@ -475,7 +477,7 @@ func ListExportsHandler(clients *K8sClients) http.HandlerFunc {
 		sort.Slice(out, func(a, b int) bool {
 			return fmt.Sprint(out[a]["createdAt"]) > fmt.Sprint(out[b]["createdAt"])
 		})
-		respondWithJSON(w, http.StatusOK, out)
+		httpx.RespondWithJSON(w, http.StatusOK, out)
 	}
 }
 
@@ -485,10 +487,10 @@ func GetExportHandler(clients *K8sClients) http.HandlerFunc {
 		vars := mux.Vars(r)
 		job, err := clients.Clientset.BatchV1().Jobs(vars["namespace"]).Get(r.Context(), exportJobName(vars["id"]), metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusNotFound, "Export not found: "+err.Error())
+			httpx.RespondWithError(w, http.StatusNotFound, "Export not found: "+err.Error())
 			return
 		}
-		respondWithJSON(w, http.StatusOK, exportView(job, loadExportConfig()))
+		httpx.RespondWithJSON(w, http.StatusOK, exportView(job, loadExportConfig()))
 	}
 }
 
@@ -512,7 +514,7 @@ func DeleteExportHandler(clients *K8sClients) http.HandlerFunc {
 
 		job, err := clients.Clientset.BatchV1().Jobs(ns).Get(r.Context(), exportJobName(id), metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusNotFound, "Export not found: "+err.Error())
+			httpx.RespondWithError(w, http.StatusNotFound, "Export not found: "+err.Error())
 			return
 		}
 
@@ -522,7 +524,7 @@ func DeleteExportHandler(clients *K8sClients) http.HandlerFunc {
 			if exportVolumeMountedHere(job.Namespace, cfg) {
 				if err := removeExportFiles(cfg.Root, id, target); err != nil {
 					log.Errorf("Could not remove files of export %s/%s: %v", ns, id, err)
-					respondWithError(w, http.StatusInternalServerError,
+					httpx.RespondWithError(w, http.StatusInternalServerError,
 						"Could not remove the export's files, so the export was kept: "+err.Error())
 					return
 				}
@@ -549,7 +551,7 @@ func DeleteExportHandler(clients *K8sClients) http.HandlerFunc {
 				}
 				if err != nil {
 					log.Errorf("Could not start cleanup for export %s/%s: %v", ns, id, err)
-					respondWithError(w, http.StatusInternalServerError,
+					httpx.RespondWithError(w, http.StatusInternalServerError,
 						"Could not start the cleanup of the export's files, so the export was kept: "+err.Error())
 					return
 				}
@@ -561,10 +563,10 @@ func DeleteExportHandler(clients *K8sClients) http.HandlerFunc {
 		policy := metav1.DeletePropagationBackground
 		if err := clients.Clientset.BatchV1().Jobs(ns).Delete(r.Context(), exportJobName(id),
 			metav1.DeleteOptions{PropagationPolicy: &policy}); err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to delete export: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to delete export: "+err.Error())
 			return
 		}
-		respondWithJSON(w, http.StatusOK, resp)
+		httpx.RespondWithJSON(w, http.StatusOK, resp)
 	}
 }
 
@@ -718,48 +720,48 @@ func DownloadExportHandler(clients *K8sClients) http.HandlerFunc {
 		vars := mux.Vars(r)
 		cfg := loadExportConfig()
 		if cfg.Root == "" {
-			respondWithError(w, http.StatusServiceUnavailable,
+			httpx.RespondWithError(w, http.StatusServiceUnavailable,
 				"The export volume is not mounted in this pod; fetch the OVA from the export share directly")
 			return
 		}
 		job, err := clients.Clientset.BatchV1().Jobs(vars["namespace"]).Get(r.Context(), exportJobName(vars["id"]), metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusNotFound, "Export not found: "+err.Error())
+			httpx.RespondWithError(w, http.StatusNotFound, "Export not found: "+err.Error())
 			return
 		}
 		if !exportVolumeMountedHere(job.Namespace, cfg) {
-			respondWithError(w, http.StatusServiceUnavailable, fmt.Sprintf(
+			httpx.RespondWithError(w, http.StatusServiceUnavailable, fmt.Sprintf(
 				"The export volume for namespace %q is not mounted in this pod; fetch the OVA from the export share directly",
 				job.Namespace))
 			return
 		}
 		target := job.Annotations[exportAnnTargetName]
 		if target == "" {
-			respondWithError(w, http.StatusNotFound, "Export has no recorded target file")
+			httpx.RespondWithError(w, http.StatusNotFound, "Export has no recorded target file")
 			return
 		}
 		// The target name is user-supplied, so resolve it strictly inside root.
 		path, err := safeExportPath(cfg.Root, target+".ova")
 		if err != nil {
-			respondWithError(w, http.StatusBadRequest, err.Error())
+			httpx.RespondWithError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		f, err := os.Open(path)
 		if err != nil {
-			respondWithError(w, http.StatusNotFound, "OVA not found; the export may not have finished")
+			httpx.RespondWithError(w, http.StatusNotFound, "OVA not found; the export may not have finished")
 			return
 		}
 		defer f.Close()
 		st, err := f.Stat()
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
 		// Guard the browser-download path server-side: the frontend materialises
 		// the response in memory, so a large OVA would kill the tab.
 		if max := downloadMaxBytes(); max > 0 && st.Size() > max {
-			respondWithError(w, http.StatusRequestEntityTooLarge, fmt.Sprintf(
+			httpx.RespondWithError(w, http.StatusRequestEntityTooLarge, fmt.Sprintf(
 				"OVA is %d bytes, over the %d byte download limit; copy it from the export share at %s",
 				st.Size(), max, path))
 			return
@@ -792,11 +794,11 @@ func GetExportLogsHandler(clients *K8sClients) http.HandlerFunc {
 			LabelSelector: exportLabelID + "=" + id,
 		})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to list export pods: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list export pods: "+err.Error())
 			return
 		}
 		if len(pods.Items) == 0 {
-			respondWithError(w, http.StatusNotFound, "No pod found for this export (it may have been cleaned up)")
+			httpx.RespondWithError(w, http.StatusNotFound, "No pod found for this export (it may have been cleaned up)")
 			return
 		}
 

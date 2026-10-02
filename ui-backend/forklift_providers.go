@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
+
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -24,7 +26,7 @@ func CheckForkliftAvailability(clients *K8sClients) http.HandlerFunc {
 		// Check if the "host" provider exists
 		_, err := clients.Dynamic.Resource(forkliftProviderGVR).Namespace(namespace).Get(context.TODO(), "host", metav1.GetOptions{})
 		if err != nil {
-			respondWithJSON(w, http.StatusOK, map[string]interface{}{
+			httpx.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
 				"available":        false,
 				"defaultNamespace": namespace,
 				"message":          "Forklift host Provider not found in namespace " + namespace + ". Forklift features are unavailable.",
@@ -32,7 +34,7 @@ func CheckForkliftAvailability(clients *K8sClients) http.HandlerFunc {
 			return
 		}
 
-		respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		httpx.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
 			"available":        true,
 			"defaultNamespace": namespace,
 		})
@@ -44,7 +46,7 @@ func ListForkliftProvidersHandler(clients *K8sClients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		list, err := clients.Dynamic.Resource(forkliftProviderGVR).Namespace("").List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to list Forklift Providers: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list Forklift Providers: "+err.Error())
 			return
 		}
 
@@ -67,7 +69,7 @@ func ListForkliftProvidersHandler(clients *K8sClients) http.HandlerFunc {
 				}
 			}
 		}
-		respondWithJSON(w, http.StatusOK, sourceProviders)
+		httpx.RespondWithJSON(w, http.StatusOK, sourceProviders)
 	}
 }
 
@@ -76,7 +78,7 @@ func CreateForkliftProviderHandler(clients *K8sClients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var payload CreateForkliftProviderPayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			respondWithError(w, http.StatusBadRequest, "Invalid request body")
+			httpx.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
@@ -129,7 +131,7 @@ func CreateForkliftProviderHandler(clients *K8sClients) http.HandlerFunc {
 		}
 		_, err := clients.Clientset.CoreV1().Secrets(payload.Namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to create Forklift secret: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create Forklift secret: "+err.Error())
 			return
 		}
 
@@ -183,11 +185,11 @@ func CreateForkliftProviderHandler(clients *K8sClients) http.HandlerFunc {
 			if cleanupErr := clients.Clientset.CoreV1().Secrets(payload.Namespace).Delete(context.TODO(), secretName, metav1.DeleteOptions{}); cleanupErr != nil {
 				log.Warnf("Best-effort cleanup: failed to delete secret %s/%s: %v", payload.Namespace, secretName, cleanupErr)
 			}
-			respondWithError(w, http.StatusInternalServerError, "Failed to create Forklift Provider: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create Forklift Provider: "+err.Error())
 			return
 		}
 
-		respondWithJSON(w, http.StatusCreated, createdObj)
+		httpx.RespondWithJSON(w, http.StatusCreated, createdObj)
 	}
 }
 
@@ -200,7 +202,7 @@ func GetForkliftProviderDetails(clients *K8sClients) http.HandlerFunc {
 
 		providerObj, err := clients.Dynamic.Resource(forkliftProviderGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusNotFound, "Failed to get Forklift Provider: "+err.Error())
+			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get Forklift Provider: "+err.Error())
 			return
 		}
 
@@ -216,7 +218,7 @@ func GetForkliftProviderDetails(clients *K8sClients) http.HandlerFunc {
 			}
 		}
 
-		respondWithJSON(w, http.StatusOK, providerObj)
+		httpx.RespondWithJSON(w, http.StatusOK, providerObj)
 	}
 }
 
@@ -229,20 +231,20 @@ func UpdateForkliftProviderHandler(clients *K8sClients) http.HandlerFunc {
 
 		var payload CreateForkliftProviderPayload
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			respondWithError(w, http.StatusBadRequest, "Invalid request body")
+			httpx.RespondWithError(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 
 		providerObj, err := clients.Dynamic.Resource(forkliftProviderGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusNotFound, "Failed to get Forklift Provider: "+err.Error())
+			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get Forklift Provider: "+err.Error())
 			return
 		}
 
 		// Update secret if credentials or TLS settings provided
 		secretName, found := getNestedStringOrWarn(providerObj.Object, "spec", "secret", "name")
 		if !found {
-			respondWithError(w, http.StatusInternalServerError, "Forklift Provider missing secret name")
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Forklift Provider missing secret name")
 			return
 		}
 		needsSecretUpdate := payload.Username != "" || payload.Password != "" ||
@@ -250,7 +252,7 @@ func UpdateForkliftProviderHandler(clients *K8sClients) http.HandlerFunc {
 		if needsSecretUpdate {
 			secret, err := clients.Clientset.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 			if err != nil {
-				respondWithError(w, http.StatusInternalServerError, "Failed to get associated secret: "+err.Error())
+				httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get associated secret: "+err.Error())
 				return
 			}
 
@@ -279,7 +281,7 @@ func UpdateForkliftProviderHandler(clients *K8sClients) http.HandlerFunc {
 			}
 			_, err = clients.Clientset.CoreV1().Secrets(namespace).Update(context.TODO(), secret, metav1.UpdateOptions{})
 			if err != nil {
-				respondWithError(w, http.StatusInternalServerError, "Failed to update secret: "+err.Error())
+				httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to update secret: "+err.Error())
 				return
 			}
 		}
@@ -287,7 +289,7 @@ func UpdateForkliftProviderHandler(clients *K8sClients) http.HandlerFunc {
 		// Update the Provider URL
 		if payload.URL != "" {
 			if err := unstructured.SetNestedField(providerObj.Object, payload.URL, "spec", "url"); err != nil {
-				respondWithError(w, http.StatusInternalServerError, "Failed to set URL: "+err.Error())
+				httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to set URL: "+err.Error())
 				return
 			}
 		}
@@ -295,7 +297,7 @@ func UpdateForkliftProviderHandler(clients *K8sClients) http.HandlerFunc {
 		// Update sdkEndpoint setting
 		if payload.SdkEndpoint != "" {
 			if err := unstructured.SetNestedField(providerObj.Object, payload.SdkEndpoint, "spec", "settings", "sdkEndpoint"); err != nil {
-				respondWithError(w, http.StatusInternalServerError, "Failed to set sdkEndpoint: "+err.Error())
+				httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to set sdkEndpoint: "+err.Error())
 				return
 			}
 		}
@@ -303,7 +305,7 @@ func UpdateForkliftProviderHandler(clients *K8sClients) http.HandlerFunc {
 		// Update VDDK init image
 		if payload.VddkInitImage != "" {
 			if err := unstructured.SetNestedField(providerObj.Object, payload.VddkInitImage, "spec", "settings", "vddkInitImage"); err != nil {
-				respondWithError(w, http.StatusInternalServerError, "Failed to set vddkInitImage: "+err.Error())
+				httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to set vddkInitImage: "+err.Error())
 				return
 			}
 			// Remove the empty-vddk annotation since we now have an image
@@ -318,11 +320,11 @@ func UpdateForkliftProviderHandler(clients *K8sClients) http.HandlerFunc {
 
 		updatedObj, err := clients.Dynamic.Resource(forkliftProviderGVR).Namespace(namespace).Update(context.TODO(), providerObj, metav1.UpdateOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to update Forklift Provider: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to update Forklift Provider: "+err.Error())
 			return
 		}
 
-		respondWithJSON(w, http.StatusOK, updatedObj)
+		httpx.RespondWithJSON(w, http.StatusOK, updatedObj)
 	}
 }
 
@@ -335,14 +337,14 @@ func DeleteForkliftProviderHandler(clients *K8sClients) http.HandlerFunc {
 
 		providerObj, err := clients.Dynamic.Resource(forkliftProviderGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to get Forklift Provider: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get Forklift Provider: "+err.Error())
 			return
 		}
 		secretName, _ := getNestedStringOrWarn(providerObj.Object, "spec", "secret", "name")
 
 		err = clients.Dynamic.Resource(forkliftProviderGVR).Namespace(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Failed to delete Forklift Provider: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to delete Forklift Provider: "+err.Error())
 			return
 		}
 

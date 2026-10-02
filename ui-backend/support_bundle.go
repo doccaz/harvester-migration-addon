@@ -15,6 +15,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
+
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -277,11 +279,11 @@ func SupportBundleHandler(clients *K8sClients) http.HandlerFunc {
 		b.addJSON("errors.json", b.errs)
 
 		if err := tw.Close(); err != nil {
-			respondWithError(w, http.StatusInternalServerError, "failed to finalize support bundle (tar): "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "failed to finalize support bundle (tar): "+err.Error())
 			return
 		}
 		if err := gz.Close(); err != nil {
-			respondWithError(w, http.StatusInternalServerError, "failed to finalize support bundle (gzip): "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "failed to finalize support bundle (gzip): "+err.Error())
 			return
 		}
 

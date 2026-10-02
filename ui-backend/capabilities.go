@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
+
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -50,6 +52,6 @@ func GetCapabilitiesHandler(clients *K8sClients) http.HandlerFunc {
 			// Permissions or a very old cluster — fall back to defaults.
 			log.Warnf("Could not determine Harvester version: %v", err)
 		}
-		respondWithJSON(w, http.StatusOK, caps)
+		httpx.RespondWithJSON(w, http.StatusOK, caps)
 	}
 }

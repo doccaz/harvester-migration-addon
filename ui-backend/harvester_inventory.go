@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
+
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -44,7 +46,7 @@ func HandleGetHarvesterInventory(clients *K8sClients) http.HandlerFunc {
 		vms, err := clients.Dynamic.Resource(vmGVR).Namespace("").List(ctx, metav1.ListOptions{})
 		if err != nil {
 			log.Errorf("Failed to list VirtualMachines: %v", err)
-			respondWithError(w, http.StatusInternalServerError, "Failed to list VirtualMachines: "+err.Error())
+			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list VirtualMachines: "+err.Error())
 			return
 		}
 
@@ -77,7 +79,7 @@ func HandleGetHarvesterInventory(clients *K8sClients) http.HandlerFunc {
 		}
 
 		log.Debugf("Built Harvester inventory: %d namespaces, %d VMs", len(namespaces), len(vms.Items))
-		respondWithJSON(w, http.StatusOK, root)
+		httpx.RespondWithJSON(w, http.StatusOK, root)
 	}
 }
 

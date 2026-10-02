@@ -2,3 +2,6 @@ reference/
 charts/*/charts/
 ui-frontend/node_modules/
 ui-frontend/build/
+# Build output
+ui-backend/ui-backend
+ui-backend/vm-import-ui

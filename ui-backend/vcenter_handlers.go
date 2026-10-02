@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/inventory"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
@@ -26,7 +28,7 @@ type VCenterCredentials struct {
 // gatherVCenterInventory resolves a VmwareSource's endpoint and credentials and
 // returns its inventory tree. Shared by the inventory endpoint and the support
 // bundle so both go through one code path.
-func gatherVCenterInventory(ctx context.Context, clients *kube.Clients, namespace, name string) (*InventoryNode, error) {
+func gatherVCenterInventory(ctx context.Context, clients *kube.Clients, namespace, name string) (*inventory.Node, error) {
 	sourceObj, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get VmwareSource: %w", err)

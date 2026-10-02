@@ -19,6 +19,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/inventory"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
@@ -88,7 +90,7 @@ func PreviewOVFHandler(clients *kube.Clients) http.HandlerFunc {
 		// Reuse the inventory mapper so the preview cannot drift from what the
 		// Export page shows. Run state is irrelevant to the descriptor, so pass
 		// an empty set rather than listing VMIs.
-		node := harvesterVMToNode(vm, map[string]bool{}, pvcIndex(ctx, clients))
+		node := inventory.HarvesterVMToNode(vm, map[string]bool{}, inventory.PVCIndex(ctx, clients))
 
 		in := ovfInputFromNode(node, rules)
 		in.PreserveMACs = req.PreserveMACs
@@ -117,7 +119,7 @@ func PreviewOVFHandler(clients *kube.Clients) http.HandlerFunc {
 
 // ovfInputFromNode converts the inventory view of a VM into OVF generator input.
 // Disk file sizes are left at zero: they are only known after conversion.
-func ovfInputFromNode(node InventoryNode, rules profileRules) OVFInput {
+func ovfInputFromNode(node inventory.Node, rules profileRules) OVFInput {
 	in := OVFInput{
 		Name:         node.Name,
 		Namespace:    node.Namespace,
@@ -137,7 +139,7 @@ func ovfInputFromNode(node InventoryNode, rules profileRules) OVFInput {
 			in.CDROMs++
 			continue
 		}
-		if !isExportableDisk(d) {
+		if !inventory.IsExportableDisk(d) {
 			// cloud-init volumes are excluded deliberately: they carry
 			// credentials. containerDisks are image layers, not VM state.
 			continue
@@ -303,7 +305,7 @@ func CreateExportHandler(clients *kube.Clients) http.HandlerFunc {
 			return
 		}
 
-		node := harvesterVMToNode(vm, map[string]bool{}, pvcIndex(ctx, clients))
+		node := inventory.HarvesterVMToNode(vm, map[string]bool{}, inventory.PVCIndex(ctx, clients))
 		ovfIn := ovfInputFromNode(node, rules)
 		ovfIn.PreserveMACs = req.PreserveMACs
 		ovfIn.GuestOSID = req.GuestOSID
@@ -327,7 +329,7 @@ func CreateExportHandler(clients *kube.Clients) http.HandlerFunc {
 		var diskSpecs []ExportDiskSpec
 		i := 0
 		for _, d := range node.Disks {
-			if !isExportableDisk(d) {
+			if !inventory.IsExportableDisk(d) {
 				continue
 			}
 			claims = append(claims, d.PVCName)
@@ -442,7 +444,7 @@ func ensureExportPVC(ctx context.Context, clients *kube.Clients, namespace strin
 // vmIsRunning reports whether a VirtualMachineInstance exists for the VM, which
 // is the authoritative signal that its volumes are attached.
 func vmIsRunning(ctx context.Context, clients *kube.Clients, namespace, name string) (bool, error) {
-	_, err := clients.Dynamic.Resource(vmiGVRKubevirt).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
+	_, err := clients.Dynamic.Resource(kube.VMIKubevirtGVR).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err == nil {
 		return true, nil
 	}

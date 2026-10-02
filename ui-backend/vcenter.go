@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/inventory"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
@@ -16,57 +18,8 @@ import (
 	"github.com/vmware/govmomi/vim25/types"
 )
 
-// VMDisk represents a virtual disk in vCenter or Harvester.
-// The trailing fields are Harvester-only and stay empty for vCenter inventory.
-type VMDisk struct {
-	Name     string `json:"name"`
-	Capacity int64  `json:"capacity"` // in bytes
-	BusType  string `json:"busType"`  // e.g. scsi, ide, sata, nvme, virtio
-	UnitNum  int32  `json:"unitNum"`
-
-	Kind         string `json:"kind,omitempty"`         // backing: pvc, cloudinit, container, other (Harvester)
-	Device       string `json:"device,omitempty"`       // device type: disk, cdrom, lun (Harvester)
-	PVCName      string `json:"pvcName,omitempty"`      // Harvester
-	StorageClass string `json:"storageClass,omitempty"` // Harvester
-	VolumeMode   string `json:"volumeMode,omitempty"`   // Block or Filesystem (Harvester)
-	BootOrder    int32  `json:"bootOrder,omitempty"`    // Harvester
-}
-
-// VMNetwork represents a network interface in vCenter
-type VMNetwork struct {
-	Name string `json:"name"`
-	ID   string `json:"id"`
-	MAC  string `json:"mac"`
-	Key  int32  `json:"key"`
-}
-
-// InventoryNode represents a generic node in the vCenter inventory tree.
-type InventoryNode struct {
-	ID            string          `json:"id"`
-	Name          string          `json:"name"`
-	Type          string          `json:"type"`
-	Children      []InventoryNode `json:"children,omitempty"`
-	Networks      []VMNetwork     `json:"networks,omitempty"`
-	Disks         []VMDisk        `json:"disks,omitempty"`
-	CPU           int32           `json:"cpu,omitempty"`
-	MemoryMB      int32           `json:"memoryMB,omitempty"`
-	DiskSizeGB    int64           `json:"diskSizeGB,omitempty"`
-	Folder        string          `json:"folder,omitempty"`
-	PowerState    string          `json:"powerState,omitempty"`
-	DatastoreID   string          `json:"datastoreId,omitempty"`
-	DatastoreName string          `json:"datastoreName,omitempty"`
-
-	// Harvester-only fields; empty for vCenter inventory.
-	Namespace      string   `json:"namespace,omitempty"`
-	Architecture   string   `json:"architecture,omitempty"`
-	Firmware       string   `json:"firmware,omitempty"` // bios or efi
-	MachineType    string   `json:"machineType,omitempty"`
-	RunStrategy    string   `json:"runStrategy,omitempty"`
-	ExportBlockers []string `json:"exportBlockers,omitempty"` // why this VM cannot be exported now
-}
-
 // GetVCenterInventory connects to vCenter and returns the inventory tree.
-func GetVCenterInventory(ctx context.Context, creds VCenterCredentials) (*InventoryNode, error) {
+func GetVCenterInventory(ctx context.Context, creds VCenterCredentials) (*inventory.Node, error) {
 	fullURL := creds.URL
 	if !strings.HasPrefix(fullURL, "https://") && !strings.HasPrefix(fullURL, "http://") {
 		fullURL = "https://" + fullURL
@@ -92,7 +45,7 @@ func GetVCenterInventory(ctx context.Context, creds VCenterCredentials) (*Invent
 	}
 	finder.SetDatacenter(dc)
 
-	rootNode := &InventoryNode{
+	rootNode := &inventory.Node{
 		Name: dc.Name(),
 		Type: "datacenter",
 	}
@@ -125,7 +78,7 @@ func GetVCenterInventory(ctx context.Context, creds VCenterCredentials) (*Invent
 }
 
 // processEntity recursively processes vCenter inventory objects.
-func processEntity(ctx context.Context, c *govmomi.Client, entity object.Reference, folderPath string) (*InventoryNode, error) {
+func processEntity(ctx context.Context, c *govmomi.Client, entity object.Reference, folderPath string) (*inventory.Node, error) {
 	ref := entity.Reference()
 
 	var me mo.ManagedEntity
@@ -134,7 +87,7 @@ func processEntity(ctx context.Context, c *govmomi.Client, entity object.Referen
 		return nil, err
 	}
 
-	node := &InventoryNode{
+	node := &inventory.Node{
 		ID:   ref.Value,
 		Name: me.Name,
 		Type: ref.Type,
@@ -150,8 +103,8 @@ func processEntity(ctx context.Context, c *govmomi.Client, entity object.Referen
 
 		log.Debugf("Raw VM data from vCenter for %s: %+v", me.Name, mvm)
 
-		var vmNetworks []VMNetwork
-		var vmDisks []VMDisk
+		var vmNetworks []inventory.Network
+		var vmDisks []inventory.Disk
 
 		if mvm.Config != nil {
 			// Get the list of virtual devices from the managed object
@@ -214,7 +167,7 @@ func processEntity(ctx context.Context, c *govmomi.Client, entity object.Referen
 						}
 					}
 
-					vmNetworks = append(vmNetworks, VMNetwork{
+					vmNetworks = append(vmNetworks, inventory.Network{
 						Name: netName,
 						ID:   netID,
 						MAC:  card.GetVirtualEthernetCard().MacAddress,
@@ -229,7 +182,7 @@ func processEntity(ctx context.Context, c *govmomi.Client, entity object.Referen
 					if disk.DeviceInfo != nil {
 						name = disk.DeviceInfo.GetDescription().Label
 					}
-					vmDisks = append(vmDisks, VMDisk{
+					vmDisks = append(vmDisks, inventory.Disk{
 						Name:     name,
 						Capacity: disk.CapacityInBytes,
 						BusType:  busType,
@@ -486,7 +439,7 @@ func UpdateVMNetworkMAC(ctx context.Context, creds VCenterCredentials, vmName st
 
 // GetVCenterInventoryAutoDiscover connects to vCenter and auto-discovers the first datacenter.
 // This is used by Forklift, which doesn't store the datacenter name in the Provider spec.
-func GetVCenterInventoryAutoDiscover(ctx context.Context, creds VCenterCredentials) (*InventoryNode, error) {
+func GetVCenterInventoryAutoDiscover(ctx context.Context, creds VCenterCredentials) (*inventory.Node, error) {
 	fullURL := creds.URL
 	if !strings.HasPrefix(fullURL, "https://") && !strings.HasPrefix(fullURL, "http://") {
 		fullURL = "https://" + fullURL
@@ -529,7 +482,7 @@ func GetVCenterInventoryAutoDiscover(ctx context.Context, creds VCenterCredentia
 
 	finder.SetDatacenter(dc)
 
-	rootNode := &InventoryNode{
+	rootNode := &inventory.Node{
 		Name: dc.Name(),
 		Type: "datacenter",
 	}

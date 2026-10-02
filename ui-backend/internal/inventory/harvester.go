@@ -1,11 +1,11 @@
-// pkg/harvester_inventory.go
+// harvester.go
 //
 // Cluster-wide Harvester/KubeVirt VM inventory, shaped as the same InventoryNode
 // tree the vCenter explorer already renders (Cluster -> Namespace -> VirtualMachine),
 // so the existing React tree components can be reused unchanged.
 //
 // This feeds the VM Export page. See docs/architecture-notes.md.
-package main
+package inventory
 
 import (
 	"context"
@@ -22,24 +22,17 @@ import (
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-var vmiGVRKubevirt = schema.GroupVersionResource{
-	Group:    "kubevirt.io",
-	Version:  "v1",
-	Resource: "virtualmachineinstances",
-}
-
-// pvcInfo is the subset of a PersistentVolumeClaim the export flow cares about.
-type pvcInfo struct {
+// PVCInfo is the subset of a PersistentVolumeClaim the export flow cares about.
+type PVCInfo struct {
 	capacity     int64
 	storageClass string
 	volumeMode   string
 }
 
 // HandleGetHarvesterInventory returns the whole cluster's KubeVirt VMs as an
-// InventoryNode tree. It is read-only and best-effort: a namespace that fails to
+// Node tree. It is read-only and best-effort: a namespace that fails to
 // list is logged and skipped rather than failing the whole request.
 func HandleGetHarvesterInventory(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -53,12 +46,12 @@ func HandleGetHarvesterInventory(clients *kube.Clients) http.HandlerFunc {
 		}
 
 		running := runningVMNames(ctx, clients)
-		pvcs := pvcIndex(ctx, clients)
+		pvcs := PVCIndex(ctx, clients)
 
-		byNamespace := map[string][]InventoryNode{}
+		byNamespace := map[string][]Node{}
 		for i := range vms.Items {
 			vm := &vms.Items[i]
-			node := harvesterVMToNode(vm, running, pvcs)
+			node := HarvesterVMToNode(vm, running, pvcs)
 			byNamespace[vm.GetNamespace()] = append(byNamespace[vm.GetNamespace()], node)
 		}
 
@@ -68,11 +61,11 @@ func HandleGetHarvesterInventory(clients *kube.Clients) http.HandlerFunc {
 		}
 		sort.Strings(namespaces)
 
-		root := InventoryNode{ID: "harvester", Name: "Harvester Cluster", Type: "datacenter"}
+		root := Node{ID: "harvester", Name: "Harvester Cluster", Type: "datacenter"}
 		for _, ns := range namespaces {
 			children := byNamespace[ns]
 			sort.Slice(children, func(a, b int) bool { return children[a].Name < children[b].Name })
-			root.Children = append(root.Children, InventoryNode{
+			root.Children = append(root.Children, Node{
 				ID:       "ns/" + ns,
 				Name:     ns,
 				Type:     "namespace",
@@ -90,7 +83,7 @@ func HandleGetHarvesterInventory(clients *kube.Clients) http.HandlerFunc {
 // therefore MUST NOT be read for export.
 func runningVMNames(ctx context.Context, clients *kube.Clients) map[string]bool {
 	out := map[string]bool{}
-	list, err := clients.Dynamic.Resource(vmiGVRKubevirt).Namespace("").List(ctx, metav1.ListOptions{})
+	list, err := clients.Dynamic.Resource(kube.VMIKubevirtGVR).Namespace("").List(ctx, metav1.ListOptions{})
 	if err != nil {
 		// Best-effort: without VMI data every VM is treated as running, which is
 		// the safe direction (it blocks export rather than corrupting an image).
@@ -103,9 +96,9 @@ func runningVMNames(ctx context.Context, clients *kube.Clients) map[string]bool 
 	return out
 }
 
-// pvcIndex maps "namespace/name" to the PVC details the export needs.
-func pvcIndex(ctx context.Context, clients *kube.Clients) map[string]pvcInfo {
-	out := map[string]pvcInfo{}
+// PVCIndex maps "namespace/name" to the PVC details the export needs.
+func PVCIndex(ctx context.Context, clients *kube.Clients) map[string]PVCInfo {
+	out := map[string]PVCInfo{}
 	list, err := clients.Clientset.CoreV1().PersistentVolumeClaims("").List(ctx, metav1.ListOptions{})
 	if err != nil {
 		log.Warnf("Failed to list PersistentVolumeClaims, disk sizes will be unknown: %v", err)
@@ -113,7 +106,7 @@ func pvcIndex(ctx context.Context, clients *kube.Clients) map[string]pvcInfo {
 	}
 	for i := range list.Items {
 		p := &list.Items[i]
-		info := pvcInfo{}
+		info := PVCInfo{}
 		if q, ok := p.Spec.Resources.Requests["storage"]; ok {
 			info.capacity = q.Value()
 		}
@@ -128,12 +121,12 @@ func pvcIndex(ctx context.Context, clients *kube.Clients) map[string]pvcInfo {
 	return out
 }
 
-// harvesterVMToNode flattens one KubeVirt VirtualMachine into an InventoryNode.
-func harvesterVMToNode(vm *unstructured.Unstructured, running map[string]bool, pvcs map[string]pvcInfo) InventoryNode {
+// HarvesterVMToNode flattens one KubeVirt VirtualMachine into an Node.
+func HarvesterVMToNode(vm *unstructured.Unstructured, running map[string]bool, pvcs map[string]PVCInfo) Node {
 	ns, name := vm.GetNamespace(), vm.GetName()
 	key := ns + "/" + name
 
-	node := InventoryNode{
+	node := Node{
 		ID:        key,
 		Name:      name,
 		Type:      "VirtualMachine",
@@ -170,13 +163,13 @@ func harvesterVMToNode(vm *unstructured.Unstructured, running map[string]bool, p
 
 	var totalBytes int64
 	for _, d := range node.Disks {
-		if isExportableDisk(d) {
+		if IsExportableDisk(d) {
 			totalBytes += d.Capacity
 		}
 	}
 	node.DiskSizeGB = totalBytes / (1024 * 1024 * 1024)
 
-	node.ExportBlockers = exportBlockers(&node, isRunning)
+	node.ExportBlockers = ExportBlockers(&node, isRunning)
 	return node
 }
 
@@ -218,7 +211,7 @@ func firmwareKind(domain map[string]interface{}) string {
 
 // harvesterDisks correlates domain.devices.disks with spec.volumes so each disk
 // carries its backing kind and, for PVCs, its real capacity.
-func harvesterDisks(domain, spec map[string]interface{}, ns string, pvcs map[string]pvcInfo) []VMDisk {
+func harvesterDisks(domain, spec map[string]interface{}, ns string, pvcs map[string]PVCInfo) []Disk {
 	disks, _, _ := unstructured.NestedSlice(domain, "devices", "disks")
 	volumes, _, _ := unstructured.NestedSlice(spec, "volumes")
 
@@ -247,7 +240,7 @@ func harvesterDisks(domain, spec map[string]interface{}, ns string, pvcs map[str
 		}
 	}
 
-	out := make([]VMDisk, 0, len(disks))
+	out := make([]Disk, 0, len(disks))
 	for i, raw := range disks {
 		d, ok := raw.(map[string]interface{})
 		if !ok {
@@ -257,7 +250,7 @@ func harvesterDisks(domain, spec map[string]interface{}, ns string, pvcs map[str
 		// Device type (disk/cdrom/lun) and backing kind (pvc/cloudinit/...) are
 		// independent: a CD-ROM can be PVC-backed (an attached ISO) or
 		// containerDisk-backed (e.g. the virtio driver disk on Windows guests).
-		disk := VMDisk{Name: name, UnitNum: int32(i), Kind: kindByVolume[name], Device: "disk"}
+		disk := Disk{Name: name, UnitNum: int32(i), Kind: kindByVolume[name], Device: "disk"}
 
 		if bus, found, _ := unstructured.NestedString(d, "disk", "bus"); found {
 			disk.BusType = bus
@@ -285,9 +278,9 @@ func harvesterDisks(domain, spec map[string]interface{}, ns string, pvcs map[str
 }
 
 // harvesterNetworks flattens domain.devices.interfaces.
-func harvesterNetworks(domain map[string]interface{}) []VMNetwork {
+func harvesterNetworks(domain map[string]interface{}) []Network {
 	ifaces, _, _ := unstructured.NestedSlice(domain, "devices", "interfaces")
-	out := make([]VMNetwork, 0, len(ifaces))
+	out := make([]Network, 0, len(ifaces))
 	for i, raw := range ifaces {
 		n, ok := raw.(map[string]interface{})
 		if !ok {
@@ -296,19 +289,19 @@ func harvesterNetworks(domain map[string]interface{}) []VMNetwork {
 		name, _, _ := unstructured.NestedString(n, "name")
 		mac, _, _ := unstructured.NestedString(n, "macAddress")
 		model, _, _ := unstructured.NestedString(n, "model")
-		out = append(out, VMNetwork{Name: name, ID: model, MAC: mac, Key: int32(i)})
+		out = append(out, Network{Name: name, ID: model, MAC: mac, Key: int32(i)})
 	}
 	return out
 }
 
-// exportBlockers lists the reasons this VM cannot be exported right now. An empty
+// ExportBlockers lists the reasons this VM cannot be exported right now. An empty
 // result means the VM is exportable.
 //
 // The running check is the important one: Harvester's PVCs are ReadWriteMany Block
 // volumes, so a Job CAN mount and read one while the VM runs — producing a torn,
 // inconsistent image with no error. Nothing in Kubernetes prevents this, so it is
 // enforced here and re-checked before the export Job starts.
-func exportBlockers(node *InventoryNode, isRunning bool) []string {
+func ExportBlockers(node *Node, isRunning bool) []string {
 	var blockers []string
 	if isRunning {
 		blockers = append(blockers, "VM is running: power it off, or enable the snapshot option to export a crash-consistent copy")
@@ -318,7 +311,7 @@ func exportBlockers(node *InventoryNode, isRunning bool) []string {
 	}
 	var exportable int
 	for _, d := range node.Disks {
-		if isExportableDisk(d) {
+		if IsExportableDisk(d) {
 			exportable++
 		}
 	}
@@ -328,11 +321,11 @@ func exportBlockers(node *InventoryNode, isRunning bool) []string {
 	return blockers
 }
 
-// isExportableDisk reports whether a disk contributes a virtual disk to the OVA.
+// IsExportableDisk reports whether a disk contributes a virtual disk to the OVA.
 // Only PVC-backed disks qualify: CD-ROMs become empty drives in the descriptor,
 // containerDisks are image layers rather than VM state, and cloud-init volumes are
 // deliberately excluded because they carry credentials.
-func isExportableDisk(d VMDisk) bool {
+func IsExportableDisk(d Disk) bool {
 	return d.Kind == "pvc" && d.Device == "disk"
 }
 

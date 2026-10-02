@@ -301,7 +301,7 @@ func rasdField(item, name string) string {
 
 // A disk of unknown capacity must not become ovf:capacity="0": that produces a
 // package which passes every validator while declaring a zero-byte disk.
-// pvcIndex is best-effort, so this is reachable from a transient PVC-list
+// inventory.PVCIndex is best-effort, so this is reachable from a transient PVC-list
 // failure rather than being purely theoretical.
 func TestBuildOVF_RejectsUnknownDiskCapacity(t *testing.T) {
 	for _, capacity := range []int64{0, -1} {

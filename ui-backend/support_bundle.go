@@ -15,6 +15,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/inventory"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
@@ -325,7 +327,7 @@ func anonHash(salt []byte, s string) string {
 // per-bundle hashes. Structure, sizes, counts, power state, and network/datastore
 // IDs are preserved so the data still reproduces structural and mapping bugs —
 // just not name-sensitive ones (a documented tradeoff of anonymization).
-func anonymizeInventory(node *InventoryNode, salt []byte) {
+func anonymizeInventory(node *inventory.Node, salt []byte) {
 	if node == nil {
 		return
 	}

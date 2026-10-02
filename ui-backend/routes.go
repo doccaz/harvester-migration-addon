@@ -4,6 +4,8 @@ package main
 import (
 	"net/http"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/inventory"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
 
 	"github.com/gorilla/mux"
@@ -52,7 +54,7 @@ func newRouter(provider *kube.Provider, uiPath string) *mux.Router {
 	api.HandleFunc("/harvester/storageclasses", kube.Scoped(provider, ListStorageClassesHandler)).Methods("GET")
 	api.HandleFunc("/harvester/virtualmachines/{namespace}", kube.Scoped(provider, ListVMsHandler)).Methods("GET")
 	// Cluster-wide Harvester VM inventory, for the VM Export page.
-	api.HandleFunc("/harvester/inventory", kube.Scoped(provider, HandleGetHarvesterInventory)).Methods("GET")
+	api.HandleFunc("/harvester/inventory", kube.Scoped(provider, inventory.HandleGetHarvesterInventory)).Methods("GET")
 	api.HandleFunc("/exports/preview", kube.Scoped(provider, PreviewOVFHandler)).Methods("POST")
 	api.HandleFunc("/exports", kube.Scoped(provider, ListExportsHandler)).Methods("GET")
 	api.HandleFunc("/exports", kube.Scoped(provider, CreateExportHandler)).Methods("POST")

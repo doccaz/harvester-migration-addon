@@ -1,5 +1,5 @@
-// pkg/harvester_inventory_test.go
-package main
+// harvester_test.go
+package inventory
 
 import (
 	"strings"
@@ -51,8 +51,8 @@ func vmFixture() *unstructured.Unstructured {
 	}}
 }
 
-func testPVCs() map[string]pvcInfo {
-	return map[string]pvcInfo{
+func testPVCs() map[string]PVCInfo {
+	return map[string]PVCInfo{
 		"labs/iso-pvc":  {capacity: 5 << 30, storageClass: "harvester-longhorn", volumeMode: "Block"},
 		"labs/root-pvc": {capacity: 50 << 30, storageClass: "harvester-longhorn", volumeMode: "Block"},
 	}
@@ -63,7 +63,7 @@ func testPVCs() map[string]pvcInfo {
 // the backing kind silently pulls an attached ISO into the OVA and inflates the
 // reported disk total.
 func TestHarvesterVMToNode_DeviceVsBackingKind(t *testing.T) {
-	node := harvesterVMToNode(vmFixture(), map[string]bool{}, testPVCs())
+	node := HarvesterVMToNode(vmFixture(), map[string]bool{}, testPVCs())
 
 	want := map[string]struct {
 		device, kind string
@@ -86,8 +86,8 @@ func TestHarvesterVMToNode_DeviceVsBackingKind(t *testing.T) {
 		if d.Device != w.device || d.Kind != w.kind {
 			t.Errorf("%s: got device=%q kind=%q, want device=%q kind=%q", d.Name, d.Device, d.Kind, w.device, w.kind)
 		}
-		if got := isExportableDisk(d); got != w.exportable {
-			t.Errorf("%s: isExportableDisk=%v, want %v", d.Name, got, w.exportable)
+		if got := IsExportableDisk(d); got != w.exportable {
+			t.Errorf("%s: IsExportableDisk=%v, want %v", d.Name, got, w.exportable)
 		}
 	}
 
@@ -98,7 +98,7 @@ func TestHarvesterVMToNode_DeviceVsBackingKind(t *testing.T) {
 }
 
 func TestHarvesterVMToNode_SpecMapping(t *testing.T) {
-	node := harvesterVMToNode(vmFixture(), map[string]bool{}, testPVCs())
+	node := HarvesterVMToNode(vmFixture(), map[string]bool{}, testPVCs())
 
 	if node.ID != "labs/windows-server-2022" {
 		t.Errorf("ID=%q, want namespace-qualified id", node.ID)
@@ -126,7 +126,7 @@ func TestHarvesterVMToNode_SpecMapping(t *testing.T) {
 // prevents that, so this guard must hold.
 func TestExportBlockers_RunningVMIsBlocked(t *testing.T) {
 	running := map[string]bool{"labs/windows-server-2022": true}
-	node := harvesterVMToNode(vmFixture(), running, testPVCs())
+	node := HarvesterVMToNode(vmFixture(), running, testPVCs())
 
 	if node.PowerState != "poweredOn" {
 		t.Errorf("PowerState=%q, want poweredOn", node.PowerState)
@@ -139,14 +139,14 @@ func TestExportBlockers_RunningVMIsBlocked(t *testing.T) {
 // If the VMI list fails we cannot know which VMs are running, so every VM must be
 // treated as running. Failing closed blocks an export; failing open corrupts one.
 func TestExportBlockers_UnknownRunStateFailsClosed(t *testing.T) {
-	node := harvesterVMToNode(vmFixture(), nil, testPVCs())
+	node := HarvesterVMToNode(vmFixture(), nil, testPVCs())
 	if len(node.ExportBlockers) == 0 {
 		t.Fatal("with unknown VMI state the VM must be treated as running and blocked")
 	}
 }
 
 func TestExportBlockers_StoppedVMIsExportable(t *testing.T) {
-	node := harvesterVMToNode(vmFixture(), map[string]bool{}, testPVCs())
+	node := HarvesterVMToNode(vmFixture(), map[string]bool{}, testPVCs())
 	if len(node.ExportBlockers) != 0 {
 		t.Errorf("stopped VM should be exportable, got blockers: %v", node.ExportBlockers)
 	}
@@ -157,7 +157,7 @@ func TestExportBlockers_NonAmd64AndNoDisks(t *testing.T) {
 	if err := unstructured.SetNestedField(vm.Object, "arm64", "spec", "template", "spec", "architecture"); err != nil {
 		t.Fatal(err)
 	}
-	node := harvesterVMToNode(vm, map[string]bool{}, testPVCs())
+	node := HarvesterVMToNode(vm, map[string]bool{}, testPVCs())
 	if !hasBlockerContaining(node.ExportBlockers, "arm64") {
 		t.Errorf("arm64 VM must be blocked, got: %v", node.ExportBlockers)
 	}
@@ -169,7 +169,7 @@ func TestExportBlockers_NonAmd64AndNoDisks(t *testing.T) {
 	}, "spec", "template", "spec", "domain", "devices", "disks"); err != nil {
 		t.Fatal(err)
 	}
-	node2 := harvesterVMToNode(vm2, map[string]bool{}, testPVCs())
+	node2 := HarvesterVMToNode(vm2, map[string]bool{}, testPVCs())
 	if !hasBlockerContaining(node2.ExportBlockers, "no PVC-backed disks") {
 		t.Errorf("VM with no exportable disks must be blocked, got: %v", node2.ExportBlockers)
 	}

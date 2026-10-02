@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/inventory"
+
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -157,17 +159,17 @@ func TestSupportBundleHandler(t *testing.T) {
 
 func TestSupportBundleAnonymizesInventory(t *testing.T) {
 	salt := newAnonSalt(true)
-	tree := &InventoryNode{
+	tree := &inventory.Node{
 		Name: "BQE-DATACENTER",
 		Type: "datacenter",
-		Children: []InventoryNode{
+		Children: []inventory.Node{
 			{
 				Name:          "VMDEVOPSTSTWIN01",
 				Type:          "VirtualMachine",
 				Folder:        "DESENVOLVIMENTO/WINDOWS/DEVOPS",
 				DatastoreID:   "datastore-10061",
 				DatastoreName: "SVT_DS_SERVICOS_06",
-				Networks: []VMNetwork{
+				Networks: []inventory.Network{
 					{Name: "VM Network - VLAN16", ID: "network-97256", MAC: "00:50:56:9e:f5:aa", Key: 4000},
 				},
 			},

@@ -59,4 +59,11 @@ var (
 		Version:  "v1beta1",
 		Resource: "migrations",
 	}
+	// VMIKubevirtGVR is the KubeVirt VirtualMachineInstance, which exists only while
+	// a VM is running (distinct from migration.harvesterhci.io's VirtualMachineImport).
+	VMIKubevirtGVR = schema.GroupVersionResource{
+		Group:    "kubevirt.io",
+		Version:  "v1",
+		Resource: "virtualmachineinstances",
+	}
 )

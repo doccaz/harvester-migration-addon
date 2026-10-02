@@ -54,3 +54,22 @@ are answered or rejected by the UI itself).
   Resource permissions in token mode are enforced by the API server for the
   caller's token, which impersonation exercises equivalently; the token flow
   itself was verified with an admin in the browser.
+
+## v0.3.0 on the lab (2026-10-02)
+`hack/lab-smoke.sh` against the deployed v0.3.0 pod (Harvester 1.8.2, token mode): 49 of 49
+checks pass.
+- Stamped version `v0.3.0` in the pod log and in the support bundle's meta.json.
+- 401 without or with a bad token; the page loads without a token.
+- All 12 read routes 200; support bundle 200, 29 members, no secret values.
+- Status mapping as designed: missing VMIC/Forklift plan YAML 404, creating an existing
+  namespace 409, OVA inventory with an invalid namespace 400.
+- Writes: Forklift OVA and vSphere providers created (201), stored `apiVersion` is
+  `forklift.konveyor.io/v1beta1` and the `empty-vddk-init-image` annotation is set (the
+  string literals a refactor script once corrupted), duplicate create 409, delete 204,
+  secret removed, second delete 404; VMware source create/get/duplicate/delete likewise.
+- The same script run read-only against v0.2.0 failed exactly the four behaviours this
+  release changes, so it discriminates between versions.
+
+Not covered: export is not configured on the lab pod (503), so the running-VM refusal
+(409) is covered by unit tests only; the browser pass (menu entry, Forklift tab, support
+bundle from About) is manual.

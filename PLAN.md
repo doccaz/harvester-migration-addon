@@ -1,6 +1,6 @@
 # Harvester Migration Add-on — analysis and phased plan
 
-Status (2026-10-02): Phases 0–2 done and released (current release v0.2.0, https://github.com/doccaz/harvester-migration-addon); Phase 3 in progress; Phases 4–6 not started. Last updated at the end of the Phase 3 package extraction.
+Status (2026-10-02): Phases 0–2 done and released; Phase 3 package extraction done and released as v0.3.0 (verified on the lab: 49/49 smoke checks) (current release v0.3.0, https://github.com/doccaz/harvester-migration-addon); Phase 3 in progress; Phases 4–6 not started. Last updated at the end of the Phase 3 package extraction.
 
 ## 1. What exists today
 
@@ -138,7 +138,7 @@ Lessons and open items:
 - Two ~66 MB build binaries were committed by mistake when the backend was imported (removed from the tree; no credentials found). They remain in git history; rewriting history would change every SHA after `d218b1b` and move the release tags, so it is left to a deliberate decision.
 - The extraction script initially did not persist removals, which left dead duplicates (found and removed in the `kube` step). The stale-name grep and `unused` lint are part of every step now.
 - Fixed (own commit, verified on the lab, baseline retaken): API errors now keep their HTTP status via `httpx.RespondWithAPIError` on the four YAML handlers and namespace creation (404 / 409 / 403 instead of a blanket 500). Done for `harvester`, `vmic` (24 sites + typed vCenter errors, 32 status rows + simulator-backed handler tests), `forklift` (21 sites, 19 status rows, proxy tests) and `export` (13 sites, first-ever handler tests, Job entry-point contract pinned); the sites that stay 500 are deliberate and listed in docs/refactor-notes.md. The blanket-500 sweep is complete (counts and the deliberate leftovers in docs/refactor-notes.md); about 10 blanket 404s that hide permission errors remain.
-- No release tag has been cut for Phase 3 yet. The gates are clean after the last extraction, so the next tag (v0.3.0) would ship the refactor plus the deliberate behaviour changes listed in docs/refactor-notes.md (API statuses, `nosniff`, two timeouts, a DNS-label check on the OVA proxy namespace).
+- Released as v0.3.0 (the refactor plus the deliberate behaviour changes in docs/refactor-notes.md: API statuses, `nosniff`, two timeouts, a DNS-label check on the OVA proxy namespace) and verified on the lab with `hack/lab-smoke.sh` (49/49; see docs/phase2-verification.md). Not yet exercised on the lab: the running-VM export refusal (export is not configured there) and the manual browser pass.
 
 ### Phase 4 — Frontend modularisation (≈3 weeks)
 - Break up `App.js` (5.7k lines) into engine modules and shared components; engine registry driven by `GET /api/v1/capabilities`.

@@ -48,7 +48,7 @@ func ListProviders(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		list, err := clients.Dynamic.Resource(kube.ForkliftProviderGVR).Namespace("").List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list Forklift Providers: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to list Forklift Providers: "+err.Error())
 			return
 		}
 
@@ -133,7 +133,7 @@ func CreateProvider(clients *kube.Clients) http.HandlerFunc {
 		}
 		_, err := clients.Clientset.CoreV1().Secrets(payload.Namespace).Create(context.TODO(), secret, metav1.CreateOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create Forklift secret: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to create Forklift secret: "+err.Error())
 			return
 		}
 
@@ -187,7 +187,7 @@ func CreateProvider(clients *kube.Clients) http.HandlerFunc {
 			if cleanupErr := clients.Clientset.CoreV1().Secrets(payload.Namespace).Delete(context.TODO(), secretName, metav1.DeleteOptions{}); cleanupErr != nil {
 				log.Warnf("Best-effort cleanup: failed to delete secret %s/%s: %v", payload.Namespace, secretName, cleanupErr)
 			}
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create Forklift Provider: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to create Forklift Provider: "+err.Error())
 			return
 		}
 
@@ -254,7 +254,7 @@ func UpdateProvider(clients *kube.Clients) http.HandlerFunc {
 		if needsSecretUpdate {
 			secret, err := clients.Clientset.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 			if err != nil {
-				httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get associated secret: "+err.Error())
+				httpx.RespondWithAPIErrorMsg(w, err, "Failed to get associated secret: "+err.Error())
 				return
 			}
 
@@ -283,7 +283,7 @@ func UpdateProvider(clients *kube.Clients) http.HandlerFunc {
 			}
 			_, err = clients.Clientset.CoreV1().Secrets(namespace).Update(context.TODO(), secret, metav1.UpdateOptions{})
 			if err != nil {
-				httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to update secret: "+err.Error())
+				httpx.RespondWithAPIErrorMsg(w, err, "Failed to update secret: "+err.Error())
 				return
 			}
 		}
@@ -322,7 +322,7 @@ func UpdateProvider(clients *kube.Clients) http.HandlerFunc {
 
 		updatedObj, err := clients.Dynamic.Resource(kube.ForkliftProviderGVR).Namespace(namespace).Update(context.TODO(), providerObj, metav1.UpdateOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to update Forklift Provider: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to update Forklift Provider: "+err.Error())
 			return
 		}
 
@@ -339,14 +339,14 @@ func DeleteProvider(clients *kube.Clients) http.HandlerFunc {
 
 		providerObj, err := clients.Dynamic.Resource(kube.ForkliftProviderGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get Forklift Provider: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get Forklift Provider: "+err.Error())
 			return
 		}
 		secretName, _ := kube.NestedStringOrWarn(providerObj.Object, "spec", "secret", "name")
 
 		err = clients.Dynamic.Resource(kube.ForkliftProviderGVR).Namespace(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to delete Forklift Provider: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to delete Forklift Provider: "+err.Error())
 			return
 		}
 

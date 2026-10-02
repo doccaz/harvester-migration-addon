@@ -4,7 +4,6 @@ package vmic
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/vcenter"
@@ -235,22 +234,8 @@ func UpdateMAC(clients *kube.Clients) http.HandlerFunc {
 
 // --- Forklift Handlers ---
 
-// respondWithVCenterError maps a failure of a vCenter operation to a status.
-// Kubernetes API errors raised while resolving the source keep the API server's
-// status (they arrive wrapped); an unsupported operation is the caller's mistake
-// (400), and an unknown VM, datacenter or device is a 404. Everything else (vCenter
-// unreachable, login refused, a failed task) stays 500 on purpose: it is the
-// upstream's failure, but a 502 could be replaced by an intermediary's own error
-// page and hide the message from the UI.
+// respondWithVCenterError answers a failed vCenter operation with the status
+// vcenter.HTTPStatus derives from the error and the error text as the message.
 func respondWithVCenterError(w http.ResponseWriter, err error) {
-	code := httpx.StatusFor(err)
-	if code == http.StatusInternalServerError {
-		switch {
-		case errors.Is(err, vcenter.ErrUnsupportedOperation):
-			code = http.StatusBadRequest
-		case vcenter.IsNotFound(err):
-			code = http.StatusNotFound
-		}
-	}
-	httpx.RespondWithError(w, code, err.Error())
+	httpx.RespondWithError(w, vcenter.HTTPStatus(err), err.Error())
 }

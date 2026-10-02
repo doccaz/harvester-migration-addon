@@ -5,8 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/inventory"
 
@@ -540,4 +543,25 @@ func IsNotFound(err error) bool {
 	var nf *find.NotFoundError
 	var dnf *DeviceNotFoundError
 	return errors.As(err, &nf) || errors.As(err, &dnf)
+}
+
+// HTTPStatus maps an error from a vCenter-backed handler to an HTTP status.
+// Kubernetes API errors raised while resolving credentials keep the API server's
+// status (they arrive wrapped); an unsupported operation is the caller's mistake
+// (400) and an unknown VM, datacenter or device is a 404. Everything else (vCenter
+// unreachable, login refused, a failed task) is 500 on purpose: it is the
+// upstream's failure, but a 502 could be replaced by an intermediary's own error
+// page and hide the message from the UI.
+func HTTPStatus(err error) int {
+	code := httpx.StatusFor(err)
+	if code != http.StatusInternalServerError {
+		return code
+	}
+	switch {
+	case errors.Is(err, ErrUnsupportedOperation):
+		return http.StatusBadRequest
+	case IsNotFound(err):
+		return http.StatusNotFound
+	}
+	return http.StatusInternalServerError
 }

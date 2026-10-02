@@ -23,7 +23,7 @@ func ListPlans(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		list, err := clients.Dynamic.Resource(kube.ForkliftPlanGVR).Namespace("").List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list Forklift Plans: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to list Forklift Plans: "+err.Error())
 			return
 		}
 		httpx.RespondWithJSON(w, http.StatusOK, list.Items)
@@ -104,7 +104,7 @@ func CreatePlan(clients *kube.Clients) http.HandlerFunc {
 
 		_, err := clients.Dynamic.Resource(kube.ForkliftNetworkMapGVR).Namespace(payload.Namespace).Create(context.TODO(), networkMap, metav1.CreateOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create Forklift NetworkMap: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to create Forklift NetworkMap: "+err.Error())
 			return
 		}
 
@@ -174,7 +174,7 @@ func CreatePlan(clients *kube.Clients) http.HandlerFunc {
 			if cleanupErr := clients.Dynamic.Resource(kube.ForkliftNetworkMapGVR).Namespace(payload.Namespace).Delete(context.TODO(), networkMapName, metav1.DeleteOptions{}); cleanupErr != nil {
 				log.Warnf("Best-effort cleanup: failed to delete NetworkMap %s/%s: %v", payload.Namespace, networkMapName, cleanupErr)
 			}
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create Forklift StorageMap: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to create Forklift StorageMap: "+err.Error())
 			return
 		}
 
@@ -277,7 +277,7 @@ func CreatePlan(clients *kube.Clients) http.HandlerFunc {
 			if cleanupErr := clients.Dynamic.Resource(kube.ForkliftStorageMapGVR).Namespace(payload.Namespace).Delete(context.TODO(), storageMapName, metav1.DeleteOptions{}); cleanupErr != nil {
 				log.Warnf("Best-effort cleanup: failed to delete StorageMap %s/%s: %v", payload.Namespace, storageMapName, cleanupErr)
 			}
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create Forklift Plan: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to create Forklift Plan: "+err.Error())
 			return
 		}
 
@@ -295,7 +295,7 @@ func DeletePlan(clients *kube.Clients) http.HandlerFunc {
 		// Get the plan to find associated maps
 		planObj, err := clients.Dynamic.Resource(kube.ForkliftPlanGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get Forklift Plan: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get Forklift Plan: "+err.Error())
 			return
 		}
 
@@ -305,7 +305,7 @@ func DeletePlan(clients *kube.Clients) http.HandlerFunc {
 		// Delete the Plan
 		err = clients.Dynamic.Resource(kube.ForkliftPlanGVR).Namespace(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to delete Forklift Plan: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to delete Forklift Plan: "+err.Error())
 			return
 		}
 

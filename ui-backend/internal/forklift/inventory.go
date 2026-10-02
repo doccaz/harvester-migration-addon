@@ -32,7 +32,7 @@ func GetInventory(clients *kube.Clients) http.HandlerFunc {
 
 		providerObj, err := clients.Dynamic.Resource(kube.ForkliftProviderGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get Forklift Provider: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get Forklift Provider: "+err.Error())
 			return
 		}
 
@@ -54,7 +54,7 @@ func GetInventory(clients *kube.Clients) http.HandlerFunc {
 
 		secret, err := clients.Clientset.CoreV1().Secrets(secretNamespace).Get(context.TODO(), secretName, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to get Forklift credentials secret: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get Forklift credentials secret: "+err.Error())
 			return
 		}
 
@@ -71,7 +71,7 @@ func GetInventory(clients *kube.Clients) http.HandlerFunc {
 		inventory, err := vcenter.GetInventoryAutoDiscover(r.Context(), creds)
 		if err != nil {
 			log.Errorf("Failed to get vCenter inventory via Forklift Provider: %v", err)
-			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
+			httpx.RespondWithError(w, vcenter.HTTPStatus(err), err.Error())
 			return
 		}
 
@@ -131,7 +131,7 @@ func GetOvaInventory(clients *kube.Clients) http.HandlerFunc {
 			forkliftNs = "forklift"
 			svc, err = clients.Clientset.CoreV1().Services(forkliftNs).Get(context.TODO(), "forklift-inventory", metav1.GetOptions{})
 			if err != nil {
-				httpx.RespondWithError(w, http.StatusInternalServerError, "Cannot find forklift-inventory service: "+err.Error())
+				httpx.RespondWithAPIErrorMsg(w, err, "Cannot find forklift-inventory service: "+err.Error())
 				return
 			}
 		}

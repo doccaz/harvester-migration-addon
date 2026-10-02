@@ -43,7 +43,7 @@ func CreateMigration(clients *kube.Clients) http.HandlerFunc {
 
 		createdObj, err := clients.Dynamic.Resource(kube.ForkliftMigrationGVR).Namespace(namespace).Create(context.TODO(), migration, metav1.CreateOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to create Forklift Migration: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to create Forklift Migration: "+err.Error())
 			return
 		}
 
@@ -63,7 +63,7 @@ func DeleteMigration(clients *kube.Clients) http.HandlerFunc {
 
 		err := clients.Dynamic.Resource(kube.ForkliftMigrationGVR).Namespace(namespace).Delete(context.TODO(), migrationName, metav1.DeleteOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to delete Forklift Migration: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to delete Forklift Migration: "+err.Error())
 			return
 		}
 
@@ -81,7 +81,7 @@ func GetMigrationStatus(clients *kube.Clients) http.HandlerFunc {
 		// List all migrations in the namespace
 		list, err := clients.Dynamic.Resource(kube.ForkliftMigrationGVR).Namespace(namespace).List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to list Forklift Migrations: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to list Forklift Migrations: "+err.Error())
 			return
 		}
 

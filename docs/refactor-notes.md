@@ -36,13 +36,30 @@
   (ingress, Rancher's proxy) may replace a backend 502 with its own error page and
   hide the message the UI shows. Revisit only after confirming that on the lab.
 
+- **forklift**: 21 API-call sites keep the API server's status (providers, plans,
+  migrations, inventory; message text unchanged), the vCenter inventory goes through
+  the shared `vcenter.HTTPStatus` (which `vmic` now uses too), and a missing
+  `forklift-inventory` service is 404 (was 500). The 9 sites left at 500 are the same
+  deliberate categories as in vmic: malformed stored providers, `SetNested*`, YAML
+  marshal and request building. Tests: 19 status rows, simulator-backed inventory
+  tests, and the first real tests of the OVA inventory proxy (URL built, port chosen
+  from the service, upstream status passed through, 502 when unreachable) via a
+  recording transport; mutation-checked.
+- The OVA inventory proxy refuses a namespace that is not a DNS label (400) before it
+  becomes part of a host name.
+
 ## Observations (still open)
+- **`CheckAvailability` reports "Forklift not available" for any failure** reading the
+  `host` Provider, including a plain permission denial, so a limited user in token mode
+  would see Forklift as missing. Not a 500; revisit with the capabilities detection in
+  Phase 4 (it should distinguish "absent" from "not allowed to look").
 - **Blanket 404s mask permission errors.** Some handlers answer 404 for *any* failure
   of a lookup (`GetResource`, the source detail routes, parts of export and forklift
-  providers; about 19 sites), so a forbidden read looks like "not found". Not a 500,
+  providers; about 18 sites: export 8, vmic 6, forklift 3, harvester 1), so a forbidden read looks like "not found". Not a 500,
   so left alone for now; in token mode it should become the API status too.
-- **Blanket 500s still to convert as packages move:** export (11), forklift (30),
-  support bundle (2), inventory (1). `harvester` is done (its four list calls were
+- **Blanket 500s still to convert as packages move:** export (11), support bundle (2),
+  inventory (1). Everything else left at 500 is on purpose (see the vmic and forklift
+  entries above). `harvester` is done (its four list calls were
   converted in a follow-up; only the YAML marshal failure stays 500, which is internal).
 - List routes that return `list.Items` directly could answer `null` instead of `[]`
   for an empty result if a client library returns a nil slice; the tests accept

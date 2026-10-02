@@ -68,15 +68,15 @@ func TestVCenterOperationStatuses(t *testing.T) {
 	clients, _ := simulatedVCenter(t)
 	power := func(vm, op string) interface{} { return VirtualMachinePowerRequest{VMName: vm, Operation: op} }
 
-	run(t, []row{
-		{"power off", PowerOp(clients), "POST", power("DC0_H0_VM0", "off"), vars, http.StatusOK},
-		{"power on", PowerOp(clients), "POST", power("DC0_H0_VM0", "on"), vars, http.StatusOK},
-		{"unsupported operation is 400", PowerOp(clients), "POST", power("DC0_H0_VM0", "explode"), vars, http.StatusBadRequest},
-		{"unknown VM is 404", PowerOp(clients), "POST", power("no-such-vm", "on"), vars, http.StatusNotFound},
-		{"malformed body is 400", PowerOp(clients), "POST", "{not json", vars, http.StatusBadRequest},
-		{"rename", RenameVM(clients), "POST", VirtualMachineRenameRequest{OldName: "DC0_H0_VM1", NewName: "renamed"}, vars, http.StatusOK},
-		{"rename of an unknown VM is 404", RenameVM(clients), "POST", VirtualMachineRenameRequest{OldName: "no-such-vm", NewName: "x"}, vars, http.StatusNotFound},
-		{"unknown device key is 404", UpdateMAC(clients), "POST", UpdateVMMACRequest{VMName: "DC0_H0_VM0", DeviceKey: 99999, NewMAC: "00:50:56:aa:bb:cc"}, vars, http.StatusNotFound},
+	testutil.Run(t, []testutil.Row{
+		testutil.Case("power off", PowerOp(clients), "POST", power("DC0_H0_VM0", "off"), vars, http.StatusOK),
+		testutil.Case("power on", PowerOp(clients), "POST", power("DC0_H0_VM0", "on"), vars, http.StatusOK),
+		testutil.Case("unsupported operation is 400", PowerOp(clients), "POST", power("DC0_H0_VM0", "explode"), vars, http.StatusBadRequest),
+		testutil.Case("unknown VM is 404", PowerOp(clients), "POST", power("no-such-vm", "on"), vars, http.StatusNotFound),
+		testutil.Case("malformed body is 400", PowerOp(clients), "POST", "{not json", vars, http.StatusBadRequest),
+		testutil.Case("rename", RenameVM(clients), "POST", VirtualMachineRenameRequest{OldName: "DC0_H0_VM1", NewName: "renamed"}, vars, http.StatusOK),
+		testutil.Case("rename of an unknown VM is 404", RenameVM(clients), "POST", VirtualMachineRenameRequest{OldName: "no-such-vm", NewName: "x"}, vars, http.StatusNotFound),
+		testutil.Case("unknown device key is 404", UpdateMAC(clients), "POST", UpdateVMMACRequest{VMName: "DC0_H0_VM0", DeviceKey: 99999, NewMAC: "00:50:56:aa:bb:cc"}, vars, http.StatusNotFound),
 	})
 
 	// Resolving the source goes through the Kubernetes API, so its statuses pass
@@ -91,9 +91,9 @@ func TestVCenterOperationStatuses(t *testing.T) {
 		case "mac":
 			body = UpdateVMMACRequest{VMName: "a", DeviceKey: 1, NewMAC: "00:50:56:aa:bb:cc"}
 		}
-		run(t, []row{
-			{name + ": missing source is 404", h(missingSource), "POST", body, vars, http.StatusNotFound},
-			{name + ": missing credentials secret is 404", h(missingSecret), "POST", body, vars, http.StatusNotFound},
+		testutil.Run(t, []testutil.Row{
+			testutil.Case(name+": missing source is 404", h(missingSource), "POST", body, vars, http.StatusNotFound),
+			testutil.Case(name+": missing credentials secret is 404", h(missingSecret), "POST", body, vars, http.StatusNotFound),
 		})
 	}
 
@@ -101,8 +101,8 @@ func TestVCenterOperationStatuses(t *testing.T) {
 	// the server's problem, so they stay 500 (see respondWithVCenterError).
 	noEndpoint := vmwareSource("a")
 	unstructured.RemoveNestedField(noEndpoint.Object, "spec", "endpoint")
-	run(t, []row{
-		{"a source without an endpoint is 500", PowerOp(testutil.NewClientsWithDynamic([]runtime.Object{secretObj("a-credentials")}, noEndpoint)), "POST", power("x", "on"), vars, http.StatusInternalServerError},
-		{"an unreachable vCenter is 500", PowerOp(clientsFor("http://127.0.0.1:1/sdk")), "POST", power("x", "on"), vars, http.StatusInternalServerError},
+	testutil.Run(t, []testutil.Row{
+		testutil.Case("a source without an endpoint is 500", PowerOp(testutil.NewClientsWithDynamic([]runtime.Object{secretObj("a-credentials")}, noEndpoint)), "POST", power("x", "on"), vars, http.StatusInternalServerError),
+		testutil.Case("an unreachable vCenter is 500", PowerOp(clientsFor("http://127.0.0.1:1/sdk")), "POST", power("x", "on"), vars, http.StatusInternalServerError),
 	})
 }

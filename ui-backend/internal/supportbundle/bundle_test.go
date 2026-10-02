@@ -1,5 +1,5 @@
-// pkg/support_bundle_test.go
-package main
+// bundle_test.go
+package supportbundle
 
 import (
 	"archive/tar"
@@ -97,7 +97,7 @@ func TestSupportBundleHandler(t *testing.T) {
 
 	clients := testutil.NewClientsWithDynamic([]runtime.Object{secret, unrelated}, vmi, source)
 
-	rr := testutil.Do(SupportBundleHandler(clients), "GET", "/api/v1/support-bundle", nil, nil)
+	rr := testutil.Do(Handler("test-version")(clients), "GET", "/api/v1/support-bundle", nil, nil)
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d; body: %s", rr.Code, rr.Body.String())
@@ -196,5 +196,54 @@ func TestSupportBundleAnonymizesInventory(t *testing.T) {
 	}
 	if vm.DatastoreID != "datastore-10061" {
 		t.Error("datastore ID must be preserved")
+	}
+}
+
+// meta.json records the release version main stamps into the binary, so a bundle
+// attached to a bug report says which build produced it.
+func TestBundleRecordsTheBuildVersion(t *testing.T) {
+	rr := testutil.Do(Handler("9.9.9")(testutil.NewClients()), "GET", "/api/v1/support-bundle", nil, nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d", rr.Code)
+	}
+	_, meta, ok := findFile(readBundle(t, rr.Body.Bytes()), "/meta.json")
+	if !ok {
+		t.Fatal("bundle missing meta.json")
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal([]byte(meta), &m); err != nil {
+		t.Fatal(err)
+	}
+	if m["appVersion"] != "9.9.9" || m["schemaVersion"] == nil {
+		t.Errorf("meta.json = %v", m)
+	}
+}
+
+// Gathering is best-effort: on a cluster where the migration CRDs do not exist (the
+// fake client even panics when listing them) the bundle is still produced, with each
+// failure recorded in errors.json instead of aborting.
+func TestBundleIsBestEffortWithoutMigrationCRDs(t *testing.T) {
+	rr := testutil.Do(Handler("x")(testutil.NewClients()), "GET", "/api/v1/support-bundle", nil, nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rr.Code, rr.Body)
+	}
+	_, raw, ok := findFile(readBundle(t, rr.Body.Bytes()), "/errors.json")
+	if !ok {
+		t.Fatal("bundle missing errors.json")
+	}
+	var errs map[string]string
+	if err := json.Unmarshal([]byte(raw), &errs); err != nil {
+		t.Fatalf("errors.json is not a step -> message object: %v", err)
+	}
+	// One step fails with an ordinary error, another with a panic that was recovered.
+	if !strings.Contains(errs["cluster/capabilities"], "not found") {
+		t.Errorf("cluster/capabilities = %q", errs["cluster/capabilities"])
+	}
+	recovered := false
+	for _, msg := range errs {
+		recovered = recovered || strings.HasPrefix(msg, "panic:")
+	}
+	if !recovered {
+		t.Errorf("expected a recovered panic to be recorded: %v", errs)
 	}
 }

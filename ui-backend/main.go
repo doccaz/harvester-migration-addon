@@ -16,6 +16,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// appVersion is set at build time (-ldflags "-X main.appVersion=...") from the
+// release tag; "dev" marks a local build.
+var appVersion = "dev"
+
 func main() {
 	// The same binary runs in two modes: the API server, and the worker that
 	// performs one export inside a Kubernetes Job. Keeping them in one binary

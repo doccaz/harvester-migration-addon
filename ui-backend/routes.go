@@ -4,6 +4,8 @@ package main
 import (
 	"net/http"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/supportbundle"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/export"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/forklift"
@@ -30,7 +32,7 @@ func newRouter(provider *kube.Provider, uiPath string) *mux.Router {
 
 	// API Handlers
 	api.HandleFunc("/capabilities", kube.Scoped(provider, capabilities.Handler)).Methods("GET")
-	api.HandleFunc("/support-bundle", kube.Scoped(provider, SupportBundleHandler)).Methods("GET")
+	api.HandleFunc("/support-bundle", kube.Scoped(provider, supportbundle.Handler(appVersion))).Methods("GET")
 	api.HandleFunc("/vcenter/inventory/{namespace}/{name}", kube.Scoped(provider, vmic.GetInventory)).Methods("GET")
 	api.HandleFunc("/vcenter/vm/{namespace}/{name}/power", kube.Scoped(provider, vmic.PowerOp)).Methods("POST")
 	api.HandleFunc("/vcenter/vm/{namespace}/{name}/rename", kube.Scoped(provider, vmic.RenameVM)).Methods("POST")

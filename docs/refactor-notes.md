@@ -63,6 +63,14 @@
   by both Job builders and `main()`; tests pin the Job commands and that the
   Dockerfile installs the binary at that path.
 
+- **supportbundle**: moved as is. The release version stays a build-stamped variable
+  in `main` (`-X main.appVersion`, so the Dockerfile and release workflow need no
+  change) and is passed to the handler (`supportbundle.Handler(appVersion)`); a test
+  pins the Dockerfile ldflags and the workflow's `VERSION` build argument. Its two
+  500s (finalising the tar/gzip stream) are internal and stay. New tests: the bundle
+  records the version it is given, and gathering is best-effort on a cluster without
+  the migration CRDs (failures, including recovered panics, land in errors.json).
+
 ## Observations (still open)
 - **`inventory.PVCIndex` swallows a failed PVC list** (logs a warning and returns an
   empty index), so a user who may not list PersistentVolumeClaims gets a misleading

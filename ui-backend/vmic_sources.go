@@ -229,6 +229,7 @@ func DeleteVmwareSourceHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
+// --- OvaSource Handlers ---
 func ListOvaSourcesHandler(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		list, err := clients.Dynamic.Resource(kube.OVASourceGVR).List(context.TODO(), metav1.ListOptions{})

@@ -85,21 +85,6 @@ func TestUpdatePlanHandler(t *testing.T) {
 	}
 }
 
-func TestListNamespacesHandler(t *testing.T) {
-	clients := testutil.NewClients()
-
-	rr := testutil.Do(ListNamespacesHandler(clients), "GET", "/api/v1/harvester/namespaces", nil, nil)
-
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", rr.Code)
-	}
-
-	var result []interface{}
-	if err := json.Unmarshal(rr.Body.Bytes(), &result); err != nil {
-		t.Fatalf("failed to unmarshal: %v", err)
-	}
-}
-
 func TestCreateForkliftProviderHandler_VSphere(t *testing.T) {
 	clients := testutil.NewClients()
 

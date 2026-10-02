@@ -14,6 +14,14 @@
   while the matching detail route returns 404 (`HandleGetSourceYAML`,
   `HandleGetForkliftPlanYAML`). Candidate fix, with an explicit behaviour note.
 
+- `POST /api/v1/harvester/namespaces` returns **500** when the namespace already
+  exists (any API error maps to 500), where 409 would be the natural status.
+  Pinned by a test (`TestCreateNamespace`).
+- `GET /api/v1/harvester/virtualmachines/{ns}` (and the other list routes that
+  return `list.Items` directly) could answer `null` instead of `[]` for an empty
+  result if a client library returns a nil slice; the tests accept either because
+  the frontend only needs an empty list. Not confirmed against a real server.
+
 ## Decisions
 - Do NOT import `github.com/harvester/vm-import-controller` for typed objects: its
   `go.mod` pins `k8s.io/client-go v12.0.0+incompatible` and relies on a `replace`

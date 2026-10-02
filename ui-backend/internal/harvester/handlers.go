@@ -1,5 +1,9 @@
-// harvester_handlers.go
-package main
+// handlers.go
+
+// Package harvester serves the read-mostly cluster lookups the UI needs next to a
+// migration: namespaces, networks, storage classes and VMs, plus generic
+// "get this resource as JSON/YAML" handlers that the engines' routes reuse.
+package harvester
 
 import (
 	"context"
@@ -18,7 +22,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func ListNamespacesHandler(clients *kube.Clients) http.HandlerFunc {
+func ListNamespaces(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		namespaces, err := clients.Clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
@@ -29,7 +33,7 @@ func ListNamespacesHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-func CreateNamespaceHandler(clients *kube.Clients) http.HandlerFunc {
+func CreateNamespace(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var payload struct {
 			Name string `json:"name"`
@@ -51,7 +55,7 @@ func CreateNamespaceHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-func ListVlanConfigsHandler(clients *kube.Clients) http.HandlerFunc {
+func ListVlanConfigs(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log.Info("Listing Harvester VlanConfigs")
 		gvr := schema.GroupVersionResource{
@@ -78,7 +82,7 @@ func ListVlanConfigsHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-func ListStorageClassesHandler(clients *kube.Clients) http.HandlerFunc {
+func ListStorageClasses(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		scs, err := clients.Clientset.StorageV1().StorageClasses().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
@@ -89,8 +93,8 @@ func ListStorageClassesHandler(clients *kube.Clients) http.HandlerFunc {
 	}
 }
 
-// HandleGetResource returns a namespaced resource as JSON
-func HandleGetResource(clients *kube.Clients, gvr schema.GroupVersionResource) http.HandlerFunc {
+// GetResource returns a namespaced resource as JSON
+func GetResource(clients *kube.Clients, gvr schema.GroupVersionResource) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -106,7 +110,7 @@ func HandleGetResource(clients *kube.Clients, gvr schema.GroupVersionResource) h
 	}
 }
 
-func HandleGetSourceYAML(clients *kube.Clients, gvr schema.GroupVersionResource) http.HandlerFunc {
+func GetSourceYAML(clients *kube.Clients, gvr schema.GroupVersionResource) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -127,14 +131,17 @@ func HandleGetSourceYAML(clients *kube.Clients, gvr schema.GroupVersionResource)
 		}
 
 		w.Header().Set("Content-Type", "application/yaml")
+		// Object names and values come from the cluster; never let a browser sniff
+		// this body into something it would render.
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write(yamlBytes); err != nil {
+		if _, err := w.Write(yamlBytes); err != nil { //nolint:gosec // G705: application/yaml + nosniff, and the requester's own object
 			log.Warnf("Failed to write response: %v", err)
 		}
 	}
 }
 
-func ListVMsHandler(clients *kube.Clients) http.HandlerFunc {
+func ListVMs(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		namespace := vars["namespace"]
@@ -147,5 +154,3 @@ func ListVMsHandler(clients *kube.Clients) http.HandlerFunc {
 		httpx.RespondWithJSON(w, http.StatusOK, list.Items)
 	}
 }
-
-// --- OvaSource Handlers ---

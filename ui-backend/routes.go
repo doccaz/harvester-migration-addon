@@ -4,6 +4,8 @@ package main
 import (
 	"net/http"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/harvester"
+
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/capabilities"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/inventory"
@@ -41,20 +43,20 @@ func newRouter(provider *kube.Provider, uiPath string) *mux.Router {
 	api.HandleFunc("/harvester/vmwaresources/{namespace}/{name}", kube.Scoped(provider, GetVmwareSourceDetails)).Methods("GET")
 	api.HandleFunc("/harvester/vmwaresources/{namespace}/{name}", kube.Scoped(provider, UpdateVmwareSourceHandler)).Methods("PUT")
 	api.HandleFunc("/harvester/vmwaresources/{namespace}/{name}", kube.Scoped(provider, DeleteVmwareSourceHandler)).Methods("DELETE")
-	api.HandleFunc("/harvester/vmwaresources/{namespace}/{name}/yaml", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return HandleGetSourceYAML(c, kube.VMwareSourceGVR) })).Methods("GET")
+	api.HandleFunc("/harvester/vmwaresources/{namespace}/{name}/yaml", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return harvester.GetSourceYAML(c, kube.VMwareSourceGVR) })).Methods("GET")
 
 	api.HandleFunc("/harvester/ovasources", kube.Scoped(provider, ListOvaSourcesHandler)).Methods("GET")
 	api.HandleFunc("/harvester/ovasources", kube.Scoped(provider, CreateOvaSourceHandler)).Methods("POST")
 	api.HandleFunc("/harvester/ovasources/{namespace}/{name}", kube.Scoped(provider, GetOvaSourceDetails)).Methods("GET")
 	api.HandleFunc("/harvester/ovasources/{namespace}/{name}", kube.Scoped(provider, UpdateOvaSourceHandler)).Methods("PUT")
 	api.HandleFunc("/harvester/ovasources/{namespace}/{name}", kube.Scoped(provider, DeleteOvaSourceHandler)).Methods("DELETE")
-	api.HandleFunc("/harvester/ovasources/{namespace}/{name}/yaml", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return HandleGetSourceYAML(c, kube.OVASourceGVR) })).Methods("GET")
+	api.HandleFunc("/harvester/ovasources/{namespace}/{name}/yaml", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return harvester.GetSourceYAML(c, kube.OVASourceGVR) })).Methods("GET")
 
-	api.HandleFunc("/harvester/namespaces", kube.Scoped(provider, ListNamespacesHandler)).Methods("GET")
-	api.HandleFunc("/harvester/namespaces", kube.Scoped(provider, CreateNamespaceHandler)).Methods("POST")
-	api.HandleFunc("/harvester/vlanconfigs", kube.Scoped(provider, ListVlanConfigsHandler)).Methods("GET")
-	api.HandleFunc("/harvester/storageclasses", kube.Scoped(provider, ListStorageClassesHandler)).Methods("GET")
-	api.HandleFunc("/harvester/virtualmachines/{namespace}", kube.Scoped(provider, ListVMsHandler)).Methods("GET")
+	api.HandleFunc("/harvester/namespaces", kube.Scoped(provider, harvester.ListNamespaces)).Methods("GET")
+	api.HandleFunc("/harvester/namespaces", kube.Scoped(provider, harvester.CreateNamespace)).Methods("POST")
+	api.HandleFunc("/harvester/vlanconfigs", kube.Scoped(provider, harvester.ListVlanConfigs)).Methods("GET")
+	api.HandleFunc("/harvester/storageclasses", kube.Scoped(provider, harvester.ListStorageClasses)).Methods("GET")
+	api.HandleFunc("/harvester/virtualmachines/{namespace}", kube.Scoped(provider, harvester.ListVMs)).Methods("GET")
 	// Cluster-wide Harvester VM inventory, for the VM Export page.
 	api.HandleFunc("/harvester/inventory", kube.Scoped(provider, inventory.HandleGetHarvesterInventory)).Methods("GET")
 	api.HandleFunc("/exports/preview", kube.Scoped(provider, PreviewOVFHandler)).Methods("POST")
@@ -72,7 +74,7 @@ func newRouter(provider *kube.Provider, uiPath string) *mux.Router {
 	api.HandleFunc("/forklift/providers/{namespace}/{name}", kube.Scoped(provider, GetForkliftProviderDetails)).Methods("GET")
 	api.HandleFunc("/forklift/providers/{namespace}/{name}", kube.Scoped(provider, UpdateForkliftProviderHandler)).Methods("PUT")
 	api.HandleFunc("/forklift/providers/{namespace}/{name}", kube.Scoped(provider, DeleteForkliftProviderHandler)).Methods("DELETE")
-	api.HandleFunc("/forklift/providers/{namespace}/{name}/yaml", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return HandleGetSourceYAML(c, kube.ForkliftProviderGVR) })).Methods("GET")
+	api.HandleFunc("/forklift/providers/{namespace}/{name}/yaml", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return harvester.GetSourceYAML(c, kube.ForkliftProviderGVR) })).Methods("GET")
 	api.HandleFunc("/forklift/inventory/{namespace}/{name}", kube.Scoped(provider, HandleGetForkliftInventory)).Methods("GET")
 	api.HandleFunc("/forklift/inventory/ova/{namespace}/{name}/{resource}", kube.Scoped(provider, HandleGetForkliftOvaInventory)).Methods("GET")
 	api.HandleFunc("/forklift/plans", kube.Scoped(provider, ListForkliftPlansHandler)).Methods("GET")
@@ -83,11 +85,11 @@ func newRouter(provider *kube.Provider, uiPath string) *mux.Router {
 	api.HandleFunc("/forklift/plans/{namespace}/{name}/run", kube.Scoped(provider, CreateForkliftMigrationHandler)).Methods("POST")
 	api.HandleFunc("/forklift/plans/{namespace}/{name}/migration", kube.Scoped(provider, GetForkliftMigrationStatus)).Methods("GET")
 	api.HandleFunc("/forklift/plans/{namespace}/{name}/migration", kube.Scoped(provider, DeleteForkliftMigrationHandler)).Methods("DELETE")
-	api.HandleFunc("/forklift/networkmaps/{namespace}/{name}", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return HandleGetResource(c, kube.ForkliftNetworkMapGVR) })).Methods("GET")
-	api.HandleFunc("/forklift/networkmaps/{namespace}/{name}/yaml", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return HandleGetSourceYAML(c, kube.ForkliftNetworkMapGVR) })).Methods("GET")
-	api.HandleFunc("/forklift/storagemaps/{namespace}/{name}", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return HandleGetResource(c, kube.ForkliftStorageMapGVR) })).Methods("GET")
-	api.HandleFunc("/forklift/storagemaps/{namespace}/{name}/yaml", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return HandleGetSourceYAML(c, kube.ForkliftStorageMapGVR) })).Methods("GET")
-	api.HandleFunc("/forklift/migrations/{namespace}/{name}/yaml", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return HandleGetSourceYAML(c, kube.ForkliftMigrationGVR) })).Methods("GET")
+	api.HandleFunc("/forklift/networkmaps/{namespace}/{name}", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return harvester.GetResource(c, kube.ForkliftNetworkMapGVR) })).Methods("GET")
+	api.HandleFunc("/forklift/networkmaps/{namespace}/{name}/yaml", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return harvester.GetSourceYAML(c, kube.ForkliftNetworkMapGVR) })).Methods("GET")
+	api.HandleFunc("/forklift/storagemaps/{namespace}/{name}", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return harvester.GetResource(c, kube.ForkliftStorageMapGVR) })).Methods("GET")
+	api.HandleFunc("/forklift/storagemaps/{namespace}/{name}/yaml", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return harvester.GetSourceYAML(c, kube.ForkliftStorageMapGVR) })).Methods("GET")
+	api.HandleFunc("/forklift/migrations/{namespace}/{name}/yaml", kube.Scoped(provider, func(c *kube.Clients) http.HandlerFunc { return harvester.GetSourceYAML(c, kube.ForkliftMigrationGVR) })).Methods("GET")
 
 	// Serve the frontend
 	fs := http.FileServer(http.Dir(uiPath))

@@ -14,6 +14,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
 )
@@ -37,6 +38,18 @@ func NewClientsWithDynamic(coreObjects []runtime.Object, dynamicObjects ...runti
 	return &kube.Clients{
 		Clientset: fakeClientset,
 		Dynamic:   fakeDynamic,
+	}
+}
+
+// NewClientsWithListKinds returns clients whose fake dynamic client can LIST the
+// given resources. The fake guesses a resource name from an object's kind
+// ("NetworkAttachmentDefinition" -> "networkattachmentdefinitions"), which is wrong
+// for hyphenated resources such as network-attachment-definitions; declare those
+// here and create the objects through the client with the real GVR.
+func NewClientsWithListKinds(listKinds map[schema.GroupVersionResource]string) *kube.Clients {
+	return &kube.Clients{
+		Clientset: fake.NewSimpleClientset(),
+		Dynamic:   dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), listKinds),
 	}
 }
 

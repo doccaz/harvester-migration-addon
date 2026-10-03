@@ -33,7 +33,11 @@ nothing else changed.
     sorting helpers in `shared/sorting.js`. `App()` went from 780 to ~400 lines and keeps navigation,
     selection, the polling effect and `renderPage`. Gated by the 21 snapshots plus 24 behaviour tests
     (`App.flows.test.js`: delete/edit/run flows, auto-refresh), written and mutation-checked *before* the move.
-  - **4.3b Engine registry and views**: per-engine page views and a registry that builds the sub-tabs.
+  - **4.3b Engine registry and views** (done, behaviour-identical): `engines/registry.js` lists the engines
+    (`vmic`, `forklift`), each with a view for the plans, vCenter-sources and OVA-sources pages;
+    `engines/EnginePage.js` builds the sub-tabs from the registry. The two copies of the Forklift provider
+    JSX became one parametrised `ProvidersView`. `App.js` is now ~315 lines. 28 behaviour tests and the 21
+    snapshots gate it; three tests added for the merged view, each mutation-checked.
   - **4.3c Behaviour fixes, with tests**: one fetch per endpoint at start-up; a background refresh must not
     replace the table with "Loading plans..."; the polling effect keyed on what it uses.
 - **4.4 Capabilities from the backend**: extend `GET /api/v1/capabilities` with per-engine availability

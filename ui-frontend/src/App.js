@@ -1,24 +1,17 @@
 import { useState, useEffect } from 'react';
 import { Server, RefreshCw, List, Package, Info, Palette, Upload } from 'lucide-react';
-import { Header } from './shared/Header';
-import { SubTab } from './shared/SubTab';
-import { handleSort } from './shared/sorting';
 import { useCapabilities } from './hooks/useCapabilities';
 import { useVmic } from './engines/vmic/useVmic';
 import { useForklift } from './engines/forklift/useForklift';
+import { EnginePage } from './engines/EnginePage';
 import { SourceExplorer } from './inventory/SourceExplorer';
 import { CreatePlanWizard } from './wizard/CreatePlanWizard';
-import { ForkliftProvidersTable } from './engines/forklift/ForkliftProvidersTable';
 import { ForkliftProviderWizard } from './engines/forklift/ForkliftProviderWizard';
 import { ForkliftProviderDetails } from './engines/forklift/ForkliftProviderDetails';
-import { ForkliftPlansTable } from './engines/forklift/ForkliftPlansTable';
 import { ForkliftPlanDetails } from './engines/forklift/ForkliftPlanDetails';
-import { ForkliftUnavailable } from './engines/forklift/ForkliftUnavailable';
-import { getPlanStatus, ResourceTable } from './engines/vmic/ResourceTable';
-import { SourcesTable } from './engines/vmic/SourcesTable';
+import { getPlanStatus } from './engines/vmic/ResourceTable';
 import { SourceWizard } from './engines/vmic/SourceWizard';
 import { SourceDetails } from './engines/vmic/SourceDetails';
-import { OvaSourcesTable } from './engines/vmic/OvaSourcesTable';
 import { OvaSourceWizard } from './engines/vmic/OvaSourceWizard';
 import { OvaSourceDetails } from './engines/vmic/OvaSourceDetails';
 import { EditVmicPlanModal } from './engines/vmic/EditVmicPlanModal';
@@ -62,8 +55,8 @@ export default function App() {
     const [selectedOvaSource, setSelectedOvaSource] = useState(null);
 
     const capabilities = useCapabilities();
+    const vmic = useVmic({ onPlanCreated: () => setPage('plans') });
     const {
-        isLoading,
         planToDelete,
         setPlanToDelete,
         planToEdit,
@@ -80,15 +73,6 @@ export default function App() {
         setOvaSourceToEdit,
         ovaSourceToDelete,
         setOvaSourceToDelete,
-        plansSort,
-        setPlansSort,
-        sourcesSort,
-        setSourcesSort,
-        ovaSourcesSort,
-        setOvaSourcesSort,
-        sortedPlans,
-        sortedSources,
-        sortedOvaSources,
         fetchPlans,
         fetchSources,
         fetchOvaSources,
@@ -99,40 +83,27 @@ export default function App() {
         handleDeleteSource,
         handleSaveOvaSource,
         handleDeleteOvaSource,
-        handleEditSource,
-        handleEditOvaSource,
-    } = useVmic({ onPlanCreated: () => setPage('plans') });
+    } = vmic;
+    const forklift = useForklift();
     const {
         forkliftAvailable,
-        forkliftMessage,
         forkliftNamespace,
-        setForkliftNamespace,
         showForkliftProviderWizard,
         setShowForkliftProviderWizard,
         forkliftWizardDefaultType,
-        setForkliftWizardDefaultType,
         forkliftProviderToEdit,
         setForkliftProviderToEdit,
         forkliftProviderToDelete,
         setForkliftProviderToDelete,
         forkliftPlanToDelete,
         setForkliftPlanToDelete,
-        forkliftProvidersSort,
-        setForkliftProvidersSort,
-        forkliftPlansSort,
-        setForkliftPlansSort,
-        sortedForkliftVsphereProviders,
-        sortedForkliftOvaProviders,
-        sortedForkliftPlans,
-        checkForkliftAvailability,
         fetchForkliftProviders,
         fetchForkliftPlans,
         handleSaveForkliftProvider,
         handleDeleteForkliftProvider,
-        handleEditForkliftProvider,
         handleDeleteForkliftPlan,
         handleRunForkliftMigration,
-    } = useForklift();
+    } = forklift;
 
     const [plansSubTab, setPlansSubTab] = useState('vmic');
     const [sourcesSubTab, setSourcesSubTab] = useState('vmic');
@@ -179,6 +150,11 @@ export default function App() {
         setPage('planDetails');
     };
 
+    // What the engines' page views need from the app: their own state, navigation, and page-level UI state.
+    const nav = { setPage, setSelectedSource, setSelectedOvaSource, setSelectedForkliftProvider, setForkliftProviderReturnPage, setSelectedForkliftPlan, handleViewDetails };
+    const ui = { expandedPlans, toggleExpand, selectedDisks, setSelectedDisks, refreshInterval, setRefreshInterval };
+    const engineCtx = { vmic, forklift, nav, ui };
+
     const renderPage = () => {
         switch (page) {
             case 'createPlan':
@@ -190,47 +166,7 @@ export default function App() {
             case 'sourceDetails':
                 return <SourceDetails source={selectedSource} onClose={() => setPage('sources')} />;
             case 'sources':
-                return (
-                    <div className="w-full">
-                        <SubTab
-                            tabs={[{ key: 'vmic', label: 'VM Import Controller' }, { key: 'forklift', label: 'Forklift' }]}
-                            activeTab={sourcesSubTab}
-                            onTabChange={setSourcesSubTab}
-                        />
-                        {sourcesSubTab === 'vmic' ? (
-                            <>
-                                <Header title="vCenter Sources" onButtonClick={() => { setSourceToEdit(null); setShowSourceWizard(true); }} />
-                                <SourcesTable
-                                    sources={sortedSources}
-                                    onEdit={handleEditSource}
-                                    onDelete={setSourceToDelete}
-                                    onViewDetails={(source) => { setSelectedSource(source); setPage('sourceDetails'); }}
-                                    onExplore={(source) => { setSelectedSource(source); setPage('exploreSource'); }}
-                                    sortConfig={sourcesSort}
-                                    onSort={handleSort(setSourcesSort)}
-                                />
-                            </>
-                        ) : (
-                            forkliftAvailable ? (
-                                <>
-                                    <Header title="Forklift vSphere Providers" onButtonClick={() => { setForkliftProviderToEdit(null); setForkliftWizardDefaultType('vsphere'); setShowForkliftProviderWizard(true); }} />
-                                    <ForkliftProvidersTable
-                                        providers={sortedForkliftVsphereProviders}
-                                        onEdit={handleEditForkliftProvider}
-                                        onDelete={setForkliftProviderToDelete}
-                                        onViewDetails={(provider) => { setSelectedForkliftProvider(provider); setForkliftProviderReturnPage('sources'); setPage('forkliftProviderDetails'); }}
-                                        onExplore={(provider) => { setSelectedSource({ metadata: provider.metadata, _forkliftProvider: true }); setPage('exploreForkliftSource'); }}
-                                        sortConfig={forkliftProvidersSort}
-                                        onSort={handleSort(setForkliftProvidersSort)}
-                                    />
-                                    <div className="flex justify-end items-center mt-4 space-x-2">
-                                        <button onClick={fetchForkliftProviders} className="text-blue-500 hover:text-blue-700"><RefreshCw size={20} /></button>
-                                    </div>
-                                </>
-                            ) : <ForkliftUnavailable message={forkliftMessage} namespace={forkliftNamespace} onChangeNamespace={setForkliftNamespace} onRetry={checkForkliftAvailability} />
-                        )}
-                    </div>
-                );
+                return <EnginePage page="sources" active={sourcesSubTab} onChange={setSourcesSubTab} ctx={engineCtx} />;
             case 'forkliftProviderDetails':
                 return selectedForkliftProvider ? <ForkliftProviderDetails provider={selectedForkliftProvider} onClose={() => { setSelectedForkliftProvider(null); setPage(forkliftProviderReturnPage); }} /> : null;
             case 'exploreForkliftSource':
@@ -240,91 +176,15 @@ export default function App() {
             case 'ovaSourceDetails':
                 return <OvaSourceDetails source={selectedOvaSource} onClose={() => setPage('ovaSources')} />;
             case 'ovaSources':
-                return (
-                    <div className="w-full">
-                        <SubTab
-                            tabs={[{ key: 'vmic', label: 'VM Import Controller' }, { key: 'forklift', label: 'Forklift' }]}
-                            activeTab={ovaSourcesSubTab}
-                            onTabChange={setOvaSourcesSubTab}
-                        />
-                        {ovaSourcesSubTab === 'vmic' ? (
-                            <>
-                                <Header title="OVA Sources" onButtonClick={() => { setOvaSourceToEdit(null); setShowOvaSourceWizard(true); }} />
-                                <OvaSourcesTable sources={sortedOvaSources} onEdit={handleEditOvaSource} onDelete={setOvaSourceToDelete} onViewDetails={(source) => { setSelectedOvaSource(source); setPage('ovaSourceDetails'); }} sortConfig={ovaSourcesSort} onSort={handleSort(setOvaSourcesSort)} />
-                                <div className="flex justify-end items-center mt-4 space-x-2">
-                                    <button onClick={fetchOvaSources} className="text-blue-500 hover:text-blue-700"><RefreshCw size={20} /></button>
-                                    <input type="number" value={refreshInterval} onChange={e => setRefreshInterval(e.target.value)} className="w-20 form-input text-sm" />
-                                    <span className="text-sm text-secondary">seconds</span>
-                                </div>
-                            </>
-                        ) : (
-                            forkliftAvailable ? (
-                                <>
-                                    <Header title="Forklift OVA Providers" onButtonClick={() => { setForkliftProviderToEdit(null); setForkliftWizardDefaultType('ova'); setShowForkliftProviderWizard(true); }} />
-                                    <ForkliftProvidersTable
-                                        providers={sortedForkliftOvaProviders}
-                                        onEdit={handleEditForkliftProvider}
-                                        onDelete={setForkliftProviderToDelete}
-                                        onViewDetails={(provider) => { setSelectedForkliftProvider(provider); setForkliftProviderReturnPage('ovaSources'); setPage('forkliftProviderDetails'); }}
-                                        onExplore={(provider) => { setSelectedSource({ metadata: provider.metadata, _forkliftProvider: true }); setPage('exploreForkliftSource'); }}
-                                        sortConfig={forkliftProvidersSort}
-                                        onSort={handleSort(setForkliftProvidersSort)}
-                                    />
-                                    <div className="flex justify-end items-center mt-4 space-x-2">
-                                        <button onClick={fetchForkliftProviders} className="text-blue-500 hover:text-blue-700"><RefreshCw size={20} /></button>
-                                    </div>
-                                </>
-                            ) : <ForkliftUnavailable message={forkliftMessage} namespace={forkliftNamespace} onChangeNamespace={setForkliftNamespace} onRetry={checkForkliftAvailability} />
-                        )}
-                    </div>
-                );
+                return <EnginePage page="ovaSources" active={ovaSourcesSubTab} onChange={setOvaSourcesSubTab} ctx={engineCtx} />;
             case 'export':
                 return <ExportPage />;
             case 'about':
                 return <AboutPage />;
             case 'plans':
             default:
-                return (
-                    <div className="w-full">
-                        <SubTab
-                            tabs={[{ key: 'vmic', label: 'VM Import Controller' }, { key: 'forklift', label: 'Forklift' }]}
-                            activeTab={plansSubTab}
-                            onTabChange={setPlansSubTab}
-                        />
-                        {plansSubTab === 'vmic' ? (
-                            <>
-                                <Header title="VM Migration Plans" onButtonClick={() => setPage('createPlan')} />
-                                {isLoading ? <p>Loading plans...</p> : <ResourceTable
-                                    plans={sortedPlans}
-                                    onViewDetails={handleViewDetails}
-                                    onDelete={setPlanToDelete}
-                                    onEdit={setPlanToEdit}
-                                    sortConfig={plansSort}
-                                    onSort={handleSort(setPlansSort)}
-                                    expandedPlans={expandedPlans}
-                                    toggleExpand={toggleExpand}
-                                    selectedDisks={selectedDisks}
-                                    setSelectedDisks={setSelectedDisks}
-                                />}
-                            </>
-                        ) : (
-                            forkliftAvailable ? (
-                                <>
-                                    <Header title="Forklift Migration Plans" onButtonClick={() => setPage('createPlan')} />
-                                    <ForkliftPlansTable
-                                        plans={sortedForkliftPlans}
-                                        onDelete={setForkliftPlanToDelete}
-                                        onViewDetails={(plan) => { setSelectedForkliftPlan(plan); setPage('forkliftPlanDetails'); }}
-                                        sortConfig={forkliftPlansSort}
-                                        onSort={handleSort(setForkliftPlansSort)}
-                                        expandedPlans={expandedPlans}
-                                        toggleExpand={toggleExpand}
-                                        onRunMigration={handleRunForkliftMigration}
-                                    />
-                                </>
-                            ) : <ForkliftUnavailable message={forkliftMessage} namespace={forkliftNamespace} onChangeNamespace={setForkliftNamespace} onRetry={checkForkliftAvailability} />
-                        )}
-                        <div className="flex justify-end items-center mt-4 space-x-6">
+                return <EnginePage page="plans" active={plansSubTab} onChange={setPlansSubTab} ctx={engineCtx} footer={
+                    <div className="flex justify-end items-center mt-4 space-x-6">
                             <div className="flex items-center space-x-2">
                                 <input
                                     type="checkbox"
@@ -343,8 +203,7 @@ export default function App() {
                                 </div>
                             </div>
                         </div>
-                    </div>
-                );
+                } />;
         }
     };
 

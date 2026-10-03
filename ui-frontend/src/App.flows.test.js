@@ -112,6 +112,37 @@ describe('edit flows fetch the full object and open the wizard on it', () => {
   });
 });
 
+describe('Forklift provider details return to the page they were opened from', () => {
+  const cases = [
+    { page: 'vCenter Sources', row: 'vsphere-lab', heading: 'Forklift vSphere Providers' },
+    { page: 'OVA Sources', row: 'ova-nfs', heading: 'Forklift OVA Providers' },
+  ];
+  cases.forEach(({ page, row, heading }) => {
+    test(page, async () => {
+      const u = await open({ '/api/v1/forklift/providers/forklift/vsphere-lab/yaml': 'kind: Provider\n', '/api/v1/forklift/providers/forklift/ova-nfs/yaml': 'kind: Provider\n' });
+      await nav(u, page);
+      await click(u, screen.getAllByRole('button', { name: 'Forklift' })[0]);
+      await click(u, within(screen.getAllByText(row)[0].closest('tr')).getByText('Details'));
+      expect(screen.queryByText(heading)).not.toBeInTheDocument();
+      await click(u, screen.getByRole('button', { name: /Close/ }));
+      expect(screen.getByText(heading)).toBeInTheDocument();
+    });
+  });
+});
+
+describe('the Forklift provider wizard opens preset for the page it is opened from', () => {
+  [['vCenter Sources', 'vsphere'], ['OVA Sources', 'ova']].forEach(([page, type]) => {
+    test(`${page}: ${type}`, async () => {
+      const u = await open();
+      await nav(u, page);
+      await click(u, screen.getAllByRole('button', { name: 'Forklift' })[0]);
+      await click(u, screen.getByRole('button', { name: 'Create' }));
+      const radios = screen.getAllByRole('radio');
+      expect(radios.find((r) => r.checked).value).toBe(type);
+    });
+  });
+});
+
 test('saving an edited VMIC plan PUTs the changes, closes the modal and refetches', async () => {
   const u = await open({ 'PUT /api/v1/plans/labs/db-migration': ok });
   await click(u, inRow('db-migration', 'Edit Plan'));

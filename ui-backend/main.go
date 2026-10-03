@@ -37,6 +37,13 @@ func main() {
 		os.Exit(export.RunCleanup())
 	}
 
+	// Serves one finished OVA from the export volume, inside a short-lived pod
+	// in the export's namespace (see internal/export/serve.go).
+	if len(os.Args) > 1 && os.Args[1] == export.ServeArg {
+		log.SetFormatter(&log.JSONFormatter{})
+		os.Exit(export.RunServe())
+	}
+
 	// Fix MIME types for serving static files
 	for ext, typ := range map[string]string{
 		".js": "application/javascript", ".css": "text/css", ".html": "text/html",

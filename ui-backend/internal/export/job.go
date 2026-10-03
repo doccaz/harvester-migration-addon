@@ -40,6 +40,7 @@ const (
 	BinaryPath = "/usr/local/bin/vm-import-ui"
 	WorkerArg  = "export-worker"
 	CleanupArg = "export-cleanup"
+	ServeArg   = "export-serve"
 )
 
 // ExportJobOptions carries the cluster-side knobs the worker itself never sees.

@@ -7,7 +7,7 @@ export function installApi(routes) {
   const calls = [];
   global.fetch = jest.fn((url, init = {}) => {
     const path = String(url).split('?')[0];
-    calls.push({ url: String(url), method: (init.method || 'GET').toUpperCase() });
+    calls.push({ url: String(url), method: (init.method || 'GET').toUpperCase(), body: init.body });
     const key = Object.keys(routes).find((k) => k === path || k === `${(init.method || 'GET').toUpperCase()} ${path}`);
     if (key === undefined) {
       return Promise.resolve({ ok: false, status: 404, json: async () => ({ error: `no mock for ${path}` }), text: async () => `no mock for ${path}` });
@@ -42,5 +42,8 @@ export async function settle(calls, { quietMs = 150, maxMs = 3000 } = {}) {
     if (calls.length === seen) stable += 1; else { stable = 0; seen = calls.length; }
   }
 }
+
+// Helpers for asserting on the recorded requests.
+export const requests = (calls, method, urlPart) => calls.filter((c) => c.method === method && c.url.includes(urlPart));
 
 export const reply = (status, body) => ({ __status: true, status, body });

@@ -12,14 +12,16 @@ nothing else changed.
    intentional UI change updates them with `yarn test -u` and the diff is reviewed. Each scenario also
    asserts strings that must be on the page, so a snapshot cannot capture a blank or error page.
 2. The existing unit tests (`utils`, `apiClient`, `exportDownload`, `App`) and `yarn build`.
-3. A declaration-identity check for moves (moved components must be textually identical modulo
-   imports/exports), as in the backend.
+3. A declaration-identity check for moves: `node ui-frontend/tools/check-moves.js <base-ref>` proves every
+   top-level declaration of `App.js` at the base ref still exists, textually identical (whitespace-insensitive,
+   ignoring the `export` keyword). Moves are made with `node ui-frontend/tools/js-move.js <from> <to> <Names>`,
+   which copies the text verbatim, writes exactly the imports needed and drops the origin's unused imports.
 4. Lab pass by hand before a release (menu entry, each tab, export, download).
 
 ## Steps
 - **4.0 Safety net** (done): the snapshot suite and fixtures above.
-- **4.1 Shared leaves**: `CopyButton`, `DownloadButton`, `SortableHeader`, `Header`, `SubTab`,
-  `getNestedValue`, status helpers move to `src/shared/`.
+- **4.1 Shared leaves** (done): `CopyButton`, `DownloadButton`, `SortableHeader`, `Header`, `SubTab`,
+  `getNestedValue` moved to `src/shared/` (45/45 declarations identical, 21/21 snapshots unchanged).
 - **4.2 Move components by feature**, no logic change: `engines/vmic/` (plans, sources, OVA sources,
   explorer, wizards), `engines/forklift/`, `export/`, `support/` (support bundle), `about/`.
 - **4.3 Split `App()`**: per-engine state and fetching into hooks; an engine registry

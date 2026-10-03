@@ -1,77 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Plus, ChevronRight, Server, Folder, Cloud, HardDrive, ArrowRight, X, Loader, CheckCircle, Cpu, MemoryStick, Trash2, Edit, AlertTriangle, RefreshCw, List, Package, Info, ChevronUp, ChevronDown, Search, Play, Square, RotateCcw, Power, CheckCircle2, HelpCircle, XCircle, Network, Check, Palette, ExternalLink, Copy, Download, Upload, Boxes } from 'lucide-react';
+import { ChevronRight, Server, Folder, Cloud, HardDrive, ArrowRight, X, Loader, CheckCircle, Cpu, MemoryStick, Trash2, Edit, AlertTriangle, RefreshCw, List, Package, Info, ChevronDown, Search, Play, Square, RotateCcw, Power, CheckCircle2, HelpCircle, XCircle, Network, Check, Palette, ExternalLink, Download, Upload, Boxes } from 'lucide-react';
 import { requestDownload, apiBaseFor, withApiBase } from './exportDownload';
 import { formatBytes, formatDate, formatDuration, slugify, buildVmicPlan, vmImportNameError } from './utils';
-
-const getNestedValue = (obj, path) => {
-    return path.split('.').reduce((acc, part) => acc && acc[part], obj);
-};
-
-// --- Copy to Clipboard Button ---
-const CopyButton = ({ text, label = "Copy", className = "" }) => {
-    const [copied, setCopied] = useState(false);
-    const handleCopy = () => {
-        navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    };
-    return (
-        <button onClick={handleCopy} className={`inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-1.5 rounded-md shadow-lg transition-colors ${className}`} title="Copy to clipboard">
-            {copied ? <Check size={14} className="text-green-300" /> : <Copy size={14} />}
-            {label && <span>{copied ? "Copied!" : label}</span>}
-        </button>
-    );
-};
-
-const DownloadButton = ({ text, filename, label = "Download", className = "" }) => {
-    const handleDownload = () => {
-        const blob = new Blob([text], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-    };
-    return (
-        <button onClick={handleDownload} className={`inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-1.5 rounded-md shadow-lg transition-colors ${className}`} title={`Download as ${filename}`}>
-            <Download size={14} />
-            {label && <span>{label}</span>}
-        </button>
-    );
-};
-
-// --- Sortable Header Component ---
-const SortableHeader = ({ label, sortKey, currentSort, onSort }) => {
-    const isActive = currentSort.key === sortKey;
-    return (
-        <th
-            className="px-6 py-3 text-left text-xs font-medium text-secondary uppercase tracking-wider cursor-pointer hover:bg-app transition-colors"
-            onClick={() => onSort(sortKey)}
-        >
-            <div className="flex items-center space-x-1">
-                <span>{label}</span>
-                <div className="flex flex-col">
-                    <ChevronUp size={12} className={`${isActive && currentSort.direction === 'asc' ? 'text-blue-600' : 'opacity-30'}`} />
-                    <ChevronDown size={12} className={`${isActive && currentSort.direction === 'desc' ? 'text-blue-600' : 'opacity-30'}`} />
-                </div>
-            </div>
-        </th>
-    );
-};
-
-// --- Components ---
-const Header = ({ title, onButtonClick }) => (
-    <div className="flex justify-between items-center mb-6 pb-4 border-b border-main">
-        <h1 className="text-2xl font-semibold text-main">{title}</h1>
-        {onButtonClick && (
-            <button onClick={onButtonClick} className="flex items-center bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-md shadow">
-                <Plus size={20} className="mr-2" />
-                Create
-            </button>
-        )}
-    </div>
-);
+import { CopyButton } from './shared/CopyButton';
+import { DownloadButton } from './shared/DownloadButton';
+import { SortableHeader } from './shared/SortableHeader';
+import { Header } from './shared/Header';
+import { SubTab } from './shared/SubTab';
+import { getNestedValue } from './shared/getNestedValue';
 
 const getPlanStatus = (plan) => {
     if (plan.status?.importStatus) {
@@ -4925,23 +4861,6 @@ const ForkliftUnavailable = ({ message, namespace, onChangeNamespace, onRetry })
         </div>
     );
 };
-
-const SubTab = ({ tabs, activeTab, onTabChange }) => (
-    <div className="flex space-x-1 mb-4 border-b border-main">
-        {tabs.map(tab => (
-            <button
-                key={tab.key}
-                onClick={() => onTabChange(tab.key)}
-                className={`px-4 py-2 text-sm font-medium transition-colors rounded-t-md ${activeTab === tab.key
-                    ? 'bg-card border border-main border-b-0 text-blue-600 -mb-px'
-                    : 'text-secondary hover:text-main hover:bg-app'
-                    }`}
-            >
-                {tab.label}
-            </button>
-        ))}
-    </div>
-);
 
 export default function App() {
     const [expandedPlans, setExpandedPlans] = useState(new Set());

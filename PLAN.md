@@ -168,8 +168,7 @@ Lessons and open items:
 The bundled controller subchart must match the Harvester minor a chart release targets: the lab
 (Harvester 1.8.2) showed that the 1.9.0 subchart pulls a v1.9.0 controller image onto a 1.8.2
 cluster, which the built-in add-on never does. The 0.3.x line therefore pins `1.8.2`; a
-Harvester 1.9 line gets its own chart release pinning 1.9.x. To do: a chart check that warns when
-the cluster's Harvester minor differs from the subchart's, and a documented support matrix.
+Harvester 1.9 line gets its own chart release pinning 1.9.x. Done (2026-10-03): the install notes warn when the cluster's Harvester minor differs from the bundled controller's (never blocks; dev builds like `master-head` are skipped), `controller.clusterVersionOverride` replaces the cluster lookup, `hack/check-version-warning.sh` tests it in CI, and docs/support-matrix.md lists which chart line bundles which controller.
 Verified on the lab: the bundled controller works as a drop-in for the built-in one (CRDs, names
 and labels, existing objects), with the stale-image log loop identical on both versions.
 

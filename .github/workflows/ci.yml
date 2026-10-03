@@ -76,6 +76,8 @@ jobs:
       # Token mode (the default) copies the Rancher CA with lookup(), which is empty
       # without a cluster, so offline renders pass an explicit CA secret.
       - run: helm lint . --set ui.auth.ca.existingSecret=ca
+      - name: Version-mismatch warning and support matrix
+        run: ../../hack/check-version-warning.sh
       - name: Render every mode
         run: |
           set -euo pipefail

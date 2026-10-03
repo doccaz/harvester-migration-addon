@@ -10,3 +10,8 @@ VM Import Controller: deployed as harvester-vm-import-controller (upstream chart
 VM Import Controller: NOT deployed here (controller.enabled=false); the UI expects the built-in add-on.
 {{- end }}
 Forklift: detected at runtime. It is a separate add-on (harvester/forklift-packaging).
+{{- $warn := include "harvester-migration.controllerVersionWarning" . }}
+{{- if $warn }}
+
+WARNING: {{ $warn }}
+{{- end }}

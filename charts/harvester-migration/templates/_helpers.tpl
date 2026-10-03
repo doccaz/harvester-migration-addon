@@ -55,3 +55,34 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- define "harvester-migration.exportTicketSecretName" -}}
 {{ include "harvester-migration.ui.fullname" . }}-export-ticket-key
 {{- end }}
+
+{{/*
+Non-empty when the bundled controller's minor version differs from the cluster's
+Harvester minor. Harvester ships its own controller per release, so a controller
+from another minor is untested against that cluster's CRDs and APIs (the 0.3.0
+chart shipped a 1.9 controller to a 1.8.2 lab). The cluster version comes from the
+server-version Setting; controller.clusterVersionOverride replaces it where the
+Setting cannot be read (and in tests, since lookup is empty under `helm template`).
+*/}}
+{{- define "harvester-migration.controllerVersionWarning" -}}
+{{- if .Values.controller.enabled -}}
+{{- $cluster := .Values.controller.clusterVersionOverride | default "" -}}
+{{- if not $cluster -}}
+{{- $s := lookup "harvesterhci.io/v1beta1" "Setting" "" "server-version" -}}
+{{- if and $s $s.value -}}{{- $cluster = $s.value -}}{{- end -}}
+{{- end -}}
+{{- $bundled := "" -}}
+{{- range .Chart.Metadata.Dependencies -}}
+{{- if eq .Name "harvester-vm-import-controller" -}}{{- $bundled = .Version -}}{{- end -}}
+{{- end -}}
+{{- /* Only major.minor matters, and a version that does not start with one (a dev build such as "master-head") is skipped rather than failing the install. */ -}}
+{{- $cm := regexFind "^v?[0-9]+\\.[0-9]+" $cluster | trimPrefix "v" -}}
+{{- $bm := regexFind "^v?[0-9]+\\.[0-9]+" $bundled | trimPrefix "v" -}}
+{{- if and $cm $bm (ne $cm $bm) -}}
+This chart bundles VM Import Controller {{ $bundled }}, but the cluster runs Harvester {{ $cluster }}.
+Use the chart release built for Harvester {{ $cm }}, or set controller.enabled=false to keep the built-in
+add-on's controller. See docs/support-matrix.md.
+{{- end -}}
+{{- end -}}
+{{- end -}}
+

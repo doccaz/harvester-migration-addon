@@ -6,6 +6,10 @@ controller:
   # Escape hatch for the conflict guard. Leave false: two controllers
   # reconciling the same VirtualMachineImport CRs will fight each other.
   skipConflictCheck: false
+  # Harvester version to compare the bundled controller against (e.g. "1.8.2").
+  # Empty = read the server-version Setting from the cluster. Only affects a
+  # warning in the install notes.
+  clusterVersionOverride: ""
 
 harvester-vm-import-controller:
   # Harvester finds the controller by these names/labels (storage-network

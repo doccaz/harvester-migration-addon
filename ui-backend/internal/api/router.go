@@ -77,7 +77,10 @@ func NewRouter(provider *kube.Provider, uiPath, version string) *mux.Router {
 	api.HandleFunc("/exports/{namespace}/{id}", kube.Scoped(provider, export.Get)).Methods("GET")
 	api.HandleFunc("/exports/{namespace}/{id}", kube.Scoped(provider, export.Delete)).Methods("DELETE")
 	api.HandleFunc("/exports/{namespace}/{id}/logs", kube.Scoped(provider, export.GetLogs)).Methods("GET")
-	api.HandleFunc("/exports/{namespace}/{id}/download", kube.Scoped(provider, export.Download)).Methods("GET")
+	api.HandleFunc("/exports/{namespace}/{id}/download-ticket", kube.Scoped(provider, export.DownloadTicket)).Methods("POST")
+	// The one route without a user token: a browser download cannot send the
+	// header, so it takes a signed ticket minted by the route above.
+	api.HandleFunc("/exports/{namespace}/{id}/download", export.DownloadProxy()).Methods("GET")
 
 	// Forklift Handlers
 	api.HandleFunc("/forklift/availability", kube.Scoped(provider, forklift.CheckAvailability)).Methods("GET")

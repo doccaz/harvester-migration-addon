@@ -102,12 +102,27 @@ func TestEveryAPIRouteRequiresAUserToken(t *testing.T) {
 	if len(routes) < 50 {
 		t.Fatalf("only %d API routes found; the walk is not seeing the table", len(routes))
 	}
+	// The single deliberate exception: a browser download cannot send the token
+	// header, so this route takes a signed ticket instead (export/download.go).
+	// It must still refuse a request without a valid ticket.
+	const ticketRoute = "GET /api/v1/exports/x/x/download" // {namespace}/{id} as the walk renders them
+	sawTicketRoute := false
 	for _, r := range routes {
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, httptest.NewRequest(r[0], r[1], nil))
+		if r[0]+" "+r[1] == ticketRoute {
+			sawTicketRoute = true
+			if rr.Code != http.StatusUnauthorized || !strings.Contains(rr.Body.String(), "ticket") {
+				t.Errorf("%s without a ticket: status %d, want 401 (%s)", ticketRoute, rr.Code, strings.TrimSpace(rr.Body.String()))
+			}
+			continue
+		}
 		if rr.Code != http.StatusUnauthorized || !strings.Contains(rr.Body.String(), "X-Migration-Token") {
 			t.Errorf("%s %s without a token: status %d, want 401 (%s)", r[0], r[1], rr.Code, strings.TrimSpace(rr.Body.String()))
 		}
+	}
+	if !sawTicketRoute {
+		t.Errorf("%s is gone; update this exception list", ticketRoute)
 	}
 }
 

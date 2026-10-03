@@ -564,6 +564,11 @@ func Delete(clients *kube.Clients) http.HandlerFunc {
 			}
 		}
 
+		// The serve pod is owned by the Job and goes with it; removing it now
+		// also stops a download in progress rather than waiting for garbage
+		// collection. Best effort: it usually does not exist.
+		_ = clients.Clientset.CoreV1().Pods(ns).Delete(r.Context(), exportServePodName(id), metav1.DeleteOptions{})
+
 		policy := metav1.DeletePropagationBackground
 		if err := clients.Clientset.BatchV1().Jobs(ns).Delete(r.Context(), exportJobName(id),
 			metav1.DeleteOptions{PropagationPolicy: &policy}); err != nil {
@@ -587,14 +592,16 @@ func exportView(job *batchv1.Job, cfg exportConfig) map[string]interface{} {
 		"createdAt":  job.CreationTimestamp.UTC().Format(time.RFC3339),
 		"phase":      jobPhase(job),
 	}
+	// A finished export can always be downloaded: a serve pod in the export's
+	// namespace reads the volume (see download.go), so this does not depend on
+	// the volume being mounted in this pod.
+	view["downloadable"] = jobPhase(job) == PhaseReady && job.Annotations[exportAnnTargetName] != ""
 	if !exportVolumeMountedHere(job.Namespace, cfg) {
 		// The Job's export PVC lives in job.Namespace, which this pod does not
-		// mount (see ensureExportPVC) — reading progress or serving a download
-		// would silently read the wrong volume, so say so instead of omitting
-		// the fields without explanation.
-		view["downloadable"] = false
+		// mount (see ensureExportPVC), so the worker's status file is out of
+		// reach: say so instead of omitting the fields without explanation.
 		view["volumeNote"] = fmt.Sprintf(
-			"export volume for namespace %q is not mounted in this pod; fetch the OVA from the export share directly",
+			"progress is not shown for exports in namespace %q: its export volume is not mounted in this pod",
 			job.Namespace)
 		return view
 	}
@@ -616,7 +623,6 @@ func exportView(job *batchv1.Job, cfg exportConfig) map[string]interface{} {
 		}
 		if s.OvaPath != "" {
 			view["ovaPath"] = s.OvaPath
-			view["downloadable"] = true
 		}
 	}
 	return view
@@ -713,77 +719,6 @@ func newExportID() string {
 		return fmt.Sprintf("%d", time.Now().UnixNano())
 	}
 	return hex.EncodeToString(b)
-}
-
-// Download serves a finished .ova.
-//
-// http.ServeContent gives Range support and correct Content-Length without ever
-// buffering the file, which matters because these are multi-gigabyte artifacts.
-func Download(clients *kube.Clients) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		cfg := loadExportConfig()
-		if cfg.Root == "" {
-			httpx.RespondWithError(w, http.StatusServiceUnavailable,
-				"The export volume is not mounted in this pod; fetch the OVA from the export share directly")
-			return
-		}
-		job, err := clients.Clientset.BatchV1().Jobs(vars["namespace"]).Get(r.Context(), exportJobName(vars["id"]), metav1.GetOptions{})
-		if err != nil {
-			httpx.RespondWithAPIErrorMsg(w, err, "Export not found: "+err.Error())
-			return
-		}
-		if !exportVolumeMountedHere(job.Namespace, cfg) {
-			httpx.RespondWithError(w, http.StatusServiceUnavailable, fmt.Sprintf(
-				"The export volume for namespace %q is not mounted in this pod; fetch the OVA from the export share directly",
-				job.Namespace))
-			return
-		}
-		target := job.Annotations[exportAnnTargetName]
-		if target == "" {
-			httpx.RespondWithError(w, http.StatusNotFound, "Export has no recorded target file")
-			return
-		}
-		// The target name is user-supplied, so resolve it strictly inside root.
-		path, err := safeExportPath(cfg.Root, target+".ova")
-		if err != nil {
-			httpx.RespondWithError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		f, err := os.Open(path)
-		if err != nil {
-			httpx.RespondWithError(w, http.StatusNotFound, "OVA not found; the export may not have finished")
-			return
-		}
-		defer f.Close()
-		st, err := f.Stat()
-		if err != nil {
-			httpx.RespondWithError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
-		// Guard the browser-download path server-side: the frontend materialises
-		// the response in memory, so a large OVA would kill the tab.
-		if max := downloadMaxBytes(); max > 0 && st.Size() > max {
-			httpx.RespondWithError(w, http.StatusRequestEntityTooLarge, fmt.Sprintf(
-				"OVA is %d bytes, over the %d byte download limit; copy it from the export share at %s",
-				st.Size(), max, path))
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/x-tar")
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", target+".ova"))
-		http.ServeContent(w, r, target+".ova", st.ModTime(), f)
-	}
-}
-
-func downloadMaxBytes() int64 {
-	if v := os.Getenv("EXPORT_DOWNLOAD_MAX_BYTES"); v != "" {
-		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
-			return n
-		}
-	}
-	return 2 << 30 // 2 GiB
 }
 
 // GetLogs tails the export Job's pod logs. It mirrors the existing

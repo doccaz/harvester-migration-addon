@@ -242,25 +242,10 @@ func TestListGetDelete(t *testing.T) {
 	})
 }
 
-func TestDownloadAndLogs(t *testing.T) {
+func TestLogs(t *testing.T) {
 	exportEnv(t)
 	job := exportJob(t)
 	vars := map[string]string{"namespace": labs, "id": job.ID}
-	missing := map[string]string{"namespace": labs, "id": "nope"}
-
-	t.Run("download needs the export volume mounted here", func(t *testing.T) {
-		rr := testutil.Do(Download(clientsFor([]runtime.Object{job.Job})), "GET", "/x", nil, vars)
-		if rr.Code != http.StatusServiceUnavailable {
-			t.Errorf("status %d, want 503", rr.Code)
-		}
-	})
-	t.Run("download: missing export is 404, forbidden is 403", func(t *testing.T) {
-		t.Setenv("EXPORT_ROOT", t.TempDir())
-		testutil.Run(t, []testutil.Row{
-			testutil.Case("missing", Download(clientsFor(nil)), "GET", nil, missing, http.StatusNotFound),
-			testutil.Case("forbidden", Download(failing("get", "jobs", testutil.ErrForbidden(), []runtime.Object{job.Job})), "GET", nil, vars, http.StatusForbidden),
-		})
-	})
 
 	testutil.Run(t, []testutil.Row{
 		testutil.Case("logs: no pod is 404", GetLogs(clientsFor(nil)), "GET", nil, vars, http.StatusNotFound),

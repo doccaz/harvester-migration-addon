@@ -45,6 +45,7 @@ GET /api/v1/support-bundle
 GET /api/v1/vcenter/inventory/{namespace}/{name}
 POST /api/v1/exports
 POST /api/v1/exports/preview
+POST /api/v1/exports/{namespace}/{id}/download-ticket
 POST /api/v1/forklift/plans
 POST /api/v1/forklift/plans/{namespace}/{name}/run
 POST /api/v1/forklift/providers

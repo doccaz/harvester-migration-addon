@@ -172,3 +172,12 @@ Harvester 1.9 line gets its own chart release pinning 1.9.x. To do: a chart chec
 the cluster's Harvester minor differs from the subchart's, and a documented support matrix.
 Verified on the lab: the bundled controller works as a drop-in for the built-in one (CRDs, names
 and labels, existing objects), with the stale-image log loop identical on both versions.
+
+## Export download from the UI (proposed 2026-10-02)
+
+Gap found by use: the Download button is hidden for exports in other namespaces (the volume is not
+mounted in the UI pod) and capped at 2 GiB in memory otherwise, so the UI cannot deliver real
+exports. Design in docs/export-download-design.md: a short-lived read-only serve pod in the
+export's namespace (`export-serve` mode of the same binary), a backend streaming proxy, and
+HMAC download tickets so a plain browser download (progress, no memory, resume) is authorised.
+Awaiting two decisions before implementation.

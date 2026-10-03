@@ -9,6 +9,7 @@ set -uo pipefail
 CHART="$(cd "$(dirname "$0")/.." && pwd)/charts/harvester-migration"
 BUNDLED="$(sed -n '/name: harvester-vm-import-controller/{n;s/^ *version: *//p}' "$CHART/Chart.yaml" | head -1)"
 [ -n "$BUNDLED" ] || { echo "cannot read the bundled controller version from Chart.yaml"; exit 2; }
+VALUES_VER="$(sed -n 's/^ *bundledVersion: *"\{0,1\}\([^" ]*\).*/\1/p' "$CHART/values.yaml" | head -1)"
 MINOR="${BUNDLED%.*}"
 T="$CHART/templates/zz-version-warning-check.yaml"
 trap 'rm -f "$T"' EXIT
@@ -21,6 +22,8 @@ expect() { # name, want (warn|none), helm args...
   if [ "$got" = "$want" ]; then echo "  PASS  $name"; else echo "  FAIL  $name (want $want, got $got)"; FAILS=$((FAILS+1)); fi
 }
 echo "== Bundled controller $BUNDLED"
+if [ "$VALUES_VER" = "$BUNDLED" ]; then echo "  PASS  values.yaml controller.bundledVersion ($VALUES_VER) matches Chart.yaml"
+else echo "  FAIL  values.yaml controller.bundledVersion is '$VALUES_VER' but Chart.yaml bundles $BUNDLED"; FAILS=$((FAILS+1)); fi
 expect "same version"                none "--set" "controller.clusterVersionOverride=$BUNDLED"
 expect "same minor, other patch"     none "--set" "controller.clusterVersionOverride=$MINOR.99"
 expect "v prefix"                    none "--set" "controller.clusterVersionOverride=v$BUNDLED"

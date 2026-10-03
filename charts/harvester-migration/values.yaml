@@ -6,6 +6,9 @@ controller:
   # Escape hatch for the conflict guard. Leave false: two controllers
   # reconciling the same VirtualMachineImport CRs will fight each other.
   skipConflictCheck: false
+  # Version of the bundled controller subchart, for the install-notes warning only.
+  # Must equal the dependency version in Chart.yaml (CI checks this).
+  bundledVersion: "1.8.2"
   # Harvester version to compare the bundled controller against (e.g. "1.8.2").
   # Empty = read the server-version Setting from the cluster. Only affects a
   # warning in the install notes.

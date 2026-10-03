@@ -180,4 +180,4 @@ mounted in the UI pod) and capped at 2 GiB in memory otherwise, so the UI cannot
 exports. Design in docs/export-download-design.md: a short-lived read-only serve pod in the
 export's namespace (`export-serve` mode of the same binary), a backend streaming proxy, and
 HMAC download tickets so a plain browser download (progress, no memory, resume) is authorised.
-Awaiting two decisions before implementation.
+Decisions taken (user's identity creates the pod; one pod per export, 30 min idle/ticket TTL) and steps 1-4 implemented 2026-10-03: `export-serve` mode, signed tickets, ticket endpoint + streaming proxy, chart ticket key, frontend ticket flow (`hack/lab-download.sh` verifies it on the lab). Needs a release (v0.4.0) and the lab test, including a multi-GB download through the API-server proxy and a deliberate mid-download interruption.

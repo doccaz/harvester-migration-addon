@@ -1,6 +1,7 @@
 # Design: downloading an exported OVA from the UI
 
-Status: proposal, 2026-10-02. Nothing implemented yet.
+Status: implemented 2026-10-03 (steps 1-4); lab verification pending. Deviations from the first
+proposal are marked **Changed**.
 
 ## Problem
 An export Job runs in the VM's namespace and writes the OVA to that namespace's export PVC.
@@ -23,23 +24,27 @@ New mode of the same binary, next to `export-worker` and `export-cleanup`:
 - Serves exactly one fixed file (`<target>.ova`, given by env) on `:8081` with
   `http.ServeContent` (Range, ETag, Last-Modified, no buffering). No directory listing, no
   other paths.
-- Requires `Authorization: Bearer <secret>`; the secret is random, kept in a Secret owned by
-  the pod and injected with `secretKeyRef`.
+- Requires `Authorization: Bearer <token>`. **Changed:** no Secret object. The token is
+  derived, `HMAC(ticket key, "serve|<ns>|<id>")`, and passed as a plain env var. The proxy
+  can recompute it, so it never reads a Secret or a pod. (Anyone who can `get pods` in that
+  namespace can read it, but the pod is only reachable on the cluster network.)
 - Exits by itself after an idle timeout (default 30 min without requests) and has an
-  `activeDeadlineSeconds` (4 h). Both the pod and its Secret carry an ownerReference to the
+  `activeDeadlineSeconds` (4 h). The pod carries an ownerReference to the
   export Job, so deleting/purging the export removes them; `Delete` also removes them
   explicitly.
 
 ### 2. Who creates it: the user, not the ServiceAccount
-The ticket endpoint creates the pod and Secret with the **caller's scoped client**
+The ticket endpoint creates the pod with the **caller's scoped client**
 (`kube.Scoped`), the same principle as export creation. The UI ServiceAccount gains no new
-permissions. A user who may create exports (Jobs) but not pods/secrets gets a clear 403.
+permissions. A user who may create exports (Jobs) but not pods gets a clear 403.
 
 ### 3. Backend proxy
-`GET /api/v1/exports/{ns}/{id}/download?ticket=...` streams from the serve pod
-(`podIP:8081`, found through the user-scoped pod Get) with `httputil.ReverseProxy`
-(`FlushInterval: -1`), passing Range / If-Range / ETag through. No size cap on this path.
-The chart's NetworkPolicy must allow UI egress to pods on 8081.
+`GET /api/v1/exports/{ns}/{id}/download?ticket=...` streams from the serve pod with
+`httputil.ReverseProxy`, passing Range / If-Range / ETag through and dropping the client's own
+Authorization, Cookie and the ticket. No size cap on this path. **Changed:** the pod IP is
+carried inside the signed ticket (taken from the user-scoped pod Get when it was minted), so
+this route needs no Kubernetes access at all and the UI's ServiceAccount gains nothing. The
+chart's NetworkPolicy only restricts ingress, so no egress rule is needed.
 
 ### 4. Tickets: how a plain browser download carries authorisation
 A browser download manager cannot send `X-Migration-Token`, and `fetch`+`blob` is what
@@ -49,7 +54,7 @@ broke large files. So:
   It checks the user can read the export Job, ensures the serve pod is Ready (idempotent;
   returns `202 {state: starting}` until then, the UI polls), and returns
   `{url, size, expiresAt}`.
-- The ticket is an HMAC (`ns|id|exp`), key from a chart-generated Secret so it works with
+- The ticket is an HMAC over `{ns, id, pod IP, exp}`, so it works with
   more than one replica and across restarts. TTL 30 min, bound to that one export,
   reusable inside its TTL because browsers resume interrupted downloads with Range.
 - The download route is the **single, explicit exception** to "every API route needs a user
@@ -91,3 +96,10 @@ The legacy in-pod `Download` handler and the `blob()` path are removed once this
 ## Decisions needed
 - Create the pod/Secret with the user's identity (proposed) rather than the ServiceAccount?
 - One serve pod per export, 30 min idle timeout, 30 min ticket TTL: acceptable defaults?
+
+## Limits worth knowing
+- A browser download interrupted for more than the ticket TTL (30 min) cannot resume; the user
+  clicks Download again (a fresh ticket, and the browser starts over).
+- The in-pod `Download` handler and the `blob()` download are gone, as is `export.downloadMaxBytes`.
+- Progress for exports in other namespaces is still not shown (the worker's status file is on a
+  volume this pod cannot mount); only the download no longer depends on it.

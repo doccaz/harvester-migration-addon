@@ -138,3 +138,24 @@ old one is deliberately left running for now.
 
 Not exercised: re-importing an exported OVA through Forklift's OVA provider (the earlier OVA was
 deleted; it needs a new export), and a new import run end to end.
+
+## OVA download through the UI backend (2026-10-03, v0.4.0)
+
+Upgraded `mig` to 0.4.0 (smoke test 48/48, backend and bundle report 0.4.0; the chart created the
+ticket-key Secret). Exported `techday/sles16` (16 GiB virtual disk, 285 s, 1,484,376,576-byte OVA)
+and downloaded it with `hack/lab-download.sh`:
+
+- Ticket request: the serve pod `vm-export-serve-<id>` started in `techday` in about 22 s (first
+  call; 202 while starting), 0 s once it was up.
+- **Through a `kubectl port-forward`**: about 50 MB/s up to 759 MB, but a deliberately interrupted
+  download never resumed (connection resets, no progress on every retry). The serve pod and the
+  backend logged no error, so this is a port-forward artifact, not the download path. The script
+  now detects a stalled resume, restarts the port-forward and gives up after 8 stalls.
+- **Through the API-server service proxy** (the path the dashboard uses): interrupted twice on
+  purpose (at 710 MB and 1.42 GB), resumed each time, complete in 32 s (about 46 MB/s).
+- The downloaded file's SHA-256 (`d1f7d8b3...ef8d37`) equals the one computed on the volume, and
+  `hack/verify-ova.sh` passes 11/11 (container, manifest digests, DSP8023 schema, `qemu-img`
+  opens the disk as VMDK, 16 GiB virtual).
+
+Not yet exercised: the Download button in a browser (ticket flow, "Preparing...", file name), a
+multi-GB (~4.5 GB) download, and removal of the serve pod when the export is deleted.

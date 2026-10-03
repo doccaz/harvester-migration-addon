@@ -70,9 +70,13 @@ spec:
               value: {{ .Values.export.maxConcurrent | quote }}
             - name: EXPORT_TTL_SECONDS
               value: {{ .Values.export.ttlSecondsAfterFinished | quote }}
-            - name: EXPORT_DOWNLOAD_MAX_BYTES
-              # int64: avoid scientific notation for large values.
-              value: {{ .Values.export.downloadMaxBytes | int64 | quote }}
+            - name: EXPORT_TICKET_KEY
+              # Signs the download tickets; shared by every replica and kept
+              # across restarts and upgrades.
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "harvester-migration.exportTicketSecretName" . }}
+                  key: key
             - name: EXPORT_RUN_AS_USER
               value: {{ .Values.export.securityContext.runAsUser | quote }}
             - name: EXPORT_FS_GROUP

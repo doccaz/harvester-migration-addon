@@ -1,0 +1,24 @@
+{{- /*
+Key that signs the OVA download tickets (see docs/export-download-design.md).
+Generated once and kept: an upgrade reuses the existing value, so tickets and
+all replicas stay consistent. lookup returns nothing under `helm template`,
+which then renders a fresh random key.
+*/ -}}
+{{- if .Values.export.enabled }}
+{{- $name := include "harvester-migration.exportTicketSecretName" . }}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $name }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "harvester-migration.ui.labels" . | nindent 4 }}
+type: Opaque
+data:
+  {{- if and $existing $existing.data (index $existing.data "key") }}
+  key: {{ index $existing.data "key" }}
+  {{- else }}
+  key: {{ randAlphaNum 48 | b64enc }}
+  {{- end }}
+{{- end }}

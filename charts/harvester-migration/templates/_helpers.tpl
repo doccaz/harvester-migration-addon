@@ -51,3 +51,7 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- define "harvester-migration.ui.caSecretName" -}}
 {{- default (printf "%s-api-ca" (include "harvester-migration.ui.fullname" .)) .Values.ui.auth.ca.existingSecret -}}
 {{- end -}}
+
+{{- define "harvester-migration.exportTicketSecretName" -}}
+{{ include "harvester-migration.ui.fullname" . }}-export-ticket-key
+{{- end }}

@@ -14,14 +14,17 @@ export function installApi(routes) {
     }
     let value = routes[key];
     if (typeof value === 'function') value = value(String(url), init);
-    const { status = 200, body = value } = value && value.__status ? value : { body: value };
-    const text = typeof body === 'string' ? body : JSON.stringify(body);
-    return Promise.resolve({
-      ok: status >= 200 && status < 300,
-      status,
-      headers: { get: () => (typeof body === 'string' ? 'text/plain' : 'application/json') },
-      json: async () => (typeof body === 'string' ? JSON.parse(body) : body),
-      text: async () => text,
+    // A route may answer with a promise, to hold a request open.
+    return Promise.resolve(value).then((resolved) => {
+      const { status = 200, body = resolved } = resolved && resolved.__status ? resolved : { body: resolved };
+      const text = typeof body === 'string' ? body : JSON.stringify(body);
+      return {
+        ok: status >= 200 && status < 300,
+        status,
+        headers: { get: () => (typeof body === 'string' ? 'text/plain' : 'application/json') },
+        json: async () => (typeof body === 'string' ? JSON.parse(body) : body),
+        text: async () => text,
+      };
     });
   });
   return calls;

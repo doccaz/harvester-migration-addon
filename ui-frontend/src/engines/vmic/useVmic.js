@@ -24,8 +24,9 @@ export function useVmic({ onPlanCreated }) {
     const sortedSources = useMemo(() => sortData(sources, sourcesSort), [sources, sourcesSort]);
     const sortedOvaSources = useMemo(() => sortData(ovaSources, ovaSourcesSort), [ovaSources, ovaSourcesSort]);
 
+    // isLoading starts true and only the first load clears it: a background refresh must
+    // not swap the table for "Loading plans...".
     const fetchPlans = async () => {
-        setIsLoading(true);
         try {
             const response = await fetch('/api/v1/plans');
             if (!response.ok) {

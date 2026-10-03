@@ -38,8 +38,13 @@ nothing else changed.
     `engines/EnginePage.js` builds the sub-tabs from the registry. The two copies of the Forklift provider
     JSX became one parametrised `ProvidersView`. `App.js` is now ~315 lines. 28 behaviour tests and the 21
     snapshots gate it; three tests added for the merged view, each mutation-checked.
-  - **4.3c Behaviour fixes, with tests**: one fetch per endpoint at start-up; a background refresh must not
-    replace the table with "Loading plans..."; the polling effect keyed on what it uses.
+  - **4.3c Behaviour fixes, with tests** (done; tests written first and seen failing): the app asked for every
+    endpoint twice at start-up because the polling effect also depended on `forkliftAvailable` and the expanded
+    rows; every background refresh swapped the plans table for "Loading plans..."; an emptied interval field
+    started a zero-delay polling loop. Now: one start-up load, a polling tick that reads the latest state through
+    a ref (no timer restart when the auto-refresh switch or Forklift availability changes), loading text only
+    on the first load, and no polling when the period is not a positive number. Side effect, deliberate:
+    expanding a row no longer refetches.
 - **4.4 Capabilities from the backend**: extend `GET /api/v1/capabilities` with per-engine availability
   and reasons; fix `forklift.CheckAvailability` (any failure reads as "not available") and
   `inventory.PVCIndex` (swallows a failed PVC list) so "unknown/forbidden" is not shown as "absent".

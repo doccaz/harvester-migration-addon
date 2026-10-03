@@ -257,9 +257,70 @@ describe('auto-refresh', () => {
     expect(polls().map((i) => i.ms)).toEqual([3000]);
   });
 
+  test('an emptied interval field does not start a tight polling loop', async () => {
+    const u = await open();
+    fireEvent.change(screen.getAllByRole('spinbutton')[0], { target: { value: '' } });
+    await settle(u.calls);
+    expect(polls()).toEqual([]);
+    expect([...live.values()].filter((i) => i.ms < 1000)).toEqual([]);
+  });
+
+  test('toggling auto-refresh or Forklift availability does not restart the timer or refetch', async () => {
+    const u = await open();
+    const before = live.size;
+    const plans0 = requests(u.calls, 'GET', '/api/v1/plans').length;
+    fireEvent.click(screen.getByLabelText('Auto-refresh'));
+    fireEvent.click(screen.getByLabelText('Auto-refresh'));
+    await settle(u.calls);
+    expect(live.size).toBe(before);
+    expect(requests(u.calls, 'GET', '/api/v1/plans').length).toBe(plans0);
+  });
+
   test('leaving no interval behind on unmount', async () => {
     const u = await open();
     u.unmount();
     expect(polls()).toEqual([]);
+  });
+});
+
+describe('loading', () => {
+  test('start-up requests every endpoint once', async () => {
+    const u = await open();
+    ['/api/v1/capabilities', '/api/v1/forklift/availability', '/api/v1/plans', '/api/v1/harvester/vmwaresources',
+      '/api/v1/harvester/ovasources', '/api/v1/forklift/providers', '/api/v1/forklift/plans'].forEach((url) => {
+      expect([url, requests(u.calls, 'GET', url).length]).toEqual([url, 1]);
+    });
+  });
+
+  test('a background refresh keeps the plans on screen while it is in flight', async () => {
+    let release;
+    let slow = false;
+    const held = new Promise((r) => { release = r; });
+    const calls = installApi({ ...routes(), '/api/v1/plans': () => (slow ? held.then(() => routes()['/api/v1/plans']) : routes()['/api/v1/plans']) });
+    const intervals = [];
+    jest.spyOn(window, 'setInterval').mockImplementation((fn, ms) => { intervals.push({ fn, ms }); return intervals.length; });
+    const { container } = render(<App />);
+    await settle(calls);
+    expect(container.textContent).toContain('web-migration');
+    slow = true;
+    await act(async () => { intervals.filter((i) => i.ms >= 1000).forEach((i) => i.fn()); });
+    expect(container.textContent).toContain('web-migration');
+    expect(container.textContent).not.toContain('Loading plans...');
+    release();
+    await settle(calls);
+    expect(container.textContent).toContain('web-migration');
+    jest.restoreAllMocks();
+  });
+
+  test('the first load still shows the loading text', async () => {
+    let release;
+    const held = new Promise((r) => { release = r; });
+    const calls = installApi({ ...routes(), '/api/v1/plans': () => held.then(() => routes()['/api/v1/plans']) });
+    const { container } = render(<App />);
+    await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+    expect(container.textContent).toContain('Loading plans...');
+    release();
+    await settle(calls);
+    expect(container.textContent).toContain('web-migration');
   });
 });

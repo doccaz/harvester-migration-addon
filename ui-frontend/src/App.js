@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Server, RefreshCw, List, Package, Info, Palette, Upload } from 'lucide-react';
 import { useCapabilities } from './hooks/useCapabilities';
 import { useVmic } from './engines/vmic/useVmic';
@@ -112,25 +112,34 @@ export default function App() {
     const [forkliftProviderReturnPage, setForkliftProviderReturnPage] = useState('sources');
     const [selectedForkliftPlan, setSelectedForkliftPlan] = useState(null);
 
+    // Load everything once at start-up.
     useEffect(() => {
         fetchPlans();
         fetchSources();
         fetchOvaSources();
-        const intervalId = setInterval(() => {
-            // Refresh if autoRefresh is enabled
-            if (autoRefresh) {
-                fetchPlans();
-                if (forkliftAvailable) {
-                    fetchForkliftPlans();
-                    fetchForkliftProviders();
-                }
-            }
-        }, refreshInterval * 1000);
-        return () => clearInterval(intervalId);
-    // The fetchers are not listed on purpose: they are re-created on every render, and the
-    // effect is meant to restart only when one of the listed values changes (step 4.3 reworks it).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [refreshInterval, expandedPlans, autoRefresh, forkliftAvailable]);
+    }, []);
+
+    // Poll on the chosen interval. The tick reads the latest values through a ref, so
+    // flipping the auto-refresh switch, Forklift becoming available or expanding a row
+    // neither restarts the timer nor triggers an extra fetch. A period that is not a
+    // positive number (an emptied field) means no polling, not a tight loop.
+    const tick = useRef(null);
+    tick.current = () => {
+        if (autoRefresh) {
+            fetchPlans();
+            if (forkliftAvailable) {
+                fetchForkliftPlans();
+                fetchForkliftProviders();
+            }
+        }
+    };
+    useEffect(() => {
+        const seconds = Number(refreshInterval);
+        if (!(seconds > 0)) return undefined;
+        const intervalId = setInterval(() => tick.current(), seconds * 1000);
+        return () => clearInterval(intervalId);
+    }, [refreshInterval]);
 
     const handleViewDetails = (plan) => {
         const detailedPlan = {

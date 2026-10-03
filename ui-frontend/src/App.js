@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Plus, ChevronRight, Server, Folder, Cloud, HardDrive, ArrowRight, X, Loader, CheckCircle, Cpu, MemoryStick, Trash2, Edit, AlertTriangle, RefreshCw, List, Package, Info, ChevronUp, ChevronDown, Search, Play, Square, RotateCcw, Power, CheckCircle2, HelpCircle, XCircle, Network, Check, Palette, ExternalLink, Copy, Download, Upload, Boxes } from 'lucide-react';
+import { requestDownload, apiBaseFor, withApiBase } from './exportDownload';
 import { formatBytes, formatDate, formatDuration, slugify, buildVmicPlan, vmImportNameError } from './utils';
 
 const getNestedValue = (obj, path) => {
@@ -3207,6 +3208,7 @@ update-initramfs -u -k all                       # Debian/Ubuntu (MODULES=most)<
 const EXPORT_TERMINAL = ['Ready', 'Failed'];
 
 const ExportsTable = ({ exports, onDelete, onLogs, isBusy }) => {
+    const [preparing, setPreparing] = useState({});
     if (!exports.length) {
         return <div className="text-sm text-secondary py-4 text-center">No exports yet.</div>;
     }
@@ -3255,8 +3257,19 @@ const ExportsTable = ({ exports, onDelete, onLogs, isBusy }) => {
                                 <td className="px-3 py-2">
                                     <div className="flex items-center gap-2">
                                         {e.downloadable && (
-                                            <button onClick={() => downloadExport(e)} className="text-blue-600 hover:underline text-xs flex items-center">
-                                                <Download size={12} className="mr-1" /> Download
+                                            <button
+                                                onClick={async () => {
+                                                    setPreparing((p) => ({ ...p, [e.exportId]: true }));
+                                                    await downloadExport(e);
+                                                    setPreparing((p) => ({ ...p, [e.exportId]: false }));
+                                                }}
+                                                disabled={!!preparing[e.exportId]}
+                                                title="Starts a short-lived service next to the export volume, then downloads through your browser"
+                                                className="text-blue-600 hover:underline text-xs flex items-center disabled:opacity-60"
+                                            >
+                                                {preparing[e.exportId]
+                                                    ? <><Loader size={12} className="mr-1 animate-spin" /> Preparing…</>
+                                                    : <><Download size={12} className="mr-1" /> Download</>}
                                             </button>
                                         )}
                                         <button onClick={() => onLogs(e)} className="text-blue-600 hover:underline text-xs">Logs</button>
@@ -3273,26 +3286,20 @@ const ExportsTable = ({ exports, onDelete, onLogs, isBusy }) => {
     );
 };
 
-// Downloads must go through fetch + blob: a plain <a href> or window.open
-// bypasses the sub-path rewrite in index.js and breaks behind the Rancher proxy.
-const downloadExport = async (e) => {
+// The file is never loaded into the page. We ask the backend for a signed URL (a
+// short-lived ticket; the export's serve pod may need a moment to start) and
+// then let the browser download that URL itself, so it streams to disk with its
+// own progress and resume. The URL is built from apiBase like every other API
+// path, so it also works behind the Rancher proxy.
+const downloadExport = async (e, onWaiting) => {
     try {
-        const response = await fetch(`/api/v1/exports/${e.namespace}/${e.exportId}/download`);
-        if (!response.ok) {
-            const text = await response.text();
-            let msg = text;
-            try { msg = JSON.parse(text).error || text; } catch (err) { /* not JSON */ }
-            throw new Error(msg);
-        }
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
+        const { url, fileName } = await requestDownload(window.fetch.bind(window), e, { onWaiting });
         const a = document.createElement('a');
-        a.href = url;
-        a.download = `${e.targetName || e.vmName}.ova`;
+        a.href = withApiBase(apiBaseFor(window.location.pathname), url);
+        a.download = fileName;
         document.body.appendChild(a);
         a.click();
         a.remove();
-        window.URL.revokeObjectURL(url);
     } catch (err) {
         alert(`Download failed: ${err.message}`);
     }

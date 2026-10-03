@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import { createApiFetch } from './apiClient';
+import { apiBaseFor } from './exportDownload';
 
 // Support being served under a sub-path (e.g. the Rancher cluster Service proxy
 // at /k8s/clusters/<id>/api/v1/namespaces/<ns>/services/http:<svc>:<port>/proxy/).
@@ -12,7 +13,7 @@ import { createApiFetch } from './apiClient';
 // NodePort/Ingress access is unaffected. Static assets use relative paths via
 // "homepage": "." in package.json. apiClient.js also attaches the user's token
 // when the backend runs with USER_AUTH=token.
-const apiBase = window.location.pathname.replace(/[^/]*$/, '').replace(/\/$/, '');
+const apiBase = apiBaseFor(window.location.pathname);
 let storage = null;
 try { storage = window.sessionStorage; } catch (e) { /* blocked: tokens are not cached */ }
 window.fetch = createApiFetch(window.fetch.bind(window), { apiBase, storage });

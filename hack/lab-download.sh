@@ -31,9 +31,13 @@ if [ "$VIA" = proxy ]; then
   CURL=(curl -sk -H "Authorization: Bearer $TOKEN")
   echo "== Via the API server service proxy: $BASE"
 else
-  kubectl -n "$APP_NS" port-forward "svc/$SVC" "$PORT:8080" >/dev/null 2>&1 & PF=$!
   BASE="http://localhost:$PORT"; CURL=(curl -s)
-  curl -s --retry 20 --retry-connrefused --retry-delay 1 --retry-all-errors -o /dev/null "$BASE/" || { echo "port-forward failed"; exit 1; }
+  start_pf() {
+    [ -n "${PF:-}" ] && kill "$PF" 2>/dev/null && wait "$PF" 2>/dev/null
+    kubectl -n "$APP_NS" port-forward "svc/$SVC" "$PORT:8080" >/dev/null 2>&1 & PF=$!
+    curl -s --retry 20 --retry-connrefused --retry-delay 1 --retry-all-errors -o /dev/null "$BASE/" || { echo "port-forward failed"; exit 1; }
+  }
+  start_pf
   echo "== Via a port-forward to the UI pod"
 fi
 api() { "${CURL[@]}" -o "$TMP/body" -w '%{http_code}' -H "X-Migration-Token: $TOKEN" "${@:2}" "$BASE$1"; }
@@ -70,15 +74,33 @@ URL="$(ticket)" || exit 1
 kubectl -n "$NS" get pod "vm-export-serve-$ID" --no-headers 2>/dev/null | sed 's/^/  /'
 
 echo "== Downloading to $OUT, interrupting every ${CUT}s, $INTERRUPTS time(s), then resuming"
-PART="$OUT.part"; rm -f "$PART"; N=0; START=$SECONDS
+PART="$OUT.part"; rm -f "$PART"; N=0; START=$SECONDS; STALL=0; PREV=0
 while :; do
   if [ "$N" -lt "$INTERRUPTS" ]; then LIM=(--max-time "$CUT"); else LIM=(); fi
   "${CURL[@]}" -f -C - -o "$PART" "${LIM[@]}" "$BASE$URL"; RC=$?
   HAVE="$(stat -c %s "$PART" 2>/dev/null || echo 0)"
   if [ "$RC" = 0 ]; then echo "  complete: $HAVE bytes in $((SECONDS-START))s"; break; fi
-  if [ "$RC" = 28 ] && [ "$N" -lt "$INTERRUPTS" ]; then N=$((N+1)); echo "  deliberately stopped at $HAVE bytes; resuming ($N)"; continue; fi
-  if [ "$RC" = 22 ]; then echo "  HTTP error at $HAVE bytes; getting a new ticket"; URL="$(ticket)" || exit 1; continue; fi
-  echo "  curl failed (exit $RC) at $HAVE bytes; retrying"; sleep 3
+  # A request that adds nothing is a stall, whatever curl says about it.
+  if [ "$HAVE" -gt "$PREV" ]; then STALL=0; else STALL=$((STALL+1)); fi
+  PREV="$HAVE"
+  if [ "$RC" = 28 ] && [ "$N" -lt "$INTERRUPTS" ]; then
+    N=$((N+1)); echo "  deliberately stopped at $HAVE bytes; resuming ($N)"
+    [ "$STALL" -eq 0 ] || echo "  NOTE: that attempt added no bytes (stall $STALL)"
+  else
+    echo "  curl exit $RC at $HAVE bytes (no progress in $STALL attempt(s))"
+  fi
+  if [ "$STALL" -ge 8 ]; then
+    echo "  FAIL  no progress after $STALL attempts; the download does not resume. Check:"
+    echo "    kubectl -n $NS logs vm-export-serve-$ID --tail=20"
+    echo "    kubectl -n $APP_NS logs deploy/$SVC --tail=30"
+    exit 1
+  fi
+  if [ "$STALL" -ge 2 ]; then
+    if [ "$VIA" != proxy ]; then echo "  restarting the port-forward"; start_pf; fi
+    if [ "$STALL" -ge 4 ]; then echo "  asking for a new ticket"; URL="$(ticket)" || exit 1; fi
+  fi
+  [ "$RC" = 28 ] && [ "$N" -le "$INTERRUPTS" ] && [ "$STALL" -eq 0 ] && continue
+  sleep 3
 done
 mv "$PART" "$OUT"
 GOT="$(sha256sum "$OUT" | cut -d' ' -f1)"; echo "== SHA-256 $GOT"

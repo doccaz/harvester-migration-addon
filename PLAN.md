@@ -141,6 +141,7 @@ Lessons and open items:
 - Released as v0.3.0 (the refactor plus the deliberate behaviour changes in docs/refactor-notes.md: API statuses, `nosniff`, two timeouts, a DNS-label check on the OVA proxy namespace) and verified on the lab with `hack/lab-smoke.sh` (49/49; see docs/phase2-verification.md). The running-VM export refusal is verified on the lab (409, no Job, no side effects). A successful export of a stopped VM is verified end to end (2026-10-02): `labs/bastion-galins-server`, 4.5 GB OVA, 639 s, manifest digests match, fetched with a matching SHA-256, `hack/verify-ova.sh` 11/11 including DSP8023 schema and `qemu-img` (details and the transfer lesson in docs/phase2-verification.md; `hack/fetch-ova.sh` now adapts its range size). The manual browser pass is done (all tabs, support bundle, export, login/logout). Not yet exercised: re-importing an exported OVA through Forklift's OVA provider (needs a new export).
 
 ### Phase 4 — Frontend modularisation (≈3 weeks)
+Status 2026-10-03: started. Detailed plan and gates in docs/phase4-plan.md; step 4.0 (a 21-scenario page-snapshot safety net) is done.
 - Break up `App.js` (5.7k lines) into engine modules and shared components; engine registry driven by `GET /api/v1/capabilities`.
 - Add "View in Harvester" cross-links from sources and imports to the built-in resource pages (see §4b); verify the target routes first.
 - Keep `utils.js` and the fixture-replay harness; add component tests per module.

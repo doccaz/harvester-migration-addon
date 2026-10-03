@@ -157,5 +157,8 @@ and downloaded it with `hack/lab-download.sh`:
   `hack/verify-ova.sh` passes 11/11 (container, manifest digests, DSP8023 schema, `qemu-img`
   opens the disk as VMDK, 16 GiB virtual).
 
-Not yet exercised: the Download button in a browser (ticket flow, "Preparing...", file name), a
-multi-GB (~4.5 GB) download, and removal of the serve pod when the export is deleted.
+**Browser (2026-10-03):** the Download button works end to end; the file downloaded to the end and
+its SHA-256 matches the volume's. Deleting the export in the UI removed the serve pod
+(`kubectl get pod vm-export-serve-<id>` -> not found).
+
+Not yet exercised: a multi-GB (~4.5 GB) download.

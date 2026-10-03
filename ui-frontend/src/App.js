@@ -1,8 +1,11 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { Server, RefreshCw, List, Package, Info, Palette, Upload } from 'lucide-react';
 import { Header } from './shared/Header';
 import { SubTab } from './shared/SubTab';
-import { getNestedValue } from './shared/getNestedValue';
+import { handleSort } from './shared/sorting';
+import { useCapabilities } from './hooks/useCapabilities';
+import { useVmic } from './engines/vmic/useVmic';
+import { useForklift } from './engines/forklift/useForklift';
 import { SourceExplorer } from './inventory/SourceExplorer';
 import { CreatePlanWizard } from './wizard/CreatePlanWizard';
 import { ForkliftProvidersTable } from './engines/forklift/ForkliftProvidersTable';
@@ -41,9 +44,6 @@ export default function App() {
         const fromHash = window.location.hash.replace(/^#/, '');
         return valid.includes(fromQuery) ? fromQuery : (valid.includes(fromHash) ? fromHash : 'plans');
     });
-    const [plans, setPlans] = useState([]);
-    const [sources, setSources] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
 
     const toggleExpand = (uid) => {
         setExpandedPlans(prev => {
@@ -58,283 +58,88 @@ export default function App() {
     };
     const [selectedPlan, setSelectedPlan] = useState(null);
     const [selectedSource, setSelectedSource] = useState(null);
-    const [planToDelete, setPlanToDelete] = useState(null);
-    const [planToEdit, setPlanToEdit] = useState(null);
-    const [sourceToEdit, setSourceToEdit] = useState(null);
-    const [sourceToDelete, setSourceToDelete] = useState(null);
-    const [showSourceWizard, setShowSourceWizard] = useState(false);
     const [refreshInterval, setRefreshInterval] = useState(10);
-    const [ovaSources, setOvaSources] = useState([]);
-    const [showOvaSourceWizard, setShowOvaSourceWizard] = useState(false);
-    const [ovaSourceToEdit, setOvaSourceToEdit] = useState(null);
-    const [ovaSourceToDelete, setOvaSourceToDelete] = useState(null);
     const [selectedOvaSource, setSelectedOvaSource] = useState(null);
 
-    // Sorting State
-    const [plansSort, setPlansSort] = useState({ key: 'metadata.creationTimestamp', direction: 'desc' });
-    const [sourcesSort, setSourcesSort] = useState({ key: 'metadata.creationTimestamp', direction: 'desc' });
-    const [ovaSourcesSort, setOvaSourcesSort] = useState({ key: 'metadata.creationTimestamp', direction: 'desc' });
+    const capabilities = useCapabilities();
+    const {
+        isLoading,
+        planToDelete,
+        setPlanToDelete,
+        planToEdit,
+        setPlanToEdit,
+        sourceToEdit,
+        setSourceToEdit,
+        sourceToDelete,
+        setSourceToDelete,
+        showSourceWizard,
+        setShowSourceWizard,
+        showOvaSourceWizard,
+        setShowOvaSourceWizard,
+        ovaSourceToEdit,
+        setOvaSourceToEdit,
+        ovaSourceToDelete,
+        setOvaSourceToDelete,
+        plansSort,
+        setPlansSort,
+        sourcesSort,
+        setSourcesSort,
+        ovaSourcesSort,
+        setOvaSourcesSort,
+        sortedPlans,
+        sortedSources,
+        sortedOvaSources,
+        fetchPlans,
+        fetchSources,
+        fetchOvaSources,
+        handleCreatePlan,
+        handleDeletePlan,
+        handleSaveVmicPlan,
+        handleSaveSource,
+        handleDeleteSource,
+        handleSaveOvaSource,
+        handleDeleteOvaSource,
+        handleEditSource,
+        handleEditOvaSource,
+    } = useVmic({ onPlanCreated: () => setPage('plans') });
+    const {
+        forkliftAvailable,
+        forkliftMessage,
+        forkliftNamespace,
+        setForkliftNamespace,
+        showForkliftProviderWizard,
+        setShowForkliftProviderWizard,
+        forkliftWizardDefaultType,
+        setForkliftWizardDefaultType,
+        forkliftProviderToEdit,
+        setForkliftProviderToEdit,
+        forkliftProviderToDelete,
+        setForkliftProviderToDelete,
+        forkliftPlanToDelete,
+        setForkliftPlanToDelete,
+        forkliftProvidersSort,
+        setForkliftProvidersSort,
+        forkliftPlansSort,
+        setForkliftPlansSort,
+        sortedForkliftVsphereProviders,
+        sortedForkliftOvaProviders,
+        sortedForkliftPlans,
+        checkForkliftAvailability,
+        fetchForkliftProviders,
+        fetchForkliftPlans,
+        handleSaveForkliftProvider,
+        handleDeleteForkliftProvider,
+        handleEditForkliftProvider,
+        handleDeleteForkliftPlan,
+        handleRunForkliftMigration,
+    } = useForklift();
 
-    const handleSort = (setter) => (key) => {
-        setter(prev => ({
-            key,
-            direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
-        }));
-    };
-
-    const sortData = (data, sortConfig) => {
-        if (!sortConfig.key) return data;
-        return [...data].sort((a, b) => {
-            const aVal = getNestedValue(a, sortConfig.key);
-            const bVal = getNestedValue(b, sortConfig.key);
-            if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
-            if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
-            return 0;
-        });
-    };
-
-    const sortedPlans = useMemo(() => sortData(plans, plansSort), [plans, plansSort]);
-    const sortedSources = useMemo(() => sortData(sources, sourcesSort), [sources, sourcesSort]);
-    const sortedOvaSources = useMemo(() => sortData(ovaSources, ovaSourcesSort), [ovaSources, ovaSourcesSort]);
-
-    // NEW: Capability State
-    const [capabilities, setCapabilities] = useState({ harvesterVersion: '', hasAdvancedPower: false });
-
-    // NEW: Fetch Capabilities on Mount
-    useEffect(() => {
-        fetch('/api/v1/capabilities')
-            .then(res => res.json())
-            .then(data => {
-                console.log("Cluster Capabilities:", data);
-                setCapabilities(data);
-            })
-            .catch(err => console.error("Failed to fetch capabilities:", err));
-    }, []);
-
-    // --- Forklift State ---
-    const [forkliftAvailable, setForkliftAvailable] = useState(null); // null = loading, true/false
-    const [forkliftMessage, setForkliftMessage] = useState('');
-    const [forkliftNamespace, setForkliftNamespace] = useState('forklift');
     const [plansSubTab, setPlansSubTab] = useState('vmic');
     const [sourcesSubTab, setSourcesSubTab] = useState('vmic');
     const [ovaSourcesSubTab, setOvaSourcesSubTab] = useState('vmic');
-    const [forkliftProviders, setForkliftProviders] = useState([]);
-    const [forkliftPlans, setForkliftPlans] = useState([]);
-    const [showForkliftProviderWizard, setShowForkliftProviderWizard] = useState(false);
-    const [forkliftWizardDefaultType, setForkliftWizardDefaultType] = useState('vsphere');
-    const [forkliftProviderToEdit, setForkliftProviderToEdit] = useState(null);
-    const [forkliftProviderToDelete, setForkliftProviderToDelete] = useState(null);
     const [selectedForkliftProvider, setSelectedForkliftProvider] = useState(null);
     const [forkliftProviderReturnPage, setForkliftProviderReturnPage] = useState('sources');
     const [selectedForkliftPlan, setSelectedForkliftPlan] = useState(null);
-    const [forkliftPlanToDelete, setForkliftPlanToDelete] = useState(null);
-    const [forkliftProvidersSort, setForkliftProvidersSort] = useState({ key: 'metadata.creationTimestamp', direction: 'desc' });
-    const [forkliftPlansSort, setForkliftPlansSort] = useState({ key: 'metadata.creationTimestamp', direction: 'desc' });
-
-    const sortedForkliftProviders = useMemo(() => sortData(forkliftProviders, forkliftProvidersSort), [forkliftProviders, forkliftProvidersSort]);
-    const sortedForkliftVsphereProviders = useMemo(() => sortedForkliftProviders.filter(p => p.spec?.type !== 'ova'), [sortedForkliftProviders]);
-    const sortedForkliftOvaProviders = useMemo(() => sortedForkliftProviders.filter(p => p.spec?.type === 'ova'), [sortedForkliftProviders]);
-    const sortedForkliftPlans = useMemo(() => sortData(forkliftPlans, forkliftPlansSort), [forkliftPlans, forkliftPlansSort]);
-
-    const checkForkliftAvailability = useCallback((ns) => {
-        const checkNs = ns || forkliftNamespace;
-        setForkliftAvailable(null);
-        fetch(`/api/v1/forklift/availability?namespace=${checkNs}`)
-            .then(res => res.json())
-            .then(data => {
-                setForkliftAvailable(data.available);
-                setForkliftMessage(data.message || '');
-                if (data.defaultNamespace) setForkliftNamespace(data.defaultNamespace);
-            })
-            .catch(err => {
-                console.error("Failed to check Forklift availability:", err);
-                setForkliftAvailable(false);
-                setForkliftMessage("Failed to check Forklift availability.");
-            });
-    }, [forkliftNamespace]);
-
-    // Check Forklift availability on mount
-    useEffect(() => {
-        checkForkliftAvailability();
-    }, [checkForkliftAvailability]);
-
-    const fetchForkliftProviders = async () => {
-        try {
-            const response = await fetch('/api/v1/forklift/providers');
-            if (!response.ok) throw new Error("Failed to fetch Forklift providers");
-            const data = await response.json();
-            setForkliftProviders(data || []);
-        } catch (err) {
-            console.error("Failed to fetch Forklift providers:", err);
-        }
-    };
-
-    const fetchForkliftPlans = async () => {
-        try {
-            const response = await fetch('/api/v1/forklift/plans');
-            if (!response.ok) throw new Error("Failed to fetch Forklift plans");
-            const data = await response.json();
-            setForkliftPlans(data || []);
-        } catch (err) {
-            console.error("Failed to fetch Forklift plans:", err);
-        }
-    };
-
-    // Fetch Forklift data when available
-    useEffect(() => {
-        if (forkliftAvailable) {
-            fetchForkliftProviders();
-            fetchForkliftPlans();
-        }
-    }, [forkliftAvailable]);
-
-    const handleSaveForkliftProvider = async (payload, isEdit) => {
-        const url = isEdit ? `/api/v1/forklift/providers/${payload.namespace}/${payload.name}` : '/api/v1/forklift/providers';
-        const method = isEdit ? 'PUT' : 'POST';
-
-        try {
-            const response = await fetch(url, {
-                method: method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.error || `Failed to ${isEdit ? 'update' : 'create'} Forklift provider`);
-            }
-            fetchForkliftProviders();
-            setShowForkliftProviderWizard(false);
-            setForkliftProviderToEdit(null);
-        } catch (err) {
-            console.error("Failed to save Forklift provider:", err);
-            alert(`Error saving Forklift provider: ${err.message}`);
-        }
-    };
-
-    const handleDeleteForkliftProvider = async () => {
-        if (!forkliftProviderToDelete) return;
-        try {
-            await fetch(`/api/v1/forklift/providers/${forkliftProviderToDelete.metadata.namespace}/${forkliftProviderToDelete.metadata.name}`, { method: 'DELETE' });
-            fetchForkliftProviders();
-            setForkliftProviderToDelete(null);
-        } catch (err) {
-            console.error("Failed to delete Forklift provider:", err);
-        }
-    };
-
-    const handleEditForkliftProvider = async (provider) => {
-        try {
-            const response = await fetch(`/api/v1/forklift/providers/${provider.metadata.namespace}/${provider.metadata.name}`);
-            if (!response.ok) throw new Error("Failed to fetch Forklift provider details");
-            const data = await response.json();
-            setForkliftProviderToEdit(data);
-            setShowForkliftProviderWizard(true);
-        } catch (err) {
-            console.error("Failed to fetch Forklift provider details:", err);
-            alert(`Error: ${err.message}`);
-        }
-    };
-
-    const handleDeleteForkliftPlan = async () => {
-        if (!forkliftPlanToDelete) return;
-        try {
-            await fetch(`/api/v1/forklift/plans/${forkliftPlanToDelete.metadata.namespace}/${forkliftPlanToDelete.metadata.name}`, { method: 'DELETE' });
-            fetchForkliftPlans();
-            setForkliftPlanToDelete(null);
-        } catch (err) {
-            console.error("Failed to delete Forklift plan:", err);
-        }
-    };
-
-    const handleRunForkliftMigration = async (plan) => {
-        const ns = plan.metadata.namespace;
-        const name = plan.metadata.name;
-        try {
-            // Check if a migration already exists for this plan
-            const statusRes = await fetch(`/api/v1/forklift/plans/${ns}/${name}/migration`);
-            if (statusRes.ok) {
-                const statusData = await statusRes.json();
-                if (statusData.metadata && statusData.metadata.name) {
-                    // A migration CR already exists
-                    if (!window.confirm(
-                        `A migration "${statusData.metadata.name}" already exists for plan "${name}".\n\n` +
-                        `Do you want to delete the existing migration and start a new one?`
-                    )) return;
-
-                    // Delete the existing migration
-                    const delRes = await fetch(`/api/v1/forklift/plans/${ns}/${name}/migration`, { method: 'DELETE' });
-                    if (!delRes.ok) {
-                        const errData = await delRes.json();
-                        throw new Error(errData.error || "Failed to delete existing migration");
-                    }
-                } else {
-                    // No existing migration — confirm normally
-                    if (!window.confirm(`Start migration for plan "${name}"? This will create a Migration CR.`)) return;
-                }
-            }
-
-            // Create the new migration
-            const response = await fetch(`/api/v1/forklift/plans/${ns}/${name}/run`, { method: 'POST' });
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.error || "Failed to start migration");
-            }
-            alert("Migration started successfully!");
-            fetchForkliftPlans();
-        } catch (err) {
-            console.error("Failed to start migration:", err);
-            alert(`Error starting migration: ${err.message}`);
-        }
-    };
-
-    const fetchPlans = async () => {
-        setIsLoading(true);
-        try {
-            const response = await fetch('/api/v1/plans');
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.error || "Failed to fetch plans");
-            }
-            const data = await response.json();
-            setPlans(data || []);
-        } catch (err) {
-            console.error("Failed to fetch plans:", err);
-            // alert(`Error fetching plans: ${err.message}`);
-            setPlans([]); // Ensure plans is an array on error
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const fetchSources = async () => {
-        try {
-            const response = await fetch('/api/v1/harvester/vmwaresources');
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.error || "Failed to fetch sources");
-            }
-            const data = await response.json();
-            setSources(data || []);
-        } catch (err) {
-            console.error("Failed to fetch sources:", err);
-            // alert(`Error fetching sources: ${err.message}`);
-        }
-    };
-
-    const fetchOvaSources = async () => {
-        try {
-            const response = await fetch('/api/v1/harvester/ovasources');
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.error || "Failed to fetch OVA sources");
-            }
-            const data = await response.json();
-            setOvaSources(data || []);
-        } catch (err) {
-            console.error("Failed to fetch OVA sources:", err);
-            // alert(`Error fetching OVA sources: ${err.message}`);
-        }
-    };
 
     useEffect(() => {
         fetchPlans();
@@ -351,131 +156,10 @@ export default function App() {
             }
         }, refreshInterval * 1000);
         return () => clearInterval(intervalId);
+    // The fetchers are not listed on purpose: they are re-created on every render, and the
+    // effect is meant to restart only when one of the listed values changes (step 4.3 reworks it).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [refreshInterval, expandedPlans, autoRefresh, forkliftAvailable]);
-
-    const handleCreatePlan = async (planPayload) => {
-        try {
-            const response = await fetch('/api/v1/plans', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(planPayload),
-            });
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.error || "Failed to create plan");
-            }
-            await response.json();
-            fetchPlans(); // Refresh the list
-            setPage('plans');
-        } catch (err) {
-            console.error("Failed to create plan:", err);
-            alert(`Error creating plan: ${err.message}`);
-        }
-    };
-
-    const handleDeletePlan = async () => {
-        if (!planToDelete) return;
-        try {
-            await fetch(`/api/v1/plans/${planToDelete.metadata.namespace}/${planToDelete.metadata.name}`, {
-                method: 'DELETE',
-            });
-            fetchPlans(); // Refresh the list
-            setPlanToDelete(null); // Close the modal
-        } catch (err) {
-            console.error("Failed to delete plan:", err);
-        }
-    };
-
-    const handleSaveVmicPlan = async (plan, updates) => {
-        try {
-            const response = await fetch(`/api/v1/plans/${plan.metadata.namespace}/${plan.metadata.name}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updates),
-            });
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.error || 'Failed to update plan');
-            }
-            setPlanToEdit(null);
-            fetchPlans();
-        } catch (err) {
-            console.error("Failed to update plan:", err);
-            alert(`Error updating plan: ${err.message}`);
-        }
-    };
-
-    const handleSaveSource = async (payload, isEdit) => {
-        const url = isEdit ? `/api/v1/harvester/vmwaresources/${payload.namespace}/${payload.name}` : '/api/v1/harvester/vmwaresources';
-        const method = isEdit ? 'PUT' : 'POST';
-
-        try {
-            const response = await fetch(url, {
-                method: method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.error || `Failed to ${isEdit ? 'update' : 'create'} source`);
-            }
-            fetchSources();
-            setShowSourceWizard(false);
-            setSourceToEdit(null);
-        } catch (err) {
-            console.error(`Failed to save source:`, err);
-            alert(`Error saving source: ${err.message}`);
-        }
-    };
-
-    const handleDeleteSource = async () => {
-        if (!sourceToDelete) return;
-        try {
-            await fetch(`/api/v1/harvester/vmwaresources/${sourceToDelete.metadata.namespace}/${sourceToDelete.metadata.name}`, {
-                method: 'DELETE',
-            });
-            fetchSources();
-            setSourceToDelete(null);
-        } catch (err) {
-            console.error("Failed to delete source:", err);
-        }
-    };
-
-    const handleSaveOvaSource = async (payload, isEdit) => {
-        const url = isEdit ? `/api/v1/harvester/ovasources/${payload.namespace}/${payload.name}` : '/api/v1/harvester/ovasources';
-        const method = isEdit ? 'PUT' : 'POST';
-
-        try {
-            const response = await fetch(url, {
-                method: method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.error || `Failed to ${isEdit ? 'update' : 'create'} OVA source`);
-            }
-            fetchOvaSources();
-            setShowOvaSourceWizard(false);
-            setOvaSourceToEdit(null);
-        } catch (err) {
-            console.error(`Failed to save OVA source:`, err);
-            alert(`Error saving OVA source: ${err.message}`);
-        }
-    };
-
-    const handleDeleteOvaSource = async () => {
-        if (!ovaSourceToDelete) return;
-        try {
-            await fetch(`/api/v1/harvester/ovasources/${ovaSourceToDelete.metadata.namespace}/${ovaSourceToDelete.metadata.name}`, {
-                method: 'DELETE',
-            });
-            fetchOvaSources();
-            setOvaSourceToDelete(null);
-        } catch (err) {
-            console.error("Failed to delete OVA source:", err);
-        }
-    };
 
     const handleViewDetails = (plan) => {
         const detailedPlan = {
@@ -493,38 +177,6 @@ export default function App() {
         };
         setSelectedPlan(detailedPlan);
         setPage('planDetails');
-    };
-
-    const handleEditSource = async (source) => {
-        try {
-            const response = await fetch(`/api/v1/harvester/vmwaresources/${source.metadata.namespace}/${source.metadata.name}`);
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.error || "Failed to fetch source details");
-            }
-            const data = await response.json();
-            setSourceToEdit(data);
-            setShowSourceWizard(true);
-        } catch (err) {
-            console.error("Failed to fetch source details:", err);
-            alert(`Error fetching source details: ${err.message}`);
-        }
-    };
-
-    const handleEditOvaSource = async (source) => {
-        try {
-            const response = await fetch(`/api/v1/harvester/ovasources/${source.metadata.namespace}/${source.metadata.name}`);
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.error || "Failed to fetch OVA source details");
-            }
-            const data = await response.json();
-            setOvaSourceToEdit(data);
-            setShowOvaSourceWizard(true);
-        } catch (err) {
-            console.error("Failed to fetch OVA source details:", err);
-            alert(`Error fetching OVA source details: ${err.message}`);
-        }
     };
 
     const renderPage = () => {

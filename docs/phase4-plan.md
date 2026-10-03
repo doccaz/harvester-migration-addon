@@ -27,8 +27,15 @@ nothing else changed.
   `src/engines/forklift/`, `src/export/`, `src/support/`, `src/about/`. `App.js` went from 5,724 to 804
   lines; 45/45 declarations identical to the pre-Phase-4 `App.js` (`check-moves.js 8ac96d2`), 21/21
   snapshots unchanged.
-- **4.3 Split `App()`**: per-engine state and fetching into hooks; an engine registry
-  (`{id, label, available(capabilities), pages}`) replaces the hard-coded sub-tab arrays.
+- **4.3 Split `App()`**
+  - **4.3a Hooks** (done, behaviour-identical): the engines' state and handlers moved verbatim into
+    `engines/vmic/useVmic.js`, `engines/forklift/useForklift.js`, `hooks/useCapabilities.js`, with the
+    sorting helpers in `shared/sorting.js`. `App()` went from 780 to ~400 lines and keeps navigation,
+    selection, the polling effect and `renderPage`. Gated by the 21 snapshots plus 24 behaviour tests
+    (`App.flows.test.js`: delete/edit/run flows, auto-refresh), written and mutation-checked *before* the move.
+  - **4.3b Engine registry and views**: per-engine page views and a registry that builds the sub-tabs.
+  - **4.3c Behaviour fixes, with tests**: one fetch per endpoint at start-up; a background refresh must not
+    replace the table with "Loading plans..."; the polling effect keyed on what it uses.
 - **4.4 Capabilities from the backend**: extend `GET /api/v1/capabilities` with per-engine availability
   and reasons; fix `forklift.CheckAvailability` (any failure reads as "not available") and
   `inventory.PVCIndex` (swallows a failed PVC list) so "unknown/forbidden" is not shown as "absent".

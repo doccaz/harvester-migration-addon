@@ -22,8 +22,11 @@ nothing else changed.
 - **4.0 Safety net** (done): the snapshot suite and fixtures above.
 - **4.1 Shared leaves** (done): `CopyButton`, `DownloadButton`, `SortableHeader`, `Header`, `SubTab`,
   `getNestedValue` moved to `src/shared/` (45/45 declarations identical, 21/21 snapshots unchanged).
-- **4.2 Move components by feature**, no logic change: `engines/vmic/` (plans, sources, OVA sources,
-  explorer, wizards), `engines/forklift/`, `export/`, `support/` (support bundle), `about/`.
+- **4.2 Move components by feature** (done, no logic change): `src/inventory/` (tree, details panel, explorer),
+  `src/wizard/` (CreatePlanWizard), `src/engines/vmic/` (plans, sources, OVA sources, wizards, details),
+  `src/engines/forklift/`, `src/export/`, `src/support/`, `src/about/`. `App.js` went from 5,724 to 804
+  lines; 45/45 declarations identical to the pre-Phase-4 `App.js` (`check-moves.js 8ac96d2`), 21/21
+  snapshots unchanged.
 - **4.3 Split `App()`**: per-engine state and fetching into hooks; an engine registry
   (`{id, label, available(capabilities), pages}`) replaces the hard-coded sub-tab arrays.
 - **4.4 Capabilities from the backend**: extend `GET /api/v1/capabilities` with per-engine availability

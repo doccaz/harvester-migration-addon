@@ -3,9 +3,9 @@
 
 
 "@adobe/css-tools@^4.4.0":
-  version "4.5.0"
-  resolved "https://registry.yarnpkg.com/@adobe/css-tools/-/css-tools-4.5.0.tgz#b5b71a25a4d16afa2482592ddfa62fccc60bc7d1"
-  integrity sha512-6OzddxPio9UiWTCemp4N8cYLV2ZN1ncRnV1cVGtve7dhPOtRkleRyx32GQCYSwDYgaHU3USMm84tNsvKzRCa1Q==
+  version "4.4.4"
+  resolved "https://registry.yarnpkg.com/@adobe/css-tools/-/css-tools-4.4.4.tgz#2856c55443d3d461693f32d2b96fb6ea92e1ffa9"
+  integrity sha512-Elp+iwUx5rN5+Y8xLt5/GRoG20WGoDCQ/1Fb+1LiGtvwbDavuSk0jhD/eZdckHAuzcDzccnkv+rEjyWfRx18gg==
 
 "@alloc/quick-lru@^5.2.0":
   version "5.2.0"
@@ -1793,9 +1793,9 @@
     pretty-format "^27.0.2"
 
 "@testing-library/jest-dom@^6.9.1":
-  version "6.10.0"
-  resolved "https://registry.yarnpkg.com/@testing-library/jest-dom/-/jest-dom-6.10.0.tgz#8a76841e94b72d55d09d2a34b9db9d75da9cbc08"
-  integrity sha512-HQwu0KaB2zyT0iLzBL+8CLyZDL3KlZlZJ+2iyc9uCUnlJVskJU/UlPuVCyIPhtukjPQdT2QNoR5nCP5FqTmmDQ==
+  version "6.9.1"
+  resolved "https://registry.yarnpkg.com/@testing-library/jest-dom/-/jest-dom-6.9.1.tgz#7613a04e146dd2976d24ddf019730d57a89d56c2"
+  integrity sha512-zIcONa+hVtVSSep9UT3jZ5rizo2BsxgyDYU7WFD5eICBE7no3881HGeb/QkGfsJs6JTkY1aQhT7rIPC7e+0nnA==
   dependencies:
     "@adobe/css-tools" "^4.4.0"
     aria-query "^5.0.0"
@@ -9183,7 +9183,7 @@ vary@~1.1.2:
     lucide-react "^0.279.0"
     react "^18.2.0"
     react-dom "^18.2.0"
-    vm-import-ui-frontend "file:../../../.cache/yarn/v6/npm-vm-import-ui-frontend-1.9.2-e55f527c-2691-4adb-92d0-2ed7d1111a87-1791156020645/node_modules/vm-import-ui-frontend"
+    vm-import-ui-frontend "file:../../../.cache/yarn/v6/npm-vm-import-ui-frontend-1.9.2-c747e1b5-8783-4d2e-bc79-4be2e08e3eb1-1791156250999/node_modules/vm-import-ui-frontend"
 
 w3c-hr-time@^1.0.2:
   version "1.0.2"

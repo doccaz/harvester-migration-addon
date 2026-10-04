@@ -12,7 +12,7 @@ RUN yarn build
 
 # Stage 2: Build the Go backend
 # Use --platform=$BUILDPLATFORM to ensure this stage also runs natively
-FROM --platform=$BUILDPLATFORM golang:1.24 AS go-builder
+FROM --platform=$BUILDPLATFORM golang:1.26 AS go-builder
 WORKDIR /go/src/app
 
 # Accept the target architecture as a build argument from Docker Buildx

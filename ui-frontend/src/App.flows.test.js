@@ -415,3 +415,58 @@ describe('"View in Harvester" links', () => {
     });
   });
 });
+
+describe('Forklift setup checklist', () => {
+  const unavailable = (state, message) => ({ '/api/v1/forklift/availability': { available: false, state, message, defaultNamespace: 'forklift' } });
+  const openTab = async (extra) => {
+    const u = await open(extra);
+    await click(u, screen.getAllByRole('button', { name: 'Forklift' })[0]);
+    return u;
+  };
+  const text = () => document.body.textContent;
+
+  test('not installed: the three setup steps, none done', async () => {
+    await openTab(unavailable('not-installed', 'Forklift is not installed on this cluster.'));
+    expect(screen.getByText('Forklift is not installed')).toBeInTheDocument();
+    expect(text()).toContain('cert-manager');
+    expect(text()).toContain('forklift-operator');
+    expect(text()).toContain('ForkliftController');
+    expect(screen.getAllByRole('listitem')).toHaveLength(3);
+    expect(screen.queryAllByLabelText('done')).toHaveLength(0);
+  });
+
+  test('not ready: the operator is installed, so the first two steps are done and the third is the one left', async () => {
+    await openTab(unavailable('not-ready', 'Forklift host Provider not found in namespace forklift. Forklift features are unavailable.'));
+    expect(screen.getByText('Forklift is installed but not ready')).toBeInTheDocument();
+    expect(screen.getAllByLabelText('done')).toHaveLength(2);
+    expect(screen.getByText(/host Provider not found in namespace forklift/)).toBeInTheDocument();
+  });
+
+  test('no permission: says so, with no setup steps (the cluster may be fine)', async () => {
+    await openTab(unavailable('forbidden', 'You do not have permission to read Forklift, so its state is unknown.'));
+    expect(screen.getByText('No permission to check Forklift')).toBeInTheDocument();
+    expect(screen.queryAllByRole('listitem')).toHaveLength(0);
+    expect(text()).toContain('providers.forklift.konveyor.io');
+  });
+
+  test('unknown: shows the error text', async () => {
+    await openTab(unavailable('unknown', 'Could not check Forklift: etcdserver: request timed out'));
+    expect(screen.getByText('Could not check Forklift')).toBeInTheDocument();
+    expect(text()).toContain('request timed out');
+  });
+
+  test('without a state (an older backend) the previous message is shown unchanged', async () => {
+    await openTab({ '/api/v1/forklift/availability': { available: false, message: 'Forklift CRDs not found' } });
+    expect(screen.getByText('Forklift Unavailable')).toBeInTheDocument();
+    expect(text()).toContain('Forklift CRDs not found');
+  });
+
+  ['not-installed', 'not-ready', 'forbidden', 'unknown'].forEach((state) => {
+    test(`${state}: Retry checks the namespace you typed`, async () => {
+      const u = await openTab(unavailable(state, 'x'));
+      fireEvent.change(screen.getByPlaceholderText('e.g. forklift'), { target: { value: 'fk2' } });
+      await click(u, screen.getByRole('button', { name: 'Retry' }));
+      expect(requests(u.calls, 'GET', '/api/v1/forklift/availability?namespace=fk2')).toHaveLength(1);
+    });
+  });
+});

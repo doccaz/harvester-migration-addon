@@ -19,5 +19,5 @@ export const PlansView = ({ forklift, nav, ui }) => (
                 onRunMigration={forklift.handleRunForkliftMigration}
             />
         </>
-    ) : <ForkliftUnavailable message={forklift.forkliftMessage} namespace={forklift.forkliftNamespace} onChangeNamespace={forklift.setForkliftNamespace} onRetry={forklift.checkForkliftAvailability} />
+    ) : <ForkliftUnavailable state={forklift.forkliftState} message={forklift.forkliftMessage} namespace={forklift.forkliftNamespace} onChangeNamespace={forklift.setForkliftNamespace} onRetry={forklift.checkForkliftAvailability} />
 );

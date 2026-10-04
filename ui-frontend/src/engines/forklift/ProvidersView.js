@@ -29,5 +29,5 @@ export const ProvidersView = ({ kind, forklift, nav }) => {
                 <button onClick={forklift.fetchForkliftProviders} className="text-blue-500 hover:text-blue-700"><RefreshCw size={20} /></button>
             </div>
         </>
-    ) : <ForkliftUnavailable message={forklift.forkliftMessage} namespace={forklift.forkliftNamespace} onChangeNamespace={forklift.setForkliftNamespace} onRetry={forklift.checkForkliftAvailability} />;
+    ) : <ForkliftUnavailable state={forklift.forkliftState} message={forklift.forkliftMessage} namespace={forklift.forkliftNamespace} onChangeNamespace={forklift.setForkliftNamespace} onRetry={forklift.checkForkliftAvailability} />;
 };

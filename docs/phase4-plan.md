@@ -65,7 +65,13 @@ nothing else changed.
   usual `.../<type>/<namespace>/<name>`; **to confirm on the lab by opening one object and comparing the URL**.
   The dashboard address is derived from where this UI was loaded (`/k8s/clusters/<id>/...` proxy path, any
   prefix kept); served any other way there is no link and the page is unchanged (`shared/harvesterLinks.js`).
-- **4.6 Setup checklist** replaces the Forklift pages when Forklift is absent (today a one-line message).
+- **4.6 Setup checklist** (done 2026-10-04, tests first): `ForkliftUnavailable` now acts on the backend's reason.
+  *Not installed*: the three setup steps from docs/contract-forklift.md (cert-manager, the `forklift-operator`
+  add-on, a `ForkliftController`, with an example). *Installed but not ready*: the first two steps shown as done,
+  the third as the one left. *No permission* and *could not check*: the cause and what to do, no setup steps (the
+  cluster may be fine). With no state (an older backend) the previous message renders unchanged. Also fixed: a
+  Retry with a changed namespace checked twice, because the mount effect depended on a callback that changes with
+  the namespace.
 - **4.7 Component tests per module**; short evaluation of a Rancher UI-extension build target (not a commitment).
 - Release as v0.5.0 after a lab pass.
 

@@ -7,6 +7,7 @@ export function useForklift() {
     // --- Forklift State ---
     const [forkliftAvailable, setForkliftAvailable] = useState(null); // null = loading, true/false
     const [forkliftMessage, setForkliftMessage] = useState('');
+    const [forkliftState, setForkliftState] = useState(''); // why Forklift is unavailable: not-installed, not-ready, forbidden, unknown
     const [forkliftNamespace, setForkliftNamespace] = useState('forklift');
     const [forkliftProviders, setForkliftProviders] = useState([]);
     const [forkliftPlans, setForkliftPlans] = useState([]);
@@ -31,19 +32,24 @@ export function useForklift() {
             .then(data => {
                 setForkliftAvailable(data.available);
                 setForkliftMessage(data.message || '');
+                setForkliftState(data.state || '');
                 if (data.defaultNamespace) setForkliftNamespace(data.defaultNamespace);
             })
             .catch(err => {
                 console.error("Failed to check Forklift availability:", err);
                 setForkliftAvailable(false);
                 setForkliftMessage("Failed to check Forklift availability.");
+                setForkliftState('unknown');
             });
     }, [forkliftNamespace]);
 
-    // Check Forklift availability on mount
+    // Check Forklift availability once, on mount. A later check is an explicit retry: the
+    // callback changes with the namespace, so listing it here made a retry for a new
+    // namespace check twice.
     useEffect(() => {
         checkForkliftAvailability();
-    }, [checkForkliftAvailability]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const fetchForkliftProviders = async () => {
         try {
@@ -178,6 +184,7 @@ export function useForklift() {
         forkliftAvailable,
         setForkliftAvailable,
         forkliftMessage,
+        forkliftState,
         setForkliftMessage,
         forkliftNamespace,
         setForkliftNamespace,

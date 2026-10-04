@@ -72,7 +72,10 @@ nothing else changed.
   cluster may be fine). With no state (an older backend) the previous message renders unchanged. Also fixed: a
   Retry with a changed namespace checked twice, because the mount effect depended on a callback that changes with
   the namespace.
-- **4.7 Component tests per module**; short evaluation of a Rancher UI-extension build target (not a commitment).
+- **4.7 Component tests and the extension note** (done 2026-10-04): every module is covered through the 21 page snapshots,
+  ~50 behaviour tests (flows, polling, links, checklist, warnings) and the contract tests, all mutation-checked where they
+  were written; no per-component test file was added where that would only repeat them. The Rancher UI-extension
+  evaluation is in docs/ui-extension-evaluation.md (recommendation: keep the separate UI; revisit on three triggers).
 - Release as v0.5.0 after a lab pass.
 
 ## Findings from the characterization work

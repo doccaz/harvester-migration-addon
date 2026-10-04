@@ -15,3 +15,8 @@ Forklift: detected at runtime. It is a separate add-on (harvester/forklift-packa
 
 WARNING: {{ $warn }}
 {{- end }}
+{{- $sw := include "harvester-migration.exportStorageWarning" . }}
+{{- if $sw }}
+
+WARNING: {{ $sw }}
+{{- end }}

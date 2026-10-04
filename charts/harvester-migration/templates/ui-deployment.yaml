@@ -7,6 +7,14 @@ metadata:
     {{- include "harvester-migration.ui.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.ui.replicaCount }}
+  {{- if .Values.export.enabled }}
+  # The pod mounts the export volume. A rolling update runs the new pod beside the old one,
+  # possibly on another node, and a volume that can be attached to one node at a time
+  # (Harvester's default "migratable" Longhorn class) then fails to mount and the rollout
+  # hangs. Replacing the pod costs a minute of downtime and cannot get stuck that way.
+  strategy:
+    type: Recreate
+  {{- end }}
   selector:
     matchLabels:
       {{- include "harvester-migration.ui.selectorLabels" . | nindent 6 }}

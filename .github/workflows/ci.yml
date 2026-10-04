@@ -78,6 +78,8 @@ jobs:
       - run: helm lint . --set ui.auth.ca.existingSecret=ca
       - name: Version-mismatch warning and support matrix
         run: ../../hack/check-version-warning.sh
+      - name: Export storage strategy and warning
+        run: ../../hack/check-chart-export.sh
       - name: Render every mode
         run: |
           set -euo pipefail

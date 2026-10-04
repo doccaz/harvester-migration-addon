@@ -84,3 +84,18 @@ add-on's controller. See docs/support-matrix.md.
 {{- end -}}
 {{- end -}}
 
+{{/*
+Non-empty when export is on and its volume would use a storage class that cannot be mounted
+from several nodes at once. Harvester's default `harvester-longhorn` class is "migratable"
+(a block volume for VM live migration, one node at a time), and the class left empty means
+the cluster default, which is that class on Harvester. Concurrent exports in a namespace, or an
+export beside a download service on another node, then fail to mount. See docs/export-storage.md.
+*/}}
+{{- define "harvester-migration.exportStorageWarning" -}}
+{{- if and .Values.export.enabled (not .Values.export.storage.existingClaim) (or (not .Values.export.storage.storageClass) (eq .Values.export.storage.storageClass "harvester-longhorn")) -}}
+export.storage.storageClass is "{{ .Values.export.storage.storageClass | default "(cluster default)" }}", which on Harvester is a migratable Longhorn class: its volumes attach to one node at a time,
+so two exports in a namespace, or an export beside a download on another node, can fail to mount ("invalid controller count 2").
+Use a ReadWriteMany class with a share manager (NFS). See docs/export-storage.md.
+{{- end -}}
+{{- end -}}
+

@@ -113,7 +113,10 @@ ui:
   affinity: {}
 
 # ── VM Export (Harvester VM -> OVA), off by default ────────────────────────
-# Runs as a Job in the source VM's namespace; needs a ReadWriteMany volume.
+# Runs as a Job in the source VM's namespace; needs a ReadWriteMany volume that several pods on
+# different nodes can mount (a Longhorn class with a share manager / NFS). Harvester's default
+# `harvester-longhorn` class is migratable (one node at a time) and does NOT qualify; see
+# docs/export-storage.md. With export on, the UI Deployment is replaced, not rolled.
 export:
   enabled: false
   storage:

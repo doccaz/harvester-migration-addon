@@ -57,8 +57,14 @@ nothing else changed.
     blocked from export when run state is unknown. Export preview/create answer with the API's own status
     (403) instead of the misleading 422 "check that its claim exists".
   - `hack/lab-smoke.sh` checks the new fields on the lab.
-- **4.5 "View in Harvester" links** from sources and imports to Harvester's own pages. Verify the
-  dashboard routes on the lab first (open check in PLAN.md section 4b).
+- **4.5 "View in Harvester" links** (done 2026-10-04): the details pages of vCenter sources, OVA sources and
+  VMIC plans link to Harvester's own page for the object. Verified on the lab: the built-in list pages are
+  `<origin>/dashboard/c/local/explorer/migration.harvesterhci.io.<vmwaresource|ovasource|virtualmachineimport>`
+  (the 4 CRDs `vmwaresources`, `ovasources`, `openstacksources`, `virtualmachineimports` are served and
+  have no menu entries of their own, only these Cluster Explorer pages). The object page follows the dashboard's
+  usual `.../<type>/<namespace>/<name>`; **to confirm on the lab by opening one object and comparing the URL**.
+  The dashboard address is derived from where this UI was loaded (`/k8s/clusters/<id>/...` proxy path, any
+  prefix kept); served any other way there is no link and the page is unchanged (`shared/harvesterLinks.js`).
 - **4.6 Setup checklist** replaces the Forklift pages when Forklift is absent (today a one-line message).
 - **4.7 Component tests per module**; short evaluation of a Rancher UI-extension build target (not a commitment).
 - Release as v0.5.0 after a lab pass.

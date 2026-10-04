@@ -379,3 +379,39 @@ describe('export page warnings', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });
+
+describe('"View in Harvester" links', () => {
+  const proxyPath = '/k8s/clusters/local/api/v1/namespaces/harvester-system/services/http:mig-harvester-migration-ui:8080/proxy/';
+  const dash = 'http://localhost/dashboard/c/local/explorer/migration.harvesterhci.io';
+  const yaml = {
+    '/api/v1/plans/techday/web-migration/yaml': 'kind: VirtualMachineImport\n',
+    '/api/v1/plans/techday/web-migration/logs': 'log',
+    '/api/v1/harvester/vmwaresources/techday/vcenter-lab/yaml': 'kind: VmwareSource\n',
+    '/api/v1/harvester/ovasources/labs/ova-source/yaml': 'kind: OvaSource\n',
+  };
+  const detailsOf = (u, page, row) => (page ? nav(u, page) : Promise.resolve())
+    .then(() => click(u, within(screen.getAllByText(row)[0].closest('tr')).getByText('Details')));
+  const cases = [
+    { name: 'vCenter source', page: 'vCenter Sources', row: 'vcenter-lab', href: `${dash}.vmwaresource/techday/vcenter-lab` },
+    { name: 'OVA source', page: 'OVA Sources', row: 'ova-source', href: `${dash}.ovasource/labs/ova-source` },
+    { name: 'VMIC plan', page: null, row: 'web-migration', href: `${dash}.virtualmachineimport/techday/web-migration` },
+  ];
+
+  cases.forEach(({ name, page, row, href }) => {
+    test(`${name}: linked when served through the dashboard's proxy`, async () => {
+      window.history.replaceState({}, '', proxyPath);
+      const u = await open(yaml);
+      await detailsOf(u, page, row);
+      const link = screen.getByRole('link', { name: /View in Harvester/ });
+      expect(link).toHaveAttribute('href', href);
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(link.getAttribute('rel')).toContain('noopener');
+    });
+
+    test(`${name}: no link when served directly`, async () => {
+      const u = await open(yaml);
+      await detailsOf(u, page, row);
+      expect(screen.queryByRole('link', { name: /View in Harvester/ })).not.toBeInTheDocument();
+    });
+  });
+});

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { CopyButton } from '../../shared/CopyButton';
+import { ViewInHarvester } from '../../shared/ViewInHarvester';
 
 export const OvaSourceDetails = ({ source, onClose }) => {
     const [yamlContent, setYamlContent] = useState('');
@@ -45,6 +46,7 @@ export const OvaSourceDetails = ({ source, onClose }) => {
                             <p><strong>URL:</strong> {source.spec.url}</p>
                             <p><strong>HTTP Timeout:</strong> {source.spec.httpTimeoutSeconds || '600'}s</p>
                             <p><strong>Credentials Secret:</strong> {source.spec.credentials?.name ? <>{source.spec.credentials.namespace}/{source.spec.credentials.name}</> : 'none'}</p>
+                            <ViewInHarvester resource="ovasource" object={source} />
                         </div>
                     </div>
                     <div>

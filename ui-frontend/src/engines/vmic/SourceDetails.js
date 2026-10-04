@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { CopyButton } from '../../shared/CopyButton';
+import { ViewInHarvester } from '../../shared/ViewInHarvester';
 
 export const SourceDetails = ({ source, onClose }) => {
     const [yamlContent, setYamlContent] = useState('');
@@ -45,6 +46,7 @@ export const SourceDetails = ({ source, onClose }) => {
                             <p><strong>Endpoint:</strong> {source.spec.endpoint}</p>
                             <p><strong>Datacenter:</strong> {source.spec.dc}</p>
                             <p><strong>Credentials Secret:</strong> {source.spec.credentials?.name ? <>{source.spec.credentials.namespace}/{source.spec.credentials.name}</> : 'none'}</p>
+                            <ViewInHarvester resource="vmwaresource" object={source} />
                         </div>
                     </div>
                     <div>

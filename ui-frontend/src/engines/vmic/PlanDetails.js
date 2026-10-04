@@ -3,6 +3,7 @@ import { X, Cpu, MemoryStick, HardDrive, Folder, Network, RefreshCw, Loader } fr
 import { formatBytes } from '../../utils';
 import { DownloadButton } from '../../shared/DownloadButton';
 import { CopyButton } from '../../shared/CopyButton';
+import { ViewInHarvester } from '../../shared/ViewInHarvester';
 
 export const PlanDetails = ({ plan, onClose }) => {
     const [logs, setLogs] = useState('');
@@ -82,6 +83,7 @@ export const PlanDetails = ({ plan, onClose }) => {
                     </button>
                 </div>
                 <div className="p-6 space-y-6 overflow-y-auto">
+                    <ViewInHarvester resource="virtualmachineimport" object={plan} />
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <h3 className="text-lg font-medium text-main mb-2">VM Characteristics</h3>

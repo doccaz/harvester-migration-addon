@@ -162,3 +162,20 @@ its SHA-256 matches the volume's. Deleting the export in the UI removed the serv
 (`kubectl get pod vm-export-serve-<id>` -> not found).
 
 Not yet exercised: a multi-GB (~4.5 GB) download.
+
+## v0.5.0-rc1 on the lab (2026-10-04)
+
+- **Upgrade hung on storage, not on the release.** `helm upgrade mig ... --version 0.5.0-rc1` completed, but
+  the new UI pod sat in `ContainerCreating` for 30+ minutes: `MountVolume.MountDevice failed ... has invalid
+  controller count 2`. The export volume uses `harvester-longhorn`, a *migratable* Longhorn class (a block
+  volume for VM live migration, one node at a time, no `share-manager-pvc-...` pod). The rolling update put the
+  new pod on another node than the old one and Longhorn started a migration (second engine). It worked for 0.4.0
+  only because both pods landed on the same node. Unstuck with `scale --replicas=0`, wait for `detached`,
+  `scale --replicas=1`. Fixed in the chart (de26ed1): with export on the Deployment is replaced, not rolled,
+  and the install notes warn about migratable classes; details and an example RWX class in
+  docs/export-storage.md. The same limit applies to concurrent exports in one namespace.
+- `hack/lab-smoke.sh` (`EXPECT_VERSION=0.5.0-rc1`): **55/55**, including the new engine-state, availability-state and
+  inventory-warning checks; backend and support bundle report 0.5.0-rc1.
+- Found in the old pod's log: the download proxy's client disconnects were logged as panics (`abort Handler`) by
+  the panic-recovery wrapper; fixed in 22ca8e3 (not in rc1).
+- Browser pass: pending.

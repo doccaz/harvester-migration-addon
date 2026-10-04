@@ -17,7 +17,7 @@ A pre-release is installed only by naming its version; `helm search repo` hides 
 ```
 KUBECONFIG=/home/erico/Projetos/local-harvester.yaml EXPECT_VERSION=0.5.0-rc1 ./hack/lab-smoke.sh
 ```
-Expect 54 checks to pass (the new ones: engines in `/capabilities`, a state in `/forklift/availability`,
+Expect 55 checks to pass (the new ones: engines in `/capabilities`, a state in `/forklift/availability`,
 an inventory without warnings).
 
 ## In the browser (hard-refresh first)

@@ -4,13 +4,13 @@ module github.com/doccaz/harvester-migration-addon/ui-backend
 go 1.24
 
 require (
-	github.com/gorilla/mux v1.8.0
-	github.com/sirupsen/logrus v1.9.3
+	github.com/gorilla/mux v1.8.1
+	github.com/sirupsen/logrus v1.10.2
 	github.com/vmware/govmomi v0.33.1
 	k8s.io/api v0.28.0
 	k8s.io/apimachinery v0.28.0
 	k8s.io/client-go v0.28.0
-	sigs.k8s.io/yaml v1.3.0
+	sigs.k8s.io/yaml v1.6.0
 )
 
 require (
@@ -36,9 +36,10 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/net v0.13.0 // indirect
 	golang.org/x/oauth2 v0.8.0 // indirect
-	golang.org/x/sys v0.10.0 // indirect
+	golang.org/x/sys v0.13.0 // indirect
 	golang.org/x/term v0.10.0 // indirect
 	golang.org/x/text v0.11.0 // indirect
 	golang.org/x/time v0.3.0 // indirect

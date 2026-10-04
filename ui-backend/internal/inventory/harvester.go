@@ -20,6 +20,7 @@ import (
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
 
 	log "github.com/sirupsen/logrus"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -45,8 +46,15 @@ func HandleGetHarvesterInventory(clients *kube.Clients) http.HandlerFunc {
 			return
 		}
 
-		running := runningVMNames(ctx, clients)
-		pvcs := PVCIndex(ctx, clients)
+		var warnings []string
+		running, err := runningVMNames(ctx, clients)
+		if err != nil {
+			warnings = append(warnings, "Could not list VirtualMachineInstances ("+briefCause(err)+"): every VM is shown as running, so none can be exported.")
+		}
+		pvcs, err := PVCIndex(ctx, clients)
+		if err != nil {
+			warnings = append(warnings, "Could not list PersistentVolumeClaims ("+briefCause(err)+"): disk sizes and storage classes are unknown.")
+		}
 
 		byNamespace := map[string][]Node{}
 		for i := range vms.Items {
@@ -61,7 +69,7 @@ func HandleGetHarvesterInventory(clients *kube.Clients) http.HandlerFunc {
 		}
 		sort.Strings(namespaces)
 
-		root := Node{ID: "harvester", Name: "Harvester Cluster", Type: "datacenter"}
+		root := Node{ID: "harvester", Name: "Harvester Cluster", Type: "datacenter", Warnings: warnings}
 		for _, ns := range namespaces {
 			children := byNamespace[ns]
 			sort.Slice(children, func(a, b int) bool { return children[a].Name < children[b].Name })
@@ -80,29 +88,31 @@ func HandleGetHarvesterInventory(clients *kube.Clients) http.HandlerFunc {
 
 // runningVMNames returns the set of "namespace/name" that currently have a VMI.
 // A VMI existing is the authoritative signal that a VM's volumes are in use and
-// therefore MUST NOT be read for export.
-func runningVMNames(ctx context.Context, clients *kube.Clients) map[string]bool {
+// therefore MUST NOT be read for export. When the VMIs cannot be listed it returns a
+// nil set and the error: every VM is then treated as running, which is the safe
+// direction (it blocks export rather than corrupting an image).
+func runningVMNames(ctx context.Context, clients *kube.Clients) (map[string]bool, error) {
 	out := map[string]bool{}
 	list, err := clients.Dynamic.Resource(kube.VMIKubevirtGVR).Namespace("").List(ctx, metav1.ListOptions{})
 	if err != nil {
-		// Best-effort: without VMI data every VM is treated as running, which is
-		// the safe direction (it blocks export rather than corrupting an image).
 		log.Warnf("Failed to list VirtualMachineInstances, treating all VMs as running: %v", err)
-		return nil
+		return nil, err
 	}
 	for _, vmi := range list.Items {
 		out[vmi.GetNamespace()+"/"+vmi.GetName()] = true
 	}
-	return out
+	return out, nil
 }
 
-// PVCIndex maps "namespace/name" to the PVC details the export needs.
-func PVCIndex(ctx context.Context, clients *kube.Clients) map[string]PVCInfo {
+// PVCIndex maps "namespace/name" to the PVC details the export needs. A failed list is
+// returned, not hidden: "no claims" and "could not list claims" call for different things
+// (the second is usually the caller's permissions), and the index is empty either way.
+func PVCIndex(ctx context.Context, clients *kube.Clients) (map[string]PVCInfo, error) {
 	out := map[string]PVCInfo{}
 	list, err := clients.Clientset.CoreV1().PersistentVolumeClaims("").List(ctx, metav1.ListOptions{})
 	if err != nil {
 		log.Warnf("Failed to list PersistentVolumeClaims, disk sizes will be unknown: %v", err)
-		return out
+		return out, err
 	}
 	for i := range list.Items {
 		p := &list.Items[i]
@@ -118,7 +128,7 @@ func PVCIndex(ctx context.Context, clients *kube.Clients) map[string]PVCInfo {
 		}
 		out[p.Namespace+"/"+p.Name] = info
 	}
-	return out
+	return out, nil
 }
 
 // HarvesterVMToNode flattens one KubeVirt VirtualMachine into an Node.
@@ -372,4 +382,13 @@ func clampInt32(v int64) int32 {
 		return math.MinInt32
 	}
 	return int32(v) //nolint:gosec // range checked above
+}
+
+// briefCause is a short reason for a warning: "forbidden" for a permission problem,
+// otherwise the error text.
+func briefCause(err error) string {
+	if apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err) {
+		return "forbidden: no permission"
+	}
+	return err.Error()
 }

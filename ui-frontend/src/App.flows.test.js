@@ -6,7 +6,7 @@ import React from 'react';
 import { render, screen, fireEvent, within, act } from '@testing-library/react';
 import App from './App';
 import { installApi, settle, requests, reply } from './testing/mockApi';
-import { routes, forkliftPlans } from './testing/fixtures';
+import { routes, forkliftPlans, ovaSources, vmwareSources, harvesterInventory } from './testing/fixtures';
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -322,5 +322,60 @@ describe('loading', () => {
     release();
     await settle(calls);
     expect(container.textContent).toContain('web-migration');
+  });
+});
+
+describe('sources without credentials', () => {
+  const noCreds = (kind, source) => ({ ...source, spec: Object.fromEntries(Object.entries(source.spec).filter(([k]) => k !== 'credentials')) });
+
+  test('an OVA source with no credentials opens its details', async () => {
+    const u = await open({
+      '/api/v1/harvester/ovasources': [noCreds('ova', ovaSources[0])],
+      '/api/v1/harvester/ovasources/labs/ova-source/yaml': 'kind: OvaSource\n',
+    });
+    await nav(u, 'OVA Sources');
+    await click(u, within(screen.getAllByText('ova-source')[0].closest('tr')).getByText('Details'));
+    expect(screen.getByText('Source Summary')).toBeInTheDocument();
+    expect(screen.getByText(/Credentials Secret:/).closest('p').textContent).toMatch(/none/i);
+  });
+
+  test('an OVA source with no credentials opens in the edit wizard', async () => {
+    const u = await open({
+      '/api/v1/harvester/ovasources': [noCreds('ova', ovaSources[0])],
+      '/api/v1/harvester/ovasources/labs/ova-source': noCreds('ova', ovaSources[0]),
+    });
+    await nav(u, 'OVA Sources');
+    await click(u, within(screen.getAllByText('ova-source')[0].closest('tr')).getByTitle('Edit'));
+    expect(screen.getByDisplayValue('ova-source')).toBeInTheDocument();
+  });
+
+  test('a vCenter source with no credentials opens its details', async () => {
+    const u = await open({
+      '/api/v1/harvester/vmwaresources': [noCreds('vmware', vmwareSources[0])],
+      '/api/v1/harvester/vmwaresources/techday/vcenter-lab/yaml': 'kind: VmwareSource\n',
+    });
+    await nav(u, 'vCenter Sources');
+    await click(u, within(screen.getAllByText('vcenter-lab')[0].closest('tr')).getByText('Details'));
+    expect(screen.getByText('Source Summary')).toBeInTheDocument();
+    expect(screen.getByText(/Credentials Secret:/).closest('p').textContent).toMatch(/none/i);
+  });
+});
+
+describe('export page warnings', () => {
+  test('shows what the inventory could not read', async () => {
+    const u = await open({
+      '/api/v1/harvester/inventory': { ...harvesterInventory, warnings: ['Could not list PersistentVolumeClaims (forbidden: no permission): disk sizes and storage classes are unknown.'] },
+    });
+    await nav(u, 'Export VMs');
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toContain('Could not list PersistentVolumeClaims');
+    // the tree is still shown: a warning is not an error
+    expect(screen.getAllByText('bastion').length).toBeGreaterThan(0);
+  });
+
+  test('shows nothing when the inventory is complete', async () => {
+    const u = await open();
+    await nav(u, 'Export VMs');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

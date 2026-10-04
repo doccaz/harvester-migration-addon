@@ -8,7 +8,9 @@ httpx          JSON response helpers; API-error -> HTTP status mapping (StatusFo
 kube           clients, per-user token Provider and Scoped wrapper, GVRs, unstructured helpers
 inventory      VM tree types + the Harvester/KubeVirt VM inventory
 vcenter        govmomi access, credentials, typed errors, HTTPStatus
-capabilities   Harvester version -> feature flags
+capabilities   Harvester version -> feature flags, plus each engine's state
+engines        whether each engine (vmic, forklift, export) is usable, and why not: available,
+               not-installed, not-ready, forbidden, disabled, unknown
 harvester      namespaces, NADs, storage classes, VM list, generic resource/YAML GETs
 vmic           VM Import Controller engine: plans, VMware/OVA sources, vCenter operations
 forklift       Forklift engine: providers, plans, migrations, inventory proxy, logs

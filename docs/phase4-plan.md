@@ -45,9 +45,18 @@ nothing else changed.
     a ref (no timer restart when the auto-refresh switch or Forklift availability changes), loading text only
     on the first load, and no polling when the period is not a positive number. Side effect, deliberate:
     expanding a row no longer refetches.
-- **4.4 Capabilities from the backend**: extend `GET /api/v1/capabilities` with per-engine availability
-  and reasons; fix `forklift.CheckAvailability` (any failure reads as "not available") and
-  `inventory.PVCIndex` (swallows a failed PVC list) so "unknown/forbidden" is not shown as "absent".
+- **4.4 Capabilities from the backend** (done 2026-10-04, tests first, every new branch mutation-checked):
+  - New `internal/engines` package: `vmic`, `forklift` and `export` each report `available`, `not-installed`
+    (the CRD is not served: a 404 that names no object), `not-ready` (installed, but no `host` Provider yet),
+    `forbidden`, `disabled` or `unknown`, with a message that says what to do. "Absent" and "could not tell"
+    are no longer the same answer.
+  - `GET /api/v1/capabilities` gains `engines` (reported even when the version cannot be read), and
+    `GET /api/v1/forklift/availability` gains `state` and uses the same code; its old fields are unchanged.
+  - `inventory.PVCIndex` and the VMI listing return their errors. The inventory answers 200 with `warnings` on
+    the root ("Could not list PersistentVolumeClaims (forbidden...)"), which the export page now shows; VMs stay
+    blocked from export when run state is unknown. Export preview/create answer with the API's own status
+    (403) instead of the misleading 422 "check that its claim exists".
+  - `hack/lab-smoke.sh` checks the new fields on the lab.
 - **4.5 "View in Harvester" links** from sources and imports to Harvester's own pages. Verify the
   dashboard routes on the lab first (open check in PLAN.md section 4b).
 - **4.6 Setup checklist** replaces the Forklift pages when Forklift is absent (today a one-line message).
@@ -55,9 +64,12 @@ nothing else changed.
 - Release as v0.5.0 after a lab pass.
 
 ## Findings from the characterization work
-- **OVA source details crash when `spec.credentials` is absent** (`OvaSourceDetails` reads
-  `source.spec.credentials.namespace`). This add-on's own API always creates OVA sources with a
-  credentials secret, but a source created with `kubectl` or Harvester's own UI may have none. To be
-  fixed in a separate, tested commit after the moves, so the moves stay behaviour-identical.
+- **OVA sources without credentials were unusable here** (fixed 2026-10-04, tests first). The details page
+  read `source.spec.credentials.namespace` unguarded and crashed, and the backend answered 500 ("OvaSource
+  missing credentials secret name") on Get and Update, so such a source could not even be opened for editing.
+  Our own API always creates sources with a credentials secret, but one made with `kubectl` or Harvester's own
+  UI may name none. Now: Get returns the source (no username), Update changes the URL/timeout and, only if the
+  request supplies a username or password, creates `<name>-ova-credentials` (or reuses a leftover one) and links
+  it, and the details pages show "none". The vCenter details page got the same guard.
 - The app refetches around start-up and flips back to "Loading..." while it does; tests wait for a quiet
   network (`settle`) before a snapshot. The duplicate start-up fetches are worth removing in 4.3.

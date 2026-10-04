@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { EXPORT_TERMINAL, ExportsTable } from './ExportsTable';
-import { RefreshCw, XCircle, Loader, X } from 'lucide-react';
+import { RefreshCw, XCircle, Loader, X, AlertTriangle } from 'lucide-react';
 import { FilterableInventoryTree } from '../inventory/InventoryTree';
 import { HarvesterVmPanel } from './HarvesterVmPanel';
 
@@ -130,6 +130,15 @@ export const ExportPage = () => {
             {error && (
                 <div className="mb-4 p-3 rounded-md border border-red-400 bg-red-50 text-red-800 text-sm flex items-center">
                     <XCircle size={16} className="mr-2" /> {error}
+                </div>
+            )}
+
+            {/* What the inventory could not read: shown so a blank disk size is not mistaken for an empty one. */}
+            {inventory?.warnings?.length > 0 && (
+                <div role="alert" className="mb-4 p-3 rounded-md border border-yellow-400 bg-yellow-50 text-yellow-800 text-sm">
+                    {inventory.warnings.map((w) => (
+                        <div key={w} className="flex items-start"><AlertTriangle size={16} className="mr-2 mt-0.5 shrink-0" /> {w}</div>
+                    ))}
                 </div>
             )}
 

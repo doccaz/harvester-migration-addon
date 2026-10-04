@@ -44,7 +44,7 @@ export const SourceDetails = ({ source, onClose }) => {
                         <div className="p-3 bg-app rounded-md border text-sm space-y-1">
                             <p><strong>Endpoint:</strong> {source.spec.endpoint}</p>
                             <p><strong>Datacenter:</strong> {source.spec.dc}</p>
-                            <p><strong>Credentials Secret:</strong> {source.spec.credentials.namespace}/{source.spec.credentials.name}</p>
+                            <p><strong>Credentials Secret:</strong> {source.spec.credentials?.name ? <>{source.spec.credentials.namespace}/{source.spec.credentials.name}</> : 'none'}</p>
                         </div>
                     </div>
                     <div>

@@ -44,7 +44,7 @@ export const OvaSourceDetails = ({ source, onClose }) => {
                         <div className="p-3 bg-app rounded-md border text-sm space-y-1">
                             <p><strong>URL:</strong> {source.spec.url}</p>
                             <p><strong>HTTP Timeout:</strong> {source.spec.httpTimeoutSeconds || '600'}s</p>
-                            <p><strong>Credentials Secret:</strong> {source.spec.credentials.namespace}/{source.spec.credentials.name}</p>
+                            <p><strong>Credentials Secret:</strong> {source.spec.credentials?.name ? <>{source.spec.credentials.namespace}/{source.spec.credentials.name}</> : 'none'}</p>
                         </div>
                     </div>
                     <div>

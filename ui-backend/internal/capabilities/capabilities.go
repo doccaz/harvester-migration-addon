@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/engines"
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
@@ -19,6 +20,10 @@ import (
 type Config struct {
 	HarvesterVersion string `json:"harvesterVersion"`
 	HasAdvancedPower bool   `json:"hasAdvancedPower"` // v1.6.0+
+
+	// Engines says, per migration engine ("vmic", "forklift", "export"), whether it can
+	// be used and, if not, why (not installed, not ready, no permission, switched off).
+	Engines map[string]engines.Status `json:"engines"`
 }
 
 // NEW: Handler to check Harvester version and features
@@ -30,6 +35,13 @@ func Gather(ctx context.Context, clients *kube.Clients) (Config, error) {
 	if clients == nil || clients.Dynamic == nil {
 		return Config{HarvesterVersion: "unknown", HasAdvancedPower: false}, fmt.Errorf("kubernetes client unavailable")
 	}
+	// The engines are reported whether or not the version could be read.
+	cfg, err := gatherVersion(ctx, clients)
+	cfg.Engines = engines.All(ctx, clients)
+	return cfg, err
+}
+
+func gatherVersion(ctx context.Context, clients *kube.Clients) (Config, error) {
 	setting, err := clients.Dynamic.Resource(kube.SettingsGVR).Get(ctx, "server-version", metav1.GetOptions{})
 	if err != nil {
 		return Config{HarvesterVersion: "unknown", HasAdvancedPower: false}, err

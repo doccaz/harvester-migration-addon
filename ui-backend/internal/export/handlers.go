@@ -90,7 +90,12 @@ func Preview(clients *kube.Clients) http.HandlerFunc {
 		// Reuse the inventory mapper so the preview cannot drift from what the
 		// Export page shows. Run state is irrelevant to the descriptor, so pass
 		// an empty set rather than listing VMIs.
-		node := inventory.HarvesterVMToNode(vm, map[string]bool{}, inventory.PVCIndex(ctx, clients))
+		pvcs, err := inventory.PVCIndex(ctx, clients)
+		if err != nil {
+			httpx.RespondWithAPIErrorMsg(w, err, "Could not read the VM's disks: failed to list PersistentVolumeClaims: "+err.Error())
+			return
+		}
+		node := inventory.HarvesterVMToNode(vm, map[string]bool{}, pvcs)
 
 		in := ovfInputFromNode(node, rules)
 		in.PreserveMACs = req.PreserveMACs
@@ -305,7 +310,12 @@ func Create(clients *kube.Clients) http.HandlerFunc {
 			return
 		}
 
-		node := inventory.HarvesterVMToNode(vm, map[string]bool{}, inventory.PVCIndex(ctx, clients))
+		pvcs, err := inventory.PVCIndex(ctx, clients)
+		if err != nil {
+			httpx.RespondWithAPIErrorMsg(w, err, "Could not read the VM's disks: failed to list PersistentVolumeClaims: "+err.Error())
+			return
+		}
+		node := inventory.HarvesterVMToNode(vm, map[string]bool{}, pvcs)
 		ovfIn := ovfInputFromNode(node, rules)
 		ovfIn.PreserveMACs = req.PreserveMACs
 		ovfIn.GuestOSID = req.GuestOSID

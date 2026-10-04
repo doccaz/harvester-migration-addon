@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -323,18 +324,15 @@ func GetOvaSource(clients *kube.Clients) http.HandlerFunc {
 			return
 		}
 
-		secretName, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
-		if !found {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "OvaSource missing credentials secret name")
-			return
+		// Credentials are optional: a source made outside this UI may name no secret.
+		if secretName, found, _ := unstructured.NestedString(sourceObj.Object, "spec", "credentials", "name"); found && secretName != "" {
+			secret, err := clients.Clientset.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
+			if err != nil {
+				httpx.RespondWithAPIErrorMsg(w, err, "Failed to get associated secret: "+err.Error())
+				return
+			}
+			sourceObj.Object["spec"].(map[string]interface{})["username"] = string(secret.Data["username"])
 		}
-		secret, err := clients.Clientset.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
-		if err != nil {
-			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get associated secret: "+err.Error())
-			return
-		}
-
-		sourceObj.Object["spec"].(map[string]interface{})["username"] = string(secret.Data["username"])
 
 		httpx.RespondWithJSON(w, http.StatusOK, sourceObj)
 	}
@@ -357,33 +355,53 @@ func UpdateOvaSource(clients *kube.Clients) http.HandlerFunc {
 			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get OvaSource: "+err.Error())
 			return
 		}
-		secretName, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
-		if !found {
-			httpx.RespondWithError(w, http.StatusInternalServerError, "OvaSource missing credentials secret name")
-			return
-		}
-
+		// Credentials are optional. A source that names no secret only gets one when the
+		// request supplies a username or password; then the secret is created (or a
+		// leftover one of that name reused) and linked from spec.credentials.
+		secretName, found, _ := unstructured.NestedString(sourceObj.Object, "spec", "credentials", "name")
+		found = found && secretName != ""
 		if payload.Username != "" || payload.Password != "" {
-			secret, err := clients.Clientset.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
-			if err != nil {
-				httpx.RespondWithAPIErrorMsg(w, err, "Failed to get associated secret: "+err.Error())
-				return
+			if !found {
+				secretName = name + "-ova-credentials"
+				_, err := clients.Clientset.CoreV1().Secrets(namespace).Create(context.TODO(), &v1.Secret{
+					ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: namespace},
+					StringData: map[string]string{"username": payload.Username, "password": payload.Password},
+				}, metav1.CreateOptions{})
+				switch {
+				case err == nil:
+				case errors.IsAlreadyExists(err):
+					found = true // reuse it through the update path below
+				default:
+					httpx.RespondWithAPIErrorMsg(w, err, "Failed to create credentials secret: "+err.Error())
+					return
+				}
+				if err := unstructured.SetNestedMap(sourceObj.Object, map[string]interface{}{"name": secretName, "namespace": namespace}, "spec", "credentials"); err != nil {
+					httpx.RespondWithError(w, http.StatusInternalServerError, "Failed to link the credentials: "+err.Error())
+					return
+				}
 			}
+			if found {
+				secret, err := clients.Clientset.CoreV1().Secrets(namespace).Get(context.TODO(), secretName, metav1.GetOptions{})
+				if err != nil {
+					httpx.RespondWithAPIErrorMsg(w, err, "Failed to get associated secret: "+err.Error())
+					return
+				}
 
-			if secret.StringData == nil {
-				secret.StringData = make(map[string]string)
-			}
+				if secret.StringData == nil {
+					secret.StringData = make(map[string]string)
+				}
 
-			if payload.Username != "" {
-				secret.StringData["username"] = payload.Username
-			}
-			if payload.Password != "" {
-				secret.StringData["password"] = payload.Password
-			}
-			_, err = clients.Clientset.CoreV1().Secrets(namespace).Update(context.TODO(), secret, metav1.UpdateOptions{})
-			if err != nil {
-				httpx.RespondWithAPIErrorMsg(w, err, "Failed to update secret: "+err.Error())
-				return
+				if payload.Username != "" {
+					secret.StringData["username"] = payload.Username
+				}
+				if payload.Password != "" {
+					secret.StringData["password"] = payload.Password
+				}
+				_, err = clients.Clientset.CoreV1().Secrets(namespace).Update(context.TODO(), secret, metav1.UpdateOptions{})
+				if err != nil {
+					httpx.RespondWithAPIErrorMsg(w, err, "Failed to update secret: "+err.Error())
+					return
+				}
 			}
 		}
 

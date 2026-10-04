@@ -121,7 +121,7 @@ Remaining Phase 3 work, all optional and each its own gated step:
 2. **Engine interface** where the engines genuinely share behaviour (see below).
 3. **Dependency bumps** (k8s, govmomi, Go): the `vcenter` simulator tests are the safety net for govmomi.
 4. **~10 blanket 404s** that hide permission errors (vmic 6, forklift 3, harvester 1), each with a test.
-5. Two items for the Phase 4 capabilities detection: `forklift.CheckAvailability` treats any failure as "not available", and `inventory.PVCIndex` swallows a failed PVC list.
+5. Two items for the Phase 4 capabilities detection: `forklift.CheckAvailability` treats any failure as "not available", and `inventory.PVCIndex` swallows a failed PVC list. **Done in step 4.4** (2026-10-04): see docs/phase4-plan.md.
 6. Decide whether to rewrite git history to drop two accidentally committed binaries (see below).
 
 Changed from the original plan:

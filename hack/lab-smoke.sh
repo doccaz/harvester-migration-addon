@@ -70,6 +70,12 @@ for p in capabilities harvester/namespaces harvester/storageclasses harvester/vl
   call GET "/api/v1/$p"; expect "GET /api/v1/$p" 200
 done
 call GET /api/v1/capabilities; contains "capabilities reports the Harvester version" harvesterVersion "$(cat "$TMP/body")"
+contains "capabilities reports each engine's state" '"engines"' "$(cat "$TMP/body")"
+for e in vmic forklift export; do
+  contains "capabilities has a state for engine $e" "\"$e\":{\"available\"" "$(cat "$TMP/body")"
+done
+call GET "/api/v1/forklift/availability?namespace=$FL_NS"; contains "Forklift availability names its state" '"state"' "$(cat "$TMP/body")"
+call GET /api/v1/harvester/inventory; if grep -q '"warnings"' "$TMP/body"; then bad "inventory is complete (it reports warnings: $(python3 -c "import json;print(json.load(open('$TMP/body')).get('warnings'))" 2>/dev/null))"; else ok "inventory is complete (no warnings)"; fi
 
 echo "== Status mapping (a failing call keeps its meaning)"
 call GET "/api/v1/plans/$SRC_NS/nope/yaml";                        expect "missing VMIC plan YAML" 404

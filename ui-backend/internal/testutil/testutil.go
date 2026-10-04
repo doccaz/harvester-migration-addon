@@ -54,6 +54,14 @@ func NewClientsWithListKinds(listKinds map[schema.GroupVersionResource]string) *
 	}
 }
 
+// NewClientsWithListKindsAndObjects is NewClientsWithListKinds, seeded with objects.
+func NewClientsWithListKindsAndObjects(listKinds map[schema.GroupVersionResource]string, objects ...runtime.Object) *kube.Clients {
+	return &kube.Clients{
+		Clientset: fake.NewSimpleClientset(),
+		Dynamic:   dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), listKinds, objects...),
+	}
+}
+
 // Fail makes the fake clients answer every request for verb ("get", "list",
 // "create", "update", "delete") on resource ("secrets", "virtualmachineimports",
 // ...) with err, so a test can see how a handler maps API errors to HTTP statuses.

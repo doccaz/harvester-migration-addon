@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/engines"
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/httpx"
@@ -17,29 +18,22 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-// CheckAvailability checks if the Forklift "host" Provider exists
+// CheckAvailability reports whether Forklift can be used in a namespace, and if not why
+// (not installed, not ready, no permission, or a failed check; see package engines). The
+// answer is data, so the status is 200 in every case. defaultNamespace is the namespace
+// that was checked, which the UI adopts.
 func CheckAvailability(clients *kube.Clients) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		namespace := r.URL.Query().Get("namespace")
-		if namespace == "" {
-			namespace = "forklift"
+		st := engines.Forklift(r.Context(), clients, r.URL.Query().Get("namespace"))
+		body := map[string]interface{}{
+			"available":        st.Available,
+			"state":            st.State,
+			"defaultNamespace": st.Namespace,
 		}
-
-		// Check if the "host" provider exists
-		_, err := clients.Dynamic.Resource(kube.ForkliftProviderGVR).Namespace(namespace).Get(context.TODO(), "host", metav1.GetOptions{})
-		if err != nil {
-			httpx.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
-				"available":        false,
-				"defaultNamespace": namespace,
-				"message":          "Forklift host Provider not found in namespace " + namespace + ". Forklift features are unavailable.",
-			})
-			return
+		if st.Message != "" {
+			body["message"] = st.Message
 		}
-
-		httpx.RespondWithJSON(w, http.StatusOK, map[string]interface{}{
-			"available":        true,
-			"defaultNamespace": namespace,
-		})
+		httpx.RespondWithJSON(w, http.StatusOK, body)
 	}
 }
 

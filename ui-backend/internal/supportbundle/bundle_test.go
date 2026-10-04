@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/kube"
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/testutil"
 
 	"github.com/doccaz/harvester-migration-addon/ui-backend/internal/inventory"
@@ -18,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 // readBundle gunzips + untars a support bundle response into a path→contents map.
@@ -223,7 +225,11 @@ func TestBundleRecordsTheBuildVersion(t *testing.T) {
 // fake client even panics when listing them) the bundle is still produced, with each
 // failure recorded in errors.json instead of aborting.
 func TestBundleIsBestEffortWithoutMigrationCRDs(t *testing.T) {
-	rr := testutil.Do(Handler("x")(testutil.NewClients()), "GET", "/api/v1/support-bundle", nil, nil)
+	// The capabilities step lists VirtualMachineImports to see whether the VM Import
+	// Controller is usable, so that one list kind is declared; the other steps still hit
+	// unregistered kinds and fail the way the test is about.
+	clients := testutil.NewClientsWithListKinds(map[schema.GroupVersionResource]string{kube.VMIGVR: "VirtualMachineImportList"})
+	rr := testutil.Do(Handler("x")(clients), "GET", "/api/v1/support-bundle", nil, nil)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status %d: %s", rr.Code, rr.Body)
 	}

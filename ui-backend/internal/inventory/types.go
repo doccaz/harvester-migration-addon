@@ -48,4 +48,9 @@ type Node struct {
 	MachineType    string   `json:"machineType,omitempty"`
 	RunStrategy    string   `json:"runStrategy,omitempty"`
 	ExportBlockers []string `json:"exportBlockers,omitempty"` // why this VM cannot be exported now
+
+	// Warnings is set on the inventory root only: things that could not be read, which
+	// make parts of the tree less complete than they look (unknown disk sizes, VMs
+	// treated as running).
+	Warnings []string `json:"warnings,omitempty"`
 }

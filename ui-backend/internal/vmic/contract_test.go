@@ -77,7 +77,7 @@ func (c contractFile) within(kind string, got map[string]bool) []string {
 
 // structPaths lists the JSON paths of a Go type, like the generator does for the upstream one.
 func structPaths(t reflect.Type, prefix string, out map[string]bool) {
-	for t.Kind() == reflect.Ptr {
+	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	if t.Kind() != reflect.Struct || strings.HasPrefix(t.PkgPath(), "k8s.io/apimachinery/pkg/apis/meta/v1") && t.Name() == "Time" {
@@ -96,13 +96,13 @@ func structPaths(t reflect.Type, prefix string, out map[string]bool) {
 		}
 		ft := f.Type
 		path := prefix + name
-		for ft.Kind() == reflect.Ptr {
+		for ft.Kind() == reflect.Pointer {
 			ft = ft.Elem()
 		}
 		if ft.Kind() == reflect.Slice {
 			path += "[]"
 			ft = ft.Elem()
-			for ft.Kind() == reflect.Ptr {
+			for ft.Kind() == reflect.Pointer {
 				ft = ft.Elem()
 			}
 		}

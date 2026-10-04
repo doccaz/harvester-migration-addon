@@ -1,0 +1,167 @@
+{
+  "kinds": {
+    "OpenstackSource": {
+      "opaque": [
+        "status.conditions[].status",
+        "status.conditions[].type"
+      ],
+      "paths": [
+        "spec",
+        "spec.credentials",
+        "spec.credentials.name",
+        "spec.credentials.namespace",
+        "spec.endpoint",
+        "spec.region",
+        "spec.uploadImageRetryCount",
+        "spec.uploadImageRetryDelay",
+        "status",
+        "status.conditions[]",
+        "status.conditions[].lastTransitionTime",
+        "status.conditions[].lastUpdateTime",
+        "status.conditions[].message",
+        "status.conditions[].reason",
+        "status.conditions[].status",
+        "status.conditions[].type",
+        "status.status"
+      ],
+      "required": [
+        "spec.credentials",
+        "spec.endpoint",
+        "spec.region",
+        "status.conditions[].status",
+        "status.conditions[].type"
+      ]
+    },
+    "OvaSource": {
+      "opaque": [
+        "status.conditions[].status",
+        "status.conditions[].type"
+      ],
+      "paths": [
+        "spec",
+        "spec.credentials",
+        "spec.credentials.name",
+        "spec.credentials.namespace",
+        "spec.httpTimeoutSeconds",
+        "spec.url",
+        "status",
+        "status.conditions[]",
+        "status.conditions[].lastTransitionTime",
+        "status.conditions[].lastUpdateTime",
+        "status.conditions[].message",
+        "status.conditions[].reason",
+        "status.conditions[].status",
+        "status.conditions[].type",
+        "status.status"
+      ],
+      "required": [
+        "spec.url",
+        "status.conditions[].status",
+        "status.conditions[].type"
+      ]
+    },
+    "VirtualMachineImport": {
+      "opaque": [
+        "spec.defaultDiskBusType",
+        "status.diskImportStatus[].busType",
+        "status.diskImportStatus[].diskConditions[].status",
+        "status.diskImportStatus[].diskConditions[].type",
+        "status.importConditions[].status",
+        "status.importConditions[].type"
+      ],
+      "paths": [
+        "spec",
+        "spec.defaultDiskBusType",
+        "spec.defaultNetworkInterfaceModel",
+        "spec.folder",
+        "spec.forcePowerOff",
+        "spec.gracefulShutdownTimeoutSeconds",
+        "spec.networkMapping[]",
+        "spec.networkMapping[].destinationNetwork",
+        "spec.networkMapping[].networkInterfaceModel",
+        "spec.networkMapping[].sourceNetwork",
+        "spec.skipPreflightChecks",
+        "spec.sourceCluster",
+        "spec.sourceCluster.apiVersion",
+        "spec.sourceCluster.fieldPath",
+        "spec.sourceCluster.kind",
+        "spec.sourceCluster.name",
+        "spec.sourceCluster.namespace",
+        "spec.sourceCluster.resourceVersion",
+        "spec.sourceCluster.uid",
+        "spec.storageClass",
+        "spec.virtualMachineName",
+        "status",
+        "status.diskImportStatus[]",
+        "status.diskImportStatus[].VirtualMachineImage",
+        "status.diskImportStatus[].busType",
+        "status.diskImportStatus[].diskConditions[]",
+        "status.diskImportStatus[].diskConditions[].lastTransitionTime",
+        "status.diskImportStatus[].diskConditions[].lastUpdateTime",
+        "status.diskImportStatus[].diskConditions[].message",
+        "status.diskImportStatus[].diskConditions[].reason",
+        "status.diskImportStatus[].diskConditions[].status",
+        "status.diskImportStatus[].diskConditions[].type",
+        "status.diskImportStatus[].diskLocalPath",
+        "status.diskImportStatus[].diskName",
+        "status.diskImportStatus[].diskRoute",
+        "status.diskImportStatus[].diskSize",
+        "status.importConditions[]",
+        "status.importConditions[].lastTransitionTime",
+        "status.importConditions[].lastUpdateTime",
+        "status.importConditions[].message",
+        "status.importConditions[].reason",
+        "status.importConditions[].status",
+        "status.importConditions[].type",
+        "status.importStatus",
+        "status.importedVirtualMachineName",
+        "status.newVirtualMachine"
+      ],
+      "required": [
+        "spec.networkMapping[].destinationNetwork",
+        "spec.networkMapping[].sourceNetwork",
+        "spec.sourceCluster",
+        "spec.virtualMachineName",
+        "status.diskImportStatus[].busType",
+        "status.diskImportStatus[].diskConditions[].status",
+        "status.diskImportStatus[].diskConditions[].type",
+        "status.diskImportStatus[].diskName",
+        "status.diskImportStatus[].diskSize",
+        "status.importConditions[].status",
+        "status.importConditions[].type"
+      ]
+    },
+    "VmwareSource": {
+      "opaque": [
+        "status.conditions[].status",
+        "status.conditions[].type"
+      ],
+      "paths": [
+        "spec",
+        "spec.credentials",
+        "spec.credentials.name",
+        "spec.credentials.namespace",
+        "spec.dc",
+        "spec.endpoint",
+        "status",
+        "status.conditions[]",
+        "status.conditions[].lastTransitionTime",
+        "status.conditions[].lastUpdateTime",
+        "status.conditions[].message",
+        "status.conditions[].reason",
+        "status.conditions[].status",
+        "status.conditions[].type",
+        "status.status"
+      ],
+      "required": [
+        "spec.credentials",
+        "spec.dc",
+        "spec.endpoint",
+        "status.conditions[].status",
+        "status.conditions[].type"
+      ]
+    }
+  },
+  "source": "github.com/harvester/vm-import-controller pkg/apis (the CRDs are generated from these types at runtime)",
+  "version": "v1.8.2"
+}

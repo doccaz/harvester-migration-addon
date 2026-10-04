@@ -5,13 +5,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// The JSON tags MUST match the actual CRD field names from the Harvester documentation.
+// The JSON tags MUST match the controller's field names: contract_test.go checks them against
+// testdata/upstream-contract.json, generated from the controller's own Go types.
 type VirtualMachineImportSpec struct {
 	VirtualMachineName string           `json:"virtualMachineName"`
 	SourceCluster      SourceCluster    `json:"sourceCluster"`
 	NetworkMapping     []NetworkMapping `json:"networkMapping,omitempty"`
 	StorageClass       string           `json:"storageClass,omitempty"`
-	Schedule           *metav1.Time     `json:"schedule,omitempty"`
 
 	// New fields for folder support and advanced options
 	Folder                         string `json:"folder,omitempty"`
@@ -38,10 +38,24 @@ type NetworkMapping struct {
 	NetworkInterfaceModel string `json:"networkInterfaceModel,omitempty"`
 }
 
-// VirtualMachineImportStatus defines the observed state of VirtualMachineImport
+// ImportCondition is one entry of the controller's importConditions (its common.Condition).
+type ImportCondition struct {
+	Type               string `json:"type"`
+	Status             string `json:"status"`
+	LastUpdateTime     string `json:"lastUpdateTime,omitempty"`
+	LastTransitionTime string `json:"lastTransitionTime,omitempty"`
+	Reason             string `json:"reason,omitempty"`
+	Message            string `json:"message,omitempty"`
+}
+
+// VirtualMachineImportStatus is the part of the observed state this UI declares. The field names
+// are the controller's (testdata/upstream-contract.json, checked by contract_test.go); note that
+// the conditions are "importConditions", not "conditions".
 type VirtualMachineImportStatus struct {
-	Conditions   []metav1.Condition `json:"conditions,omitempty"`
-	ImportStatus string             `json:"importStatus,omitempty"`
+	ImportStatus               string            `json:"importStatus,omitempty"`
+	ImportConditions           []ImportCondition `json:"importConditions,omitempty"`
+	NewVirtualMachine          string            `json:"newVirtualMachine,omitempty"`
+	ImportedVirtualMachineName string            `json:"importedVirtualMachineName,omitempty"`
 }
 
 // UpdatePlanPayload is the JSON payload for patching editable fields on a VMIC plan.

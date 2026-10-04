@@ -15,12 +15,12 @@ export const vmicPlans = [
   {
     metadata: { name: 'web-migration', namespace: 'techday', uid: 'p1', creationTimestamp: ts('21T09:00:00') },
     spec: { virtualMachineName: 'rhel-8-web', storageClass: 'harvester-longhorn', sourceCluster: { name: 'vcenter-lab', namespace: 'techday', kind: 'VmwareSource', apiVersion: 'migration.harvesterhci.io/v1beta1' }, networkMapping: [{ sourceNetwork: 'VM Network', destinationNetwork: 'default/mgmt' }] },
-    status: { importStatus: 'virtualMachineRunning', conditions: [{ type: 'ready', status: 'True', lastUpdateTime: ts('21T09:30:00') }] },
+    status: { importStatus: 'virtualMachineRunning', importConditions: [{ type: 'ready', status: 'True', lastUpdateTime: ts('21T09:30:00') }] },
   },
   {
     metadata: { name: 'db-migration', namespace: 'labs', uid: 'p2', creationTimestamp: ts('22T09:00:00') },
     spec: { virtualMachineName: 'sles16-db', storageClass: 'harvester-longhorn', sourceCluster: { name: 'vcenter-lab', namespace: 'techday', kind: 'VmwareSource', apiVersion: 'migration.harvesterhci.io/v1beta1' } },
-    status: { importStatus: 'virtualMachineImportInvalid', conditions: [{ type: 'invalid', status: 'False', reason: 'VMNotFound', message: 'virtual machine not found', lastUpdateTime: ts('22T09:05:00') }] },
+    status: { importStatus: 'virtualMachineImportInvalid', importConditions: [{ type: 'invalid', status: 'False', reason: 'VMNotFound', message: 'virtual machine not found', lastUpdateTime: ts('22T09:05:00') }] },
   },
   {
     metadata: { name: 'fresh-plan', namespace: 'labs', uid: 'p3', creationTimestamp: ts('23T09:00:00') },
@@ -44,7 +44,7 @@ export const vmwareSources = [
 export const ovaSources = [
   {
     metadata: { name: 'ova-source', namespace: 'labs', uid: 'o1', creationTimestamp: ts('12T08:00:00') },
-    spec: { url: 'http://files.lab/exports', allowInsecure: true, httpTimeoutSeconds: 600, credentials: { name: 'ova-creds', namespace: 'labs' } },
+    spec: { url: 'http://files.lab/exports', httpTimeoutSeconds: 600, credentials: { name: 'ova-creds', namespace: 'labs' } },
     status: { status: 'sourceReady', conditions: [cond('Ready', 'True')] },
   },
 ];

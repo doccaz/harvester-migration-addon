@@ -30,6 +30,14 @@ jobs:
           if [ -n "$out" ]; then echo "Not gofmt-formatted:"; echo "$out"; exit 1; fi
       - run: go vet ./...
       - run: go test ./...
+      # The contract the vmic tests check against must be exactly what the controller's own types say at the
+      # version the chart bundles; regenerate it (docs/contract.md) when this fails.
+      - name: Upstream contract is current
+        working-directory: .
+        run: |
+          V="$(sed -n '/name: harvester-vm-import-controller/{n;s/^ *version: *//p}' charts/harvester-migration/Chart.yaml | head -1)"
+          git clone --quiet --depth 1 --branch "v$V" https://github.com/harvester/vm-import-controller "$RUNNER_TEMP/vic"
+          go run hack/crd-contract/main.go "$RUNNER_TEMP/vic" "v$V" | diff - ui-backend/internal/vmic/testdata/upstream-contract.json
 
   lint:
     runs-on: ubuntu-latest

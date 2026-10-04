@@ -125,6 +125,7 @@ Remaining Phase 3 work, all optional and each its own gated step:
 6. Decide whether to rewrite git history to drop two accidentally committed binaries (see below).
 
 Changed from the original plan:
+- **Typed objects and the CRD contract: done 2026-10-04** (docs/contract.md). The contract is generated from the controller's Go types, not from a CRD saved from the lab, because the controller creates its CRDs at runtime.
 - **No import of the controller's `pkg/apis`.** Its `go.mod` pins `k8s.io/client-go v12.0.0+incompatible` and depends on a `replace` block that consumers do not inherit. Typed VMIC objects are instead produced locally with `runtime.DefaultUnstructuredConverter`, with a contract test against the real `virtualmachineimports.migration.harvesterhci.io` CRD saved from the lab.
 - **Engine interface only where the engines really share behaviour** (detection/capabilities, plan list and status, logs). VMIC (sources + VirtualMachineImport) and Forklift (provider, inventory service, maps, plan, migration) differ too much for an upfront CreatePlan/RunPlan abstraction; routes stay as they are until Phase 4.
 - **Dependency bumps** (k8s 0.28 → current, govmomi 0.33 → 0.52, Go directive) are a separate optional last step; govmomi across 19 minors is where `vcenter.go` is most likely to break. If the `go` directive moves, move the Dockerfile's `golang:` tag in the same commit.

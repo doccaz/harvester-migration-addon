@@ -27,3 +27,29 @@ Recorded 2026-10-01 from harvester/charts `harvester-vm-import-controller`
 is enabled. Helm's release-ownership check on the identically named
 ServiceAccount/Deployment is a second line of defence. Verified against the lab
 cluster on 2026-10-01.
+
+## The controller's resources: a machine-checked contract (added 2026-10-04)
+The controller creates its CRDs **at runtime from its Go types**, so there is no CRD manifest to pin; the types
+at the bundled version are the contract. `ui-backend/internal/vmic/testdata/upstream-contract.json` lists every
+spec/status field path of `VmwareSource`, `OvaSource`, `OpenstackSource` and `VirtualMachineImport`, written by
+
+```
+git clone --depth 1 --branch v1.8.2 https://github.com/harvester/vm-import-controller reference/vm-import-controller
+go run hack/crd-contract/main.go reference/vm-import-controller v1.8.2 > ui-backend/internal/vmic/testdata/upstream-contract.json
+```
+
+What checks it:
+- `internal/vmic/contract_test.go`: our typed objects, the plan-editor payload and what the source handlers write only
+  use fields that exist upstream; the contract's version must equal the controller version in `Chart.yaml`.
+- `ui-frontend/src/contract.test.js`: the plan the wizard builds, and every fixture the UI tests render.
+- CI regenerates the file from the upstream tag in the chart pin and diffs it (no hand edits, no staleness).
+
+**When bumping the bundled controller** (new Harvester minor): change the pin in `Chart.yaml`, regenerate the
+file with the new tag, and fix whatever the tests report (a renamed or removed field is a UI break caught here
+instead of on a cluster).
+
+Found by it on its first run: our local `VirtualMachineImportSpec` declared `schedule`, which the controller does
+not have; the local status declared `conditions` where the controller's field is `importConditions`; and the UI
+fixtures used the wrong names (the UI itself already reads `importConditions || conditions`). `OvaSource.credentials`
+is `+optional` upstream, which matches the OVA-without-credentials fix.
+

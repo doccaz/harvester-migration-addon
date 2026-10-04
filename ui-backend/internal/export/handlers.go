@@ -437,7 +437,7 @@ func ensureExportPVC(ctx context.Context, clients *kube.Clients, namespace strin
 		},
 		Spec: v1.PersistentVolumeClaimSpec{
 			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteMany},
-			Resources: v1.ResourceRequirements{
+			Resources: v1.VolumeResourceRequirements{
 				Requests: v1.ResourceList{v1.ResourceStorage: size},
 			},
 		},

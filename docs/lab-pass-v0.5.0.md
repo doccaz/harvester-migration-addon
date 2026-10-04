@@ -1,4 +1,4 @@
-# Lab pass for v0.5.0-rc1
+# Lab pass for v0.5.0 (done with rc1 and rc2: see docs/phase2-verification.md)
 
 What changed since v0.4.0: the UI download of exported OVAs was already in 0.4.0; new here is the whole
 Phase 4 frontend (modules, engine registry, fewer duplicate requests, no "Loading plans..." flicker),

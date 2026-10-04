@@ -11,7 +11,7 @@ metadata:
 spec:
   enabled: false
   repo: https://doccaz.github.io/harvester-migration-addon
-  version: 0.4.0
+  version: 0.5.0
   chart: harvester-migration
   valuesContent: |
     harvester-vm-import-controller:

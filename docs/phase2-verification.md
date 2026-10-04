@@ -179,3 +179,14 @@ Not yet exercised: a multi-GB (~4.5 GB) download.
 - Found in the old pod's log: the download proxy's client disconnects were logged as panics (`abort Handler`) by
   the panic-recovery wrapper; fixed in 22ca8e3 (not in rc1).
 - Browser pass: pending.
+
+## v0.5.0-rc2 on the lab (2026-10-04)
+- Upgrade `0.5.0-rc1 -> 0.5.0-rc2` finished by itself: with export enabled the Deployment now uses the
+  Recreate strategy, so there was no overlapping pod and no volume hang (the rc1 hang is described above).
+- `hack/lab-smoke.sh` (`EXPECT_VERSION=0.5.0-rc2`): **55/55**.
+- Browser pass, by hand: the plans footer's "Updated HH:MM:SS" moves every poll; "View in Harvester" works for
+  vCenter sources, OVA sources, plans and (YAML view) Forklift providers and plans; the Forklift setup checklist,
+  the export page and Download, and an OVA source created without `credentials` (details show "none") all work.
+- The export volume still uses `harvester-longhorn` (migratable); the install notes warn about it. Moving to a
+  real RWX class (docs/export-storage.md) is a follow-up, not a blocker.
+

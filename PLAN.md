@@ -120,7 +120,7 @@ Remaining Phase 3 work, all optional and each its own gated step:
 1. **Typed VM-import objects**, produced locally (see below), with a contract test against the real `virtualmachineimports.migration.harvesterhci.io` CRD saved from the lab.
 2. **Engine interface** where the engines genuinely share behaviour (see below).
 3. **Dependency bumps** (k8s, govmomi, Go): the `vcenter` simulator tests are the safety net for govmomi.
-4. **~10 blanket 404s** that hide permission errors (vmic 6, forklift 3, harvester 1), each with a test.
+4. **Blanket 404s** that hide permission errors (9 sites: vmic 5, forklift 3, harvester 1). **Done 2026-10-04**: each now answers with the API server's status (404 only when the object is missing, 403 for a permission problem, 500 for a failed call); one test per handler, every converted site mutation-checked.
 5. Two items for the Phase 4 capabilities detection: `forklift.CheckAvailability` treats any failure as "not available", and `inventory.PVCIndex` swallows a failed PVC list. **Done in step 4.4** (2026-10-04): see docs/phase4-plan.md.
 6. Decide whether to rewrite git history to drop two accidentally committed binaries (see below).
 

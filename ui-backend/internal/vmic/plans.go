@@ -91,7 +91,7 @@ func UpdatePlan(clients *kube.Clients) http.HandlerFunc {
 
 		item, err := clients.Dynamic.Resource(kube.VMIGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusNotFound, "Plan not found: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Plan not found: "+err.Error())
 			return
 		}
 

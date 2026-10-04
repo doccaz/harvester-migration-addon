@@ -102,7 +102,7 @@ func GetResource(clients *kube.Clients, gvr schema.GroupVersionResource) http.Ha
 
 		item, err := clients.Dynamic.Resource(gvr).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusNotFound, err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, err.Error())
 			return
 		}
 

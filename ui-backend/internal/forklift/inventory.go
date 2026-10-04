@@ -117,7 +117,7 @@ func GetOvaInventory(clients *kube.Clients) http.HandlerFunc {
 		// 1. Get the Provider CR to obtain its UID
 		providerObj, err := clients.Dynamic.Resource(kube.ForkliftProviderGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get OVA provider: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get OVA provider: "+err.Error())
 			return
 		}
 		providerUID := string(providerObj.GetUID())

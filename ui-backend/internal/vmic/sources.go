@@ -106,7 +106,7 @@ func GetVmwareSource(clients *kube.Clients) http.HandlerFunc {
 
 		sourceObj, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get VmwareSource: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get VmwareSource: "+err.Error())
 			return
 		}
 
@@ -142,7 +142,7 @@ func UpdateVmwareSource(clients *kube.Clients) http.HandlerFunc {
 		// 1. Get the existing VmwareSource to find the secret name
 		sourceObj, err := clients.Dynamic.Resource(kube.VMwareSourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get VmwareSource: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get VmwareSource: "+err.Error())
 			return
 		}
 		secretName, found := kube.NestedStringOrWarn(sourceObj.Object, "spec", "credentials", "name")
@@ -320,7 +320,7 @@ func GetOvaSource(clients *kube.Clients) http.HandlerFunc {
 
 		sourceObj, err := clients.Dynamic.Resource(kube.OVASourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get OvaSource: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get OvaSource: "+err.Error())
 			return
 		}
 
@@ -352,7 +352,7 @@ func UpdateOvaSource(clients *kube.Clients) http.HandlerFunc {
 
 		sourceObj, err := clients.Dynamic.Resource(kube.OVASourceGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get OvaSource: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get OvaSource: "+err.Error())
 			return
 		}
 		// Credentials are optional. A source that names no secret only gets one when the

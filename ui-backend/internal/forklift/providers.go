@@ -198,7 +198,7 @@ func GetProvider(clients *kube.Clients) http.HandlerFunc {
 
 		providerObj, err := clients.Dynamic.Resource(kube.ForkliftProviderGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get Forklift Provider: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get Forklift Provider: "+err.Error())
 			return
 		}
 
@@ -233,7 +233,7 @@ func UpdateProvider(clients *kube.Clients) http.HandlerFunc {
 
 		providerObj, err := clients.Dynamic.Resource(kube.ForkliftProviderGVR).Namespace(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 		if err != nil {
-			httpx.RespondWithError(w, http.StatusNotFound, "Failed to get Forklift Provider: "+err.Error())
+			httpx.RespondWithAPIErrorMsg(w, err, "Failed to get Forklift Provider: "+err.Error())
 			return
 		}
 

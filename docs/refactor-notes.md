@@ -81,10 +81,12 @@
   `host` Provider, including a plain permission denial, so a limited user in token mode
   would see Forklift as missing. Not a 500; revisit with the capabilities detection in
   Phase 4 (it should distinguish "absent" from "not allowed to look").
-- **Blanket 404s mask permission errors.** Some handlers answer 404 for *any* failure
-  of a lookup (`GetResource`, the source detail routes, parts of export and forklift
-  providers; about 10 sites after export was fixed: vmic 6, forklift 3, harvester 1), so a forbidden read looks like "not found". Not a 500,
-  so left alone for now; in token mode it should become the API status too.
+- **Blanket 404s mask permission errors: fixed 2026-10-04.** Nine handlers (`harvester.GetResource`, the vCenter and
+  OVA source get/update routes, plan update, Forklift provider get/update and the OVA inventory) answered 404 for
+  *any* failure of their first read, so a forbidden read looked like "not found". They now use
+  `httpx.RespondWithAPIErrorMsg`: 404 only when the object is missing, 403 for a permission problem, 500 for a
+  failed call. The remaining `StatusNotFound` sites are not API errors (no export pod, no recorded target file,
+  the vm-import-controller pod not found, an unreachable file).
 - **Blanket-500 sweep: complete.** Every remaining `StatusInternalServerError` in
   non-test code is deliberate: internal conversion/marshal/`SetNested*` failures, a
   stored object missing a required field, building a Job or a request, file removal,

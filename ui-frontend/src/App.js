@@ -19,6 +19,8 @@ import { PlanDetails } from './engines/vmic/PlanDetails';
 import { ExportPage } from './export/ExportPage';
 import { AboutPage } from './about/AboutPage';
 
+const formatTime = (ms) => new Date(ms).toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+
 export default function App() {
     const [expandedPlans, setExpandedPlans] = useState(new Set());
     const [selectedDisks, setSelectedDisks] = useState({}); // planUid -> diskIndex
@@ -83,6 +85,8 @@ export default function App() {
         handleDeleteSource,
         handleSaveOvaSource,
         handleDeleteOvaSource,
+        lastUpdated,
+        refreshError,
     } = vmic;
     const forklift = useForklift();
     const {
@@ -194,6 +198,12 @@ export default function App() {
             default:
                 return <EnginePage page="plans" active={plansSubTab} onChange={setPlansSubTab} ctx={engineCtx} footer={
                     <div className="flex justify-end items-center mt-4 space-x-6">
+                            {/* Proof that refreshing works: when the list was last fetched, or why it could not be. */}
+                            <span className={`text-xs ${refreshError ? 'text-red-600' : 'text-secondary'}`} aria-live="polite">
+                                {refreshError
+                                    ? `Refresh failed: ${refreshError}${lastUpdated ? ` (showing data from ${formatTime(lastUpdated)})` : ''}`
+                                    : (lastUpdated ? `Updated ${formatTime(lastUpdated)}` : '')}
+                            </span>
                             <div className="flex items-center space-x-2">
                                 <input
                                     type="checkbox"

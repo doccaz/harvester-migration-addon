@@ -36,10 +36,11 @@ export function installApi(routes) {
 // a flicker; waiting for quiet makes snapshots deterministic.
 export async function settle(calls, { quietMs = 150, maxMs = 3000 } = {}) {
   const { act } = require('@testing-library/react');
-  const start = Date.now();
+  // Bounded by iterations, not by Date.now: a test may freeze the clock.
+  const maxIterations = Math.ceil(maxMs / quietMs);
   let seen = -1;
   let stable = 0;
-  while (stable < 2 && Date.now() - start < maxMs) {
+  for (let i = 0; i < maxIterations && stable < 2; i += 1) {
     // eslint-disable-next-line no-await-in-loop
     await act(async () => { await new Promise((r) => setTimeout(r, quietMs)); });
     if (calls.length === seen) stable += 1; else { stable = 0; seen = calls.length; }

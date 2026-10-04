@@ -1,4 +1,4 @@
-import { dashboardBase, harvesterResourceUrl, harvesterListUrl } from './harvesterLinks';
+import { dashboardBase, harvesterResourceUrl, harvesterListUrl, FORKLIFT } from './harvesterLinks';
 
 const loc = (pathname, origin = 'https://harvester.example.org') => ({ pathname, origin });
 const proxy = '/k8s/clusters/local/api/v1/namespaces/harvester-system/services/http:mig-harvester-migration-ui:8080/proxy/';
@@ -39,5 +39,21 @@ describe('resource addresses', () => {
     expect(harvesterResourceUrl(loc('/'), 'vmwaresource', 'ns', 'n')).toBeNull();
     expect(harvesterResourceUrl(l, 'vmwaresource', 'ns', '')).toBeNull();
     expect(harvesterResourceUrl(l, 'vmwaresource', '', 'n')).toBeNull();
+  });
+});
+
+describe('objects of other API groups, opened in the YAML editor', () => {
+  const l = loc(proxy);
+  test('Forklift plans and providers have no page of their own, so the link opens the YAML view', () => {
+    expect(harvesterResourceUrl(l, 'plan', 'forklift', 'forklift-test', FORKLIFT))
+      .toBe('https://harvester.example.org/dashboard/c/local/explorer/forklift.konveyor.io.plan/forklift/forklift-test?mode=edit&as=yaml');
+    expect(harvesterResourceUrl(l, 'provider', 'forklift', 'vsphere-lab', FORKLIFT))
+      .toContain('/forklift.konveyor.io.provider/forklift/vsphere-lab?mode=edit&as=yaml');
+  });
+  test('the default group is unchanged', () => {
+    expect(harvesterResourceUrl(l, 'vmwaresource', 'techday', 'x')).not.toContain('?');
+  });
+  test('no dashboard, no link', () => {
+    expect(harvesterResourceUrl(loc('/'), 'plan', 'forklift', 'x', FORKLIFT)).toBeNull();
   });
 });

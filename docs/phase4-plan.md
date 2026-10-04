@@ -85,3 +85,15 @@ nothing else changed.
   it, and the details pages show "none". The vCenter details page got the same guard.
 - The app refetches around start-up and flips back to "Loading..." while it does; tests wait for a quiet
   network (`settle`) before a snapshot. The duplicate start-up fetches are worth removing in 4.3.
+
+## Findings from the lab pass of v0.5.0-rc1 (2026-10-04)
+- **Refresh looked dead.** The 4.3c fix removed the "Loading plans..." flash, which had been the only visible sign
+  of a refresh. The plans footer now shows "Updated HH:MM:SS" (it moves on every poll and on "Refresh Now").
+  A failed refresh used to *empty* the table (`setPlans([])`); it now keeps the table and shows "Refresh failed:
+  <reason> (showing data from HH:MM:SS)". A failed first load still shows an empty table.
+- **Forklift objects get "View in Harvester" too.** Harvester has no page of its own for them, only the dashboard's
+  YAML editor, so the link (provider and plan details) is `.../explorer/forklift.konveyor.io.<provider|plan>/<ns>/<name>?mode=edit&as=yaml`,
+  labelled "(YAML)". URL shape taken from a real dashboard address.
+- **Confirmed on the lab:** the "View in Harvester" links for vCenter sources, OVA sources and plans land on the
+  right pages (so the assumed object URL was right); an OVA source created without `credentials` is accepted by the
+  CRD and its details page shows "none".

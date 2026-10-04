@@ -24,7 +24,7 @@ an inventory without warnings).
 | Check | Expect |
 |---|---|
 | Menu | "VM Migration" opens the UI; every tab loads |
-| Plans | the table stays on screen during the 10 s refresh (no "Loading plans..." flash); expanding a row does not reload it |
+| Plans | the table stays on screen during the 10 s refresh (no "Loading plans..." flash); expanding a row does not reload it; the footer's "Updated HH:MM:SS" moves every 10 s (rc2) |
 | Auto-refresh | the switch stops the refresh; emptying the seconds field does not make it hammer the API |
 | **View in Harvester** | on a vCenter source, an OVA source and a plan, open Details: the link opens Harvester's page for that object. **Confirm the object URL is `.../explorer/migration.harvesterhci.io.vmwaresource/<namespace>/<name>`** (assumed; tell me if it differs) |
 | Forklift present | the Forklift sub-tabs list providers and plans as before |

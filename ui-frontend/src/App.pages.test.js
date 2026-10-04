@@ -11,7 +11,10 @@ import { routes } from './testing/fixtures';
 beforeEach(() => {
   window.localStorage.clear();
   window.history.replaceState({}, '', '/');
+  // The plans footer shows when the list was last updated; freeze the clock for the snapshots.
+  jest.spyOn(Date, 'now').mockReturnValue(Date.UTC(2026, 9, 4, 12, 0, 0));
 });
+afterEach(() => { jest.restoreAllMocks(); });
 
 const tab = (name) => fireEvent.click(screen.getByRole('button', { name }));
 

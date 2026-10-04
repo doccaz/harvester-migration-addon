@@ -470,3 +470,94 @@ describe('Forklift setup checklist', () => {
     });
   });
 });
+
+describe('refresh is visible and safe', () => {
+  let now;
+  let live;
+  beforeEach(() => {
+    now = Date.UTC(2026, 9, 4, 12, 0, 0);
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    live = new Map();
+    let id = 0;
+    jest.spyOn(window, 'setInterval').mockImplementation((fn, ms) => { id += 1; live.set(id, { fn, ms }); return id; });
+    jest.spyOn(window, 'clearInterval').mockImplementation((i) => { live.delete(i); });
+  });
+  afterEach(() => { jest.restoreAllMocks(); });
+
+  const poll = async (u) => { await act(async () => { [...live.values()].filter((i) => i.ms >= 1000).forEach((i) => i.fn()); }); await settle(u.calls); };
+  const stamp = (u) => (u.container.textContent.match(/Updated (\d\d:\d\d:\d\d)/) || [])[1];
+
+  test('the plans footer says when the list was last updated, and a poll moves it', async () => {
+    const u = await open();
+    expect(stamp(u)).toBe('12:00:00');
+    now += 10000;
+    await poll(u);
+    expect(stamp(u)).toBe('12:00:10');
+  });
+
+  test('"Refresh Now" updates it too', async () => {
+    const u = await open();
+    now += 5000;
+    await click(u, screen.getByTitle('Refresh Now'));
+    expect(stamp(u)).toBe('12:00:05');
+  });
+
+  test('a failed background refresh keeps the plans on screen and says so', async () => {
+    let failing = false;
+    const u = await open({ '/api/v1/plans': () => (failing ? reply(500, { error: 'proxy timeout' }) : routes()['/api/v1/plans']) });
+    failing = true;
+    now += 10000;
+    await poll(u);
+    expect(u.container.textContent).toContain('web-migration');
+    expect(u.container.textContent).toContain('Refresh failed: proxy timeout');
+    expect(stamp(u)).toBeUndefined();
+    failing = false;
+    now += 10000;
+    await poll(u);
+    expect(u.container.textContent).not.toContain('Refresh failed');
+    expect(stamp(u)).toBe('12:00:20');
+  });
+
+  test('a failed first load shows an empty table, as before', async () => {
+    const u = await open({ '/api/v1/plans': reply(500, { error: 'boom' }) });
+    expect(u.container.textContent).toContain('No migration plans found');
+    expect(u.container.textContent).toContain('Refresh failed: boom');
+  });
+});
+
+describe('Forklift links to Harvester (YAML view)', () => {
+  const proxyPath = '/k8s/clusters/local/api/v1/namespaces/harvester-system/services/http:mig-harvester-migration-ui:8080/proxy/';
+  const dash = 'http://localhost/dashboard/c/local/explorer/forklift.konveyor.io';
+  const stubs = {
+    '/api/v1/forklift/providers/forklift/vsphere-lab/yaml': 'kind: Provider\n',
+    '/api/v1/forklift/plans/forklift/migrate-web/migration': reply(404, { error: 'none' }),
+  };
+  const toForklift = async (u, page) => {
+    if (page) await nav(u, page);
+    await click(u, screen.getAllByRole('button', { name: 'Forklift' })[0]);
+  };
+  const details = (u, row) => click(u, within(screen.getAllByText(row)[0].closest('tr')).getByText('Details'));
+
+  test('provider details link to the Provider object, opened as YAML', async () => {
+    window.history.replaceState({}, '', proxyPath);
+    const u = await open(stubs);
+    await toForklift(u, 'vCenter Sources');
+    await details(u, 'vsphere-lab');
+    expect(screen.getByRole('link', { name: /View in Harvester/ })).toHaveAttribute('href', `${dash}.provider/forklift/vsphere-lab?mode=edit&as=yaml`);
+  });
+
+  test('plan details link to the Plan object, opened as YAML', async () => {
+    window.history.replaceState({}, '', proxyPath);
+    const u = await open(stubs);
+    await toForklift(u, null);
+    await details(u, 'migrate-web');
+    expect(screen.getByRole('link', { name: /View in Harvester/ })).toHaveAttribute('href', `${dash}.plan/forklift/migrate-web?mode=edit&as=yaml`);
+  });
+
+  test('no link when served directly', async () => {
+    const u = await open(stubs);
+    await toForklift(u, null);
+    await details(u, 'migrate-web');
+    expect(screen.queryByRole('link', { name: /View in Harvester/ })).not.toBeInTheDocument();
+  });
+});

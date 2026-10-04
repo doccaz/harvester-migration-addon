@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { X, CheckCircle2, XCircle } from 'lucide-react';
 import { formatDate } from '../../utils';
 import { CopyButton } from '../../shared/CopyButton';
+import { ViewInHarvester } from '../../shared/ViewInHarvester';
+import { FORKLIFT } from '../../shared/harvesterLinks';
 
 export const ForkliftProviderDetails = ({ provider, onClose }) => {
     const [yamlContent, setYamlContent] = useState('');
@@ -54,6 +56,7 @@ export const ForkliftProviderDetails = ({ provider, onClose }) => {
                                     <p><strong>VDDK Init Image:</strong> {provider.spec?.settings?.vddkInitImage || <span className="text-secondary italic">Not configured (slower fallback)</span>}</p>
                                 </>
                             )}
+                            <ViewInHarvester resource="provider" object={provider} kind={FORKLIFT} />
                         </div>
                     </div>
                     <div>

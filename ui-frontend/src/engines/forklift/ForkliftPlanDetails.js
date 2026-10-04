@@ -4,6 +4,8 @@ import { CheckCircle2, XCircle, Loader, AlertTriangle, Cpu, MemoryStick, HardDri
 import { formatDate, formatBytes, formatDuration } from '../../utils';
 import { DownloadButton } from '../../shared/DownloadButton';
 import { CopyButton } from '../../shared/CopyButton';
+import { ViewInHarvester } from '../../shared/ViewInHarvester';
+import { FORKLIFT } from '../../shared/harvesterLinks';
 
 export const ForkliftPlanDetails = ({ plan, onClose, onRunMigration, forkliftNamespace }) => {
     const [activeTab, setActiveTab] = useState('overview');
@@ -157,6 +159,7 @@ export const ForkliftPlanDetails = ({ plan, onClose, onRunMigration, forkliftNam
 
     const renderOverviewTab = () => (
         <div className="space-y-6">
+            <ViewInHarvester resource="plan" object={plan} kind={FORKLIFT} />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                     <h3 className="text-sm font-bold text-secondary uppercase tracking-wider mb-2">Plan Info</h3>

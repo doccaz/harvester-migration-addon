@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { sortData } from '../../shared/sorting';
 
 // The VM Import Controller engine's state: plans, vCenter and OVA sources, their
@@ -9,6 +9,10 @@ export function useVmic({ onPlanCreated }) {
     const [sources, setSources] = useState([]);
     const [ovaSources, setOvaSources] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    // When the plans were last fetched, and why the last refresh failed (if it did).
+    const [lastUpdated, setLastUpdated] = useState(null);
+    const [refreshError, setRefreshError] = useState('');
+    const loadedOnce = useRef(false);
     const [planToDelete, setPlanToDelete] = useState(null);
     const [planToEdit, setPlanToEdit] = useState(null);
     const [sourceToEdit, setSourceToEdit] = useState(null);
@@ -35,10 +39,15 @@ export function useVmic({ onPlanCreated }) {
             }
             const data = await response.json();
             setPlans(data || []);
+            loadedOnce.current = true;
+            setLastUpdated(Date.now());
+            setRefreshError('');
         } catch (err) {
             console.error("Failed to fetch plans:", err);
-            // alert(`Error fetching plans: ${err.message}`);
-            setPlans([]); // Ensure plans is an array on error
+            setRefreshError(err.message);
+            // A failed refresh keeps what is on screen (the footer says it failed); only a
+            // failed first load has nothing to keep, and shows an empty table.
+            if (!loadedOnce.current) setPlans([]);
         } finally {
             setIsLoading(false);
         }
@@ -238,6 +247,8 @@ export function useVmic({ onPlanCreated }) {
         ovaSources,
         setOvaSources,
         isLoading,
+        lastUpdated,
+        refreshError,
         setIsLoading,
         planToDelete,
         setPlanToDelete,

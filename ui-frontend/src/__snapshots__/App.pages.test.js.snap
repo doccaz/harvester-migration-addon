@@ -1574,6 +1574,12 @@ exports[`Forklift unavailable: setup checklist 1`] = `
         <div
           class="flex justify-end items-center mt-4 space-x-6"
         >
+          <span
+            aria-live="polite"
+            class="text-xs text-secondary"
+          >
+            Updated 12:00:00
+          </span>
           <div
             class="flex items-center space-x-2"
           >
@@ -10372,6 +10378,12 @@ exports[`plan edit modal 1`] = `
         <div
           class="flex justify-end items-center mt-4 space-x-6"
         >
+          <span
+            aria-live="polite"
+            class="text-xs text-secondary"
+          >
+            Updated 12:00:00
+          </span>
           <div
             class="flex items-center space-x-2"
           >
@@ -11887,6 +11899,12 @@ exports[`plans: Forklift subtab 1`] = `
         <div
           class="flex justify-end items-center mt-4 space-x-6"
         >
+          <span
+            aria-live="polite"
+            class="text-xs text-secondary"
+          >
+            Updated 12:00:00
+          </span>
           <div
             class="flex items-center space-x-2"
           >
@@ -12984,6 +13002,12 @@ exports[`plans: VM Import Controller 1`] = `
         <div
           class="flex justify-end items-center mt-4 space-x-6"
         >
+          <span
+            aria-live="polite"
+            class="text-xs text-secondary"
+          >
+            Updated 12:00:00
+          </span>
           <div
             class="flex items-center space-x-2"
           >
@@ -13699,6 +13723,12 @@ exports[`plans: empty lists 1`] = `
         <div
           class="flex justify-end items-center mt-4 space-x-6"
         >
+          <span
+            aria-live="polite"
+            class="text-xs text-secondary"
+          >
+            Updated 12:00:00
+          </span>
           <div
             class="flex items-center space-x-2"
           >
@@ -14841,6 +14871,12 @@ exports[`plans: expanded row 1`] = `
         <div
           class="flex justify-end items-center mt-4 space-x-6"
         >
+          <span
+            aria-live="polite"
+            class="text-xs text-secondary"
+          >
+            Updated 12:00:00
+          </span>
           <div
             class="flex items-center space-x-2"
           >

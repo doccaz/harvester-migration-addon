@@ -8,7 +8,11 @@
 // so the dashboard address follows from where the page was loaded. Served any other way
 // (a NodePort, a port-forward) there is no dashboard to point at, and no link is made.
 
-const GROUP = 'migration.harvesterhci.io';
+// Which API group an object belongs to, and how the dashboard shows it. The VM Import
+// Controller's resources have list and object pages; Forklift's have none of their own,
+// so the link opens the object in the dashboard's YAML editor.
+export const MIGRATION = { group: 'migration.harvesterhci.io', yaml: false };
+export const FORKLIFT = { group: 'forklift.konveyor.io', yaml: true };
 
 export function dashboardBase(location) {
   const m = location.pathname.match(/^(.*?)\/k8s\/clusters\/([^/]+)\//);
@@ -17,13 +21,13 @@ export function dashboardBase(location) {
 }
 
 // `resource` is the singular lower-case kind: vmwaresource, ovasource, virtualmachineimport.
-export function harvesterListUrl(location, resource) {
+export function harvesterListUrl(location, resource, { group } = MIGRATION) {
   const base = dashboardBase(location);
-  return base ? `${base}/${GROUP}.${resource}` : null;
+  return base ? `${base}/${group}.${resource}` : null;
 }
 
-export function harvesterResourceUrl(location, resource, namespace, name) {
-  const list = harvesterListUrl(location, resource);
+export function harvesterResourceUrl(location, resource, namespace, name, kind = MIGRATION) {
+  const list = harvesterListUrl(location, resource, kind);
   if (!list || !namespace || !name) return null;
-  return `${list}/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`;
+  return `${list}/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}${kind.yaml ? '?mode=edit&as=yaml' : ''}`;
 }

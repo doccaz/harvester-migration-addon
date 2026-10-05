@@ -1,6 +1,6 @@
 # Harvester Migration Add-on — analysis and phased plan
 
-Status (2026-10-02): Phases 0–2 done and released; Phase 3 package extraction done and released as v0.3.0 (verified on the lab: 49/49 smoke checks; v0.3.1: 48/48) (current release v0.5.0, https://github.com/doccaz/harvester-migration-addon); Phase 3 in progress; Phases 4–6 not started. Last updated after the end-to-end export verification.
+Status (2026-10-05): Phases 0–2 done and released. Phase 3 (backend alignment) and Phase 4 (frontend modularisation, steps 4.0–4.7) are done; current release v0.5.0 (https://github.com/doccaz/harvester-migration-addon, lab: 55/55 smoke checks). `main` carries unreleased dependency bumps (Go 1.26, k8s 0.37.1, govmomi 0.56.0, no code changes) awaiting a lab smoke and a v0.5.1 tag. Phases 5–6 not started.
 
 ## 1. What exists today
 
@@ -105,7 +105,7 @@ Delivered: per-user token auth (default), TLS verification, RBAC derived from th
 - Secrets handling review (create/delete of credentials), run as non-root, read-only root FS where possible, NetworkPolicy.
 - Exit criteria: a user with only namespace-scoped rights cannot see or act on other namespaces.
 
-### Phase 3 — Backend alignment (≈2–3 weeks) — LAYOUT DONE; optional steps open
+### Phase 3 — Backend alignment (≈2–3 weeks) — DONE; two optional items open (engine interface, history rewrite)
 Rule: no user-visible behaviour change. The REST API that `App.js` calls is the contract, protected at every step by four gates, each step is its own commit with CI green: (1) `testdata/routes.golden` (every method+path), (2) golangci-lint v2.12.2 with the controller's config at 0 issues, (3) unit tests, (4) a read-only snapshot of the 32 safe GET routes on the lab compared with a baseline (`hack/run-snapshot.sh`, `hack/snapshot-api.py`; two runs of identical code diff clean). Details and observations: `docs/refactor-notes.md`.
 
 Done (all verified by the four gates):
@@ -119,7 +119,7 @@ Package extraction is complete (see docs/backend-layout.md for the map and the t
 Remaining Phase 3 work, all optional and each its own gated step:
 1. **Typed VM-import objects**, produced locally (see below), with a contract test against the real `virtualmachineimports.migration.harvesterhci.io` CRD saved from the lab.
 2. **Engine interface** where the engines genuinely share behaviour (see below).
-3. **Dependency bumps** (k8s, govmomi, Go): the `vcenter` simulator tests are the safety net for govmomi.
+3. **Dependency bumps** (k8s, govmomi, Go): **done 2026-10-05** on `main` (Go 1.26, k8s 0.37.1, govmomi 0.56.0, mux/logrus/yaml; no code changes needed, simulator tests pass). Not yet released or lab-verified.
 4. **Blanket 404s** that hide permission errors (9 sites: vmic 5, forklift 3, harvester 1). **Done 2026-10-04**: each now answers with the API server's status (404 only when the object is missing, 403 for a permission problem, 500 for a failed call); one test per handler, every converted site mutation-checked.
 5. Two items for the Phase 4 capabilities detection: `forklift.CheckAvailability` treats any failure as "not available", and `inventory.PVCIndex` swallows a failed PVC list. **Done in step 4.4** (2026-10-04): see docs/phase4-plan.md.
 6. Decide whether to rewrite git history to drop two accidentally committed binaries (see below).
@@ -138,7 +138,7 @@ Tooling lesson (forklift step): my move script's 'unqualify' pass rewrote `forkl
 Lessons and open items:
 - Two ~66 MB build binaries were committed by mistake when the backend was imported (removed from the tree; no credentials found). They remain in git history; rewriting history would change every SHA after `d218b1b` and move the release tags, so it is left to a deliberate decision.
 - The extraction script initially did not persist removals, which left dead duplicates (found and removed in the `kube` step). The stale-name grep and `unused` lint are part of every step now.
-- Fixed (own commit, verified on the lab, baseline retaken): API errors now keep their HTTP status via `httpx.RespondWithAPIError` on the four YAML handlers and namespace creation (404 / 409 / 403 instead of a blanket 500). Done for `harvester`, `vmic` (24 sites + typed vCenter errors, 32 status rows + simulator-backed handler tests), `forklift` (21 sites, 19 status rows, proxy tests) and `export` (13 sites, first-ever handler tests, Job entry-point contract pinned); the sites that stay 500 are deliberate and listed in docs/refactor-notes.md. The blanket-500 sweep is complete (counts and the deliberate leftovers in docs/refactor-notes.md); about 10 blanket 404s that hide permission errors remain.
+- Fixed (own commit, verified on the lab, baseline retaken): API errors now keep their HTTP status via `httpx.RespondWithAPIError` on the four YAML handlers and namespace creation (404 / 409 / 403 instead of a blanket 500). Done for `harvester`, `vmic` (24 sites + typed vCenter errors, 32 status rows + simulator-backed handler tests), `forklift` (21 sites, 19 status rows, proxy tests) and `export` (13 sites, first-ever handler tests, Job entry-point contract pinned); the sites that stay 500 are deliberate and listed in docs/refactor-notes.md. The blanket-500 sweep is complete (counts and the deliberate leftovers in docs/refactor-notes.md); the blanket 404s were fixed on 2026-10-04 (item 4 above).
 - Released as v0.3.0 (the refactor plus the deliberate behaviour changes in docs/refactor-notes.md: API statuses, `nosniff`, two timeouts, a DNS-label check on the OVA proxy namespace) and verified on the lab with `hack/lab-smoke.sh` (49/49; see docs/phase2-verification.md). The running-VM export refusal is verified on the lab (409, no Job, no side effects). A successful export of a stopped VM is verified end to end (2026-10-02): `labs/bastion-galins-server`, 4.5 GB OVA, 639 s, manifest digests match, fetched with a matching SHA-256, `hack/verify-ova.sh` 11/11 including DSP8023 schema and `qemu-img` (details and the transfer lesson in docs/phase2-verification.md; `hack/fetch-ova.sh` now adapts its range size). The manual browser pass is done (all tabs, support bundle, export, login/logout). Not yet exercised: re-importing an exported OVA through Forklift's OVA provider (needs a new export).
 
 ### Phase 4 — Frontend modularisation (≈3 weeks)

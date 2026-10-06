@@ -2,8 +2,29 @@ apiVersion: v1
 entries:
   harvester-migration:
   - apiVersion: v2
+    appVersion: 0.5.1
+    created: "2026-10-06T12:13:39.218982895Z"
+    dependencies:
+    - condition: controller.enabled
+      name: harvester-vm-import-controller
+      repository: https://charts.harvesterhci.io
+      version: 1.8.2
+    description: 'Harvester VM migration add-on: the VM Import Controller plus a migration
+      UI. Forklift is an optional engine, detected at runtime. '
+    digest: 85e1fc35cdfd84fed6e0fcd5ee6a27209c216366f6439391e69b31532d10880c
+    keywords:
+    - harvester
+    - vm-import
+    - migration
+    - forklift
+    name: harvester-migration
+    type: application
+    urls:
+    - https://doccaz.github.io/harvester-migration-addon/harvester-migration-0.5.1.tgz
+    version: 0.5.1
+  - apiVersion: v2
     appVersion: 0.5.1-rc1
-    created: "2026-10-06T12:06:22.110052765Z"
+    created: "2026-10-06T12:13:39.218068672Z"
     dependencies:
     - condition: controller.enabled
       name: harvester-vm-import-controller
@@ -24,7 +45,7 @@ entries:
     version: 0.5.1-rc1
   - apiVersion: v2
     appVersion: 0.5.0
-    created: "2026-10-06T12:06:22.109168707Z"
+    created: "2026-10-06T12:13:39.217161833Z"
     dependencies:
     - condition: controller.enabled
       name: harvester-vm-import-controller
@@ -45,7 +66,7 @@ entries:
     version: 0.5.0
   - apiVersion: v2
     appVersion: 0.5.0-rc2
-    created: "2026-10-06T12:06:22.107146264Z"
+    created: "2026-10-06T12:13:39.216251617Z"
     dependencies:
     - condition: controller.enabled
       name: harvester-vm-import-controller
@@ -66,7 +87,7 @@ entries:
     version: 0.5.0-rc2
   - apiVersion: v2
     appVersion: 0.5.0-rc1
-    created: "2026-10-06T12:06:22.106252689Z"
+    created: "2026-10-06T12:13:39.215396094Z"
     dependencies:
     - condition: controller.enabled
       name: harvester-vm-import-controller
@@ -87,7 +108,7 @@ entries:
     version: 0.5.0-rc1
   - apiVersion: v2
     appVersion: 0.4.0
-    created: "2026-10-06T12:06:22.105414407Z"
+    created: "2026-10-06T12:13:39.214544418Z"
     dependencies:
     - condition: controller.enabled
       name: harvester-vm-import-controller
@@ -108,7 +129,7 @@ entries:
     version: 0.4.0
   - apiVersion: v2
     appVersion: 0.3.1
-    created: "2026-10-06T12:06:22.104501445Z"
+    created: "2026-10-06T12:13:39.213691831Z"
     dependencies:
     - condition: controller.enabled
       name: harvester-vm-import-controller
@@ -129,7 +150,7 @@ entries:
     version: 0.3.1
   - apiVersion: v2
     appVersion: 0.3.0
-    created: "2026-10-06T12:06:22.103688701Z"
+    created: "2026-10-06T12:13:39.212120943Z"
     dependencies:
     - condition: controller.enabled
       name: harvester-vm-import-controller
@@ -150,7 +171,7 @@ entries:
     version: 0.3.0
   - apiVersion: v2
     appVersion: 0.2.0
-    created: "2026-10-06T12:06:22.102810805Z"
+    created: "2026-10-06T12:13:39.210723053Z"
     dependencies:
     - condition: controller.enabled
       name: harvester-vm-import-controller
@@ -171,7 +192,7 @@ entries:
     version: 0.2.0
   - apiVersion: v2
     appVersion: 0.1.2
-    created: "2026-10-06T12:06:22.101926457Z"
+    created: "2026-10-06T12:13:39.209759137Z"
     dependencies:
     - condition: controller.enabled
       name: harvester-vm-import-controller
@@ -192,7 +213,7 @@ entries:
     version: 0.1.2
   - apiVersion: v2
     appVersion: 0.1.1
-    created: "2026-10-06T12:06:22.101141545Z"
+    created: "2026-10-06T12:13:39.20894978Z"
     dependencies:
     - condition: controller.enabled
       name: harvester-vm-import-controller
@@ -213,7 +234,7 @@ entries:
     version: 0.1.1
   - apiVersion: v2
     appVersion: 0.1.0
-    created: "2026-10-06T12:06:22.100242359Z"
+    created: "2026-10-06T12:13:39.20810619Z"
     dependencies:
     - condition: controller.enabled
       name: harvester-vm-import-controller
@@ -232,4 +253,4 @@ entries:
     urls:
     - https://doccaz.github.io/harvester-migration-addon/harvester-migration-0.1.0.tgz
     version: 0.1.0
-generated: "2026-10-06T12:06:22.098864362Z"
+generated: "2026-10-06T12:13:39.207121234Z"

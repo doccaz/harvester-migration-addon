@@ -1,6 +1,6 @@
 # Harvester Migration Add-on — analysis and phased plan
 
-Status (2026-10-05): Phases 0–2 done and released. Phase 3 (backend alignment) and Phase 4 (frontend modularisation, steps 4.0–4.7) are done; current release v0.5.0 (https://github.com/doccaz/harvester-migration-addon, lab: 55/55 smoke checks). `main` carries unreleased dependency bumps (Go 1.26, k8s 0.37.1, govmomi 0.56.0, no code changes) awaiting a lab smoke and a v0.5.1 tag. Phases 5–6 not started.
+Status (2026-10-06): Phases 0–2 done and released. Phase 3 (backend alignment) and Phase 4 (frontend modularisation, steps 4.0–4.7) are done; current release v0.5.1 (https://github.com/doccaz/harvester-migration-addon): v0.5.0 plus the dependency bumps (Go 1.26, k8s 0.37.1, govmomi 0.56.0, no code changes), lab: rc1 smoke 55/55. Phases 5–6 not started.
 
 ## 1. What exists today
 
@@ -119,7 +119,7 @@ Package extraction is complete (see docs/backend-layout.md for the map and the t
 Remaining Phase 3 work, all optional and each its own gated step:
 1. **Typed VM-import objects**, produced locally (see below), with a contract test against the real `virtualmachineimports.migration.harvesterhci.io` CRD saved from the lab.
 2. **Engine interface** where the engines genuinely share behaviour (see below).
-3. **Dependency bumps** (k8s, govmomi, Go): **done 2026-10-05** on `main` (Go 1.26, k8s 0.37.1, govmomi 0.56.0, mux/logrus/yaml; no code changes needed, simulator tests pass). Not yet released or lab-verified.
+3. **Dependency bumps** (k8s, govmomi, Go): **done 2026-10-05**, released as v0.5.1 (Go 1.26, k8s 0.37.1, govmomi 0.56.0, mux/logrus/yaml; no code changes needed, simulator tests pass; lab smoke 55/55).
 4. **Blanket 404s** that hide permission errors (9 sites: vmic 5, forklift 3, harvester 1). **Done 2026-10-04**: each now answers with the API server's status (404 only when the object is missing, 403 for a permission problem, 500 for a failed call); one test per handler, every converted site mutation-checked.
 5. Two items for the Phase 4 capabilities detection: `forklift.CheckAvailability` treats any failure as "not available", and `inventory.PVCIndex` swallows a failed PVC list. **Done in step 4.4** (2026-10-04): see docs/phase4-plan.md.
 6. Decide whether to rewrite git history to drop two accidentally committed binaries (see below).

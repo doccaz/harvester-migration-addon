@@ -190,3 +190,12 @@ Not yet exercised: a multi-GB (~4.5 GB) download.
 - The export volume still uses `harvester-longhorn` (migratable); the install notes warn about it. Moving to a
   real RWX class (docs/export-storage.md) is a follow-up, not a blocker.
 
+
+## v0.5.1 (dependency bumps only), 2026-10-06
+
+- Same code as v0.5.0 on Go 1.26, k8s.io/{api,apimachinery,client-go} 0.37.1, govmomi 0.56.0, gorilla/mux 1.8.1,
+  logrus 1.10.2, sigs.k8s.io/yaml 1.6.0. CI green on `main`.
+- Upgrade `0.5.0-rc2 -> 0.5.1-rc1` on the lab (Harvester 1.8.2) by repo URL (`helm upgrade ... --repo
+  https://doccaz.github.io/harvester-migration-addon`); the pod came up on image `0.5.1-rc1`.
+- `hack/lab-smoke.sh` (`EXPECT_VERSION=0.5.1-rc1`): **55/55**.
+- Not repeated: the browser pass (no frontend change; the frontend only had testing-library dev dependency updates).

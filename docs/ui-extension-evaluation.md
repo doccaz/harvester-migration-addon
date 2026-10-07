@@ -14,6 +14,11 @@ A bundle of JavaScript (Vue 3, built against Rancher's `@rancher/shell`) package
 **(verify)** that the dashboard on this Harvester version offers extensions at all: `kubectl get uiplugins.catalog.cattle.io -A`
 and look for an Extensions entry in the dashboard's menu.
 
+**Checked 2026-10-07 on the lab (Harvester 1.8.2), API level only:** the `uiplugins.catalog.cattle.io` CRD is served (with `apps`,
+`clusterrepos` and `operations` of the same group), `kubectl get uiplugins -A` returns no resources, and the catalog has the
+usual repos (`rancher-charts` on `release-v2.14`, `rancher-partner-charts`, `harvester-charts`). So the machinery for installing
+an extension exists. Not checked: whether the dashboard menu shows an Extensions entry (needs the browser).
+
 ## What it would give us
 - **No token dance.** The extension talks to the cluster through the dashboard's own authenticated API access, so the
   per-user RBAC story needs no `X-Migration-Token`, no Rancher token minting, no CA copying, and no service-proxy RBAC.

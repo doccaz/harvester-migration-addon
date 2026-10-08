@@ -1,6 +1,6 @@
 # Harvester Migration Add-on — analysis and phased plan
 
-Status (2026-10-06): Phases 0–2 done and released. Phase 3 (backend alignment) and Phase 4 (frontend modularisation, steps 4.0–4.7) are done; current release v0.5.1 (https://github.com/doccaz/harvester-migration-addon): v0.5.0 plus the dependency bumps (Go 1.26, k8s 0.37.1, govmomi 0.56.0, no code changes), lab: rc1 smoke 55/55. Phases 5–6 not started.
+Status (2026-10-08): Phases 0–2 done and released. Phase 3 (backend alignment) and Phase 4 (frontend modularisation, steps 4.0–4.7) are done; current release v0.5.2 (https://github.com/doccaz/harvester-migration-addon): v0.5.1 (dependency bumps: Go 1.26, k8s 0.37.1, govmomi 0.56.0; lab smoke 55/55) plus the not-an-official-SUSE-product disclaimer and a correct version on the About tab. Phases 5–6 not started.
 
 ## 1. What exists today
 

@@ -199,3 +199,10 @@ Not yet exercised: a multi-GB (~4.5 GB) download.
   https://doccaz.github.io/harvester-migration-addon`); the pod came up on image `0.5.1-rc1`.
 - `hack/lab-smoke.sh` (`EXPECT_VERSION=0.5.1-rc1`): **55/55**.
 - Not repeated: the browser pass (no frontend change; the frontend only had testing-library dev dependency updates).
+
+## v0.5.2 (disclaimer, About tab), 2026-10-08
+
+- Changes over v0.5.1: the "not an official SUSE product, exploration only" disclaimer (README, install notes, Addon
+  manifest, About tab) and the About tab showing the release version, stamped at build time (`REACT_APP_VERSION` from
+  the `VERSION` build arg), instead of a hardcoded one. No backend change.
+- Lab verification: see the entry below once done.

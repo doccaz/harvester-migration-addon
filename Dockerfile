@@ -8,7 +8,9 @@ WORKDIR /app
 COPY ui-frontend/package.json ui-frontend/yarn.lock ./
 RUN yarn install
 COPY ui-frontend/ ./
-RUN yarn build
+# Release version shown on the About tab (REACT_APP_VERSION is read at build time).
+ARG VERSION=dev
+RUN REACT_APP_VERSION=${VERSION} yarn build
 
 # Stage 2: Build the Go backend
 # Use --platform=$BUILDPLATFORM to ensure this stage also runs natively

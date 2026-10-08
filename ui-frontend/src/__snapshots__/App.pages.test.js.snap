@@ -3888,7 +3888,8 @@ exports[`about 1`] = `
             <strong>
               Version:
             </strong>
-             1.9.2
+             
+            dev
           </p>
           <p
             class="mb-2 z-10 relative text-secondary font-medium"
@@ -3898,7 +3899,7 @@ exports[`about 1`] = `
           <p
             class="mb-6 italic text-sm text-secondary z-10 relative mt-2 border-l-4 border-blue-400 pl-3"
           >
-            Based off of an idea by Erico Mendonca (erico.mendonca@suse.com)
+            Based off of an idea by Erico Mendonca
           </p>
           <h3
             class="text-lg font-semibold mb-3 z-10 relative text-main"

@@ -207,5 +207,5 @@ Not yet exercised: a multi-GB (~4.5 GB) download.
   the `VERSION` build arg), instead of a hardcoded one. No backend change.
 - Lab (Harvester 1.8.2): upgraded `0.5.1 -> 0.5.2` by repo URL, pod on image `0.5.2`; `hack/lab-smoke.sh`
   (`EXPECT_VERSION=0.5.2`): **55/55**. The install notes print the disclaimer, and the served bundle contains both the
-  disclaimer text and `0.5.2` (checked by fetching `main.*.js` through a port-forward). The About tab was not opened
-  by hand in a browser.
+  disclaimer text and `0.5.2` (checked by fetching `main.*.js` through a port-forward). The About tab was opened by hand in
+  a browser: it shows the disclaimer and the correct version (0.5.2).

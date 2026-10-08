@@ -1,5 +1,7 @@
 Harvester Migration add-on installed as {{ .Release.Name }}.
 
+DISCLAIMER: This is not an official SUSE product, and it is not supported by SUSE or the Harvester project. It is provided for exploration and evaluation only, as is and without warranty. Do not rely on it for production migrations.
+
 UI (ClusterIP): use the "{{ .Values.ui.navLink.label }}" menu entry, or
 
   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "harvester-migration.ui.fullname" . }} 8080:{{ .Values.ui.service.port }}

@@ -9,6 +9,10 @@ export const AboutPage = () => (
             </h1>
         </div>
 
+        <div role="note" className="p-4 rounded-lg border-l-4 border-yellow-500 bg-yellow-50 text-yellow-900 text-sm">
+            <strong>Disclaimer:</strong> This is not an official SUSE product, and it is not supported by SUSE or the Harvester project. It is provided for exploration and evaluation only, as is and without warranty. Do not rely on it for production migrations.
+        </div>
+
         {/* Feature Cards Section */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
             {/* Harvester Card */}

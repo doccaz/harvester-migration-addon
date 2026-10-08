@@ -1,3 +1,5 @@
+# DISCLAIMER: This is not an official SUSE product, and it is not supported by SUSE or the Harvester project.
+# It is provided for exploration and evaluation only, as is and without warranty. Do not rely on it for production migrations.
 # Addon manifest in the style of harvester/experimental-addons.
 # Until the chart is published at charts.harvesterhci.io, point `repo` at the
 # self-hosted chart repository (Phase 5a).

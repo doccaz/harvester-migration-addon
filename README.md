@@ -1,5 +1,7 @@
 # harvester-migration-addon
 
+> **Disclaimer.** This is not an official SUSE product, and it is not supported by SUSE or the Harvester project. It is provided for exploration and evaluation only, as is and without warranty. Do not rely on it for production migrations.
+
 A single Harvester add-on that ships the VM Import Controller and a migration UI.
 Forklift is an optional engine, shown only when it is detected on the cluster.
 

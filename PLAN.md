@@ -4,23 +4,25 @@ Status (2026-10-08): Phases 0–2 done and released. Phase 3 (backend alignment)
 
 ## 1. What exists today
 
-### 1a. Initial state (2026-09-30)
+Current state as of 2026-10-09 (release v0.5.2). How it got here is in the changelog below the table; the original
+2026-09-30 values are the first entry.
 
-| | vm-import-controller | vm-import-ui | harvester-ui-extension (upstream) |
+| | vm-import-controller | vm-import-ui (now the `harvester-migration` add-on) | harvester-ui-extension (upstream) |
 |---|---|---|---|
-| Role | Reconciles `VirtualMachineImport` + `VmwareSource`/`OvaSource`/`OpenstackSource` CRs; converts disks with qemu; serves them on `:8080` for `VirtualMachineImage` | Web wizard + REST API over **two engines** (VMIC and Forklift), vCenter explorer, support bundle, VM export (Harvester → OVA) | Plain CRUD edit/list pages for the VMIC CRDs (`edit/migration.harvesterhci.io.*.vue`) |
-| Language | Go 1.26, wrangler/lasso generated typed clients, k8s 0.35, govmomi 0.52 | Go 1.24, flat `package main`, gorilla/mux, **unstructured dynamic client**, k8s 0.28, govmomi 0.33; React 18 + Tailwind, `App.js` ~5.7k lines | Vue / Rancher shell |
-| Packaging | Built-in Harvester add-on (`harvester-vm-import-controller` chart in harvester/charts, wired in harvester/addons `rancherd-22-addons.yaml`) | Own chart + NavLink, NodePort 32000, image on ghcr.io/doccaz | Ships inside Harvester UI |
-| Style | logrus `WithFields`, dapper/scripts, strict golangci (gosec, prealloc, staticcheck), `revive.toml` | logrus aliased `log`, giant `handlers.go` (~2.2k lines), no linter config seen | Rancher conventions |
+| Role | Reconciles `VirtualMachineImport` + `VmwareSource`/`OvaSource`/`OpenstackSource` CRs; converts disks with qemu; serves them on `:8080` for `VirtualMachineImage`. Bundled unmodified as a subchart, pinned to the Harvester minor (currently 1.8.2) | Web wizard + REST API over **two engines** (VMIC and Forklift; Forklift shown only when detected), vCenter explorer, support bundle, VM export (Harvester → OVA) with download through a serve pod; per-user token auth | Plain CRUD edit/list pages for the VMIC CRDs (`edit/migration.harvesterhci.io.*.vue`). Not re-checked since 2026-09-30 |
+| Language | v1.8.2 (the tag we bundle; upstream `main` of 2026-10-02 has the same dependencies): Go 1.26 (`main`: 1.26.4), wrangler/lasso generated typed clients, govmomi 0.52, k8s 0.35 declared but pinned to 0.33.7 by a `replace` block | Go 1.26, gorilla/mux 1.8.1, `internal/` packages (`api`, `kube`, `vmic`, `forklift`, `vcenter`, `export`, ...), unstructured dynamic client with typed VMIC objects converted locally, k8s 0.37.1, govmomi 0.56.0; React 18 + Tailwind, `App.js` 334 lines plus engine and shared modules, 167 frontend tests | Vue / Rancher shell |
+| Packaging | Built-in Harvester add-on (`harvester-vm-import-controller` chart in harvester/charts, wired in harvester/addons `rancherd-22-addons.yaml`); our chart refuses to install while it is enabled | Umbrella chart `harvester-migration` (controller subchart + UI Deployment), `ClusterIP` behind the service proxy and a NavLink, image `ghcr.io/doccaz/harvester-migration-ui`, chart on GitHub Pages, `Addon` manifest in `addon/` | Ships inside Harvester UI |
+| Style | logrus `WithFields`, dapper/scripts, strict golangci (gosec, prealloc, staticcheck), `revive.toml` | The controller's golangci-lint config adopted (v2.12.2, 0 issues), route golden test, simulator-backed vCenter tests, CRD contract test; logrus | Rancher conventions |
 
-### 1b. Current state (2026-10-09, release v0.5.2)
-
-| | vm-import-controller | vm-import-ui (now `harvester-migration` add-on) | harvester-ui-extension (upstream) |
-|---|---|---|---|
-| Role | Unchanged. Bundled unmodified as a subchart (pinned to the Harvester minor, currently 1.8.2) | Same wizard and engines; the Forklift engine appears only when Forklift is detected; per-user token auth; export download through a serve pod | Not re-checked |
-| Language | Per the local reference clone (commit of 2026-06-23, not re-pulled): Go 1.26, govmomi 0.52, k8s 0.35 declared but pinned to 0.33.7 by a `replace` block | Go 1.26, gorilla/mux 1.8.1, `internal/` packages (`api`, `kube`, `vmic`, `forklift`, `vcenter`, `export`, ...), unstructured dynamic client with typed VMIC objects converted locally, k8s 0.37.1, govmomi 0.56.0; React 18 + Tailwind, `App.js` 334 lines plus engine and shared modules, 167 frontend tests | Not re-checked |
-| Packaging | Built-in add-on remains available; our chart refuses to install while it is enabled | Umbrella chart `harvester-migration` (controller subchart + UI Deployment), `ClusterIP` behind the service proxy and a NavLink, image `ghcr.io/doccaz/harvester-migration-ui`, chart on GitHub Pages, `Addon` manifest in `addon/` | Not re-checked |
-| Style | Unchanged | Adopted the controller's golangci-lint config (v2.12.2, 0 issues), route golden test, simulator-backed vCenter tests, CRD contract test; logrus | Not re-checked |
+**Changelog (oldest first)**
+- 2026-09-30: first analysis. vm-import-ui: Go 1.24, flat `package main`, unstructured dynamic client, k8s 0.28, govmomi 0.33, `App.js` ~5.7k lines, own chart with NodePort 32000, logrus aliased `log`, giant `handlers.go` (~2.2k lines), no linter config. Controller: Go 1.26, k8s 0.35, govmomi 0.52.
+- 2026-10-01: umbrella chart and Addon manifest (Phase 1); v0.2.0 (Phase 2): `ClusterIP` behind the service proxy, per-user token auth, non-root read-only pod. The controller's golangci config adopted, 36 findings fixed; `handlers.go` split by area; packages extracted under `internal/`.
+- 2026-10-02: v0.3.0, package extraction complete (`main.go` is 85 lines, `api` owns the routes); v0.3.1 pins the controller subchart to 1.8.2.
+- 2026-10-03: v0.4.0, export download through a serve pod. The frontend split starts: components moved into modules, then the engine registry (`App.js` about 315 lines).
+- 2026-10-04: v0.5.0 (engine states, "View in Harvester" links, Forklift setup checklist). Dependencies bumped on `main`: gorilla/mux 1.8.1, logrus 1.10.2, govmomi 0.33 → 0.54 → 0.56, k8s 0.28 → 0.33 → 0.37.1, Go 1.26. CRD contract generated from the controller's types.
+- 2026-10-06: v0.5.1 releases the dependency bumps (lab smoke 55/55).
+- 2026-10-08: v0.5.2, the not-an-official-product disclaimer and the release version on the About tab.
+- 2026-10-09: table rewritten with current data. The controller column was checked against the local clone, which is at tag v1.8.2 (commit of 2026-06-23); upstream `main` (2026-10-02) has the same govmomi, k8s and `replace` block. The upstream UI-extension column was not re-checked.
 
 Forklift is already a separate experimental Harvester add-on, packaged by [harvester/forklift-packaging](https://github.com/harvester/forklift-packaging) (cloned to `reference/forklift-packaging`, Forklift v2.9.2). Its shape matters for the design:
 
@@ -38,7 +40,7 @@ The two `vm-import-ui-extension*` directories show a Rancher UI-extension route 
 3. **Two controllers must never run together.** CRDs are created at runtime (`crd.Create`); no leader election is visible. Enabling the built-in `vm-import-controller` add-on *and* a new add-on that also runs the controller would double-reconcile every CR.
 4. **Security.** The UI backend uses its own cluster-wide ServiceAccount (secrets create/delete, Jobs for export) behind an unauthenticated NodePort. Fine for a lab, not acceptable for a shipped add-on.
 5. **Controller needs** 2–4 GiB RAM, runs as root, uses `/tmp` (optionally a PVC) for converted disks. The UI is tiny. Different resource profiles argue for separate Pods.
-6. **Version skew** (found 2026-09-30, **resolved 2026-10-05**). k8s 0.28 / govmomi 0.33 (UI) vs 0.35 / 0.52 (controller). A single Go module would have forced the UI up to the controller's versions; the UI was instead bumped on its own (Go 1.26, k8s 0.37.1, govmomi 0.56.0, v0.5.1) while staying a separate module.
+6. **Version skew** (found 2026-09-30, **resolved 2026-10-04**). k8s 0.28 / govmomi 0.33 (UI) vs 0.35 / 0.52 (controller). A single Go module would have forced the UI up to the controller's versions; the UI was instead bumped on its own (Go 1.26, k8s 0.37.1, govmomi 0.56.0, v0.5.1) while staying a separate module.
 
 ## 3. Options
 
@@ -51,18 +53,29 @@ One chart, one `Addon` CR, two Deployments (controller from the unchanged upstre
 
 ### Pros / cons
 
-| | A. One chart, two Deployments | B. One binary | C. UI extension |
-|---|---|---|---|
-| Meets "enable one add-on" | Yes | Yes | Needs controller add-on too |
-| Fork maintenance | None (consume upstream image) | **Permanent rebase on harvester/vm-import-controller** | None |
-| Upstream-ability | Chart can be proposed to harvester/charts | Low; maintainers unlikely to take UI + Forklift + export | High for VMIC pages, but upstream already has them |
-| Typed clients, informer cache, less API chatter | No | Yes | n/a |
-| Dependency churn | None | UI forced onto k8s 0.35, govmomi 0.52, wrangler | Node/@rancher/shell churn |
-| Blast radius of UI bug | UI Pod only | Controller crash-loops affect migrations | Browser only |
-| Auth | Must solve (see Phase 2) | Same | Free (Rancher auth) |
-| Effort | Low–medium | High | High |
+Current state as of 2026-10-09. A is built and released (v0.1.0 to v0.5.2); B and C were not built, so their cells stay
+as the original assessment unless noted.
 
-**Recommendation:** A now; consider a *shared Go library* later rather than a merged binary. B's gain (typed clients) can be had by importing the controller's `pkg/apis` types into the UI backend without forking.
+| | A. One chart, two Deployments (built) | B. One binary | C. UI extension |
+|---|---|---|---|
+| Meets "enable one add-on" | Yes, delivered | Yes | Needs controller add-on too |
+| Fork maintenance | None: the controller is consumed as the upstream subchart, unmodified (1.8.2) | **Permanent rebase on harvester/vm-import-controller** | None |
+| Upstream-ability | Chart can be proposed to harvester/charts; the enhancement issue (Phase 5b) is not raised yet | Low; maintainers unlikely to take UI + Forklift + export | High for VMIC pages, but upstream already has them |
+| Typed clients, informer cache, less API chatter | Partly: typed VMIC objects are produced locally; the dynamic client stays | Yes | n/a |
+| Dependency churn | None forced: UI on k8s 0.37.1 / govmomi 0.56.0 while the controller builds on 0.33.7 / 0.52 | UI forced onto the controller's k8s, govmomi and wrangler | Node/@rancher/shell churn; the `UIPlugin` CRD is served on the lab, no extension built (docs/ui-extension-evaluation.md) |
+| Blast radius of UI bug | UI Pod only | Controller crash-loops affect migrations | Browser only |
+| Auth | Solved in v0.2.0: per-user Rancher token, no god-mode ServiceAccount | Same | Free (Rancher auth) |
+| Effort | Done: Phases 0-4 between 2026-10-01 and 2026-10-04 (v0.5.0); later releases only carry dependency and docs changes | High (estimate) | High (estimate) |
+
+**Changelog (oldest first)**
+- 2026-09-30: table written; A recommended.
+- 2026-10-01: decisions of §5 taken (A confirmed). Auth solved in v0.2.0.
+- 2026-10-02: controller subchart pinned to the Harvester minor (1.8.2); the bundled controller verified as a drop-in for the built-in one.
+- 2026-10-04: importing the controller's `pkg/apis` ruled out (`client-go v12.0.0+incompatible` pin plus a `replace` block consumers do not inherit); typed objects built locally. UI-extension evaluation written; C stays unbuilt. UI dependencies bumped independently of the controller.
+- 2026-10-07: `UIPlugin` CRD found served on the lab, no extensions installed.
+- 2026-10-09: table rewritten with current data.
+
+**Recommendation:** A now; consider a *shared Go library* later rather than a merged binary. B's gain (typed clients) was meant to come from importing the controller's `pkg/apis` types; that proved impossible (see the 2026-10-04 changelog entry), so typed VMIC objects are produced locally instead.
 
 ## 4. Your idea: one common UI module for both engines
 
@@ -131,7 +144,7 @@ Package extraction is complete (see docs/backend-layout.md for the map and the t
 Remaining Phase 3 work, all optional and each its own gated step:
 1. **Typed VM-import objects**: **done 2026-10-04** (see "Changed from the original plan" below and docs/contract.md).
 2. **Engine interface** where the engines genuinely share behaviour (see below).
-3. **Dependency bumps** (k8s, govmomi, Go): **done 2026-10-05**, released as v0.5.1 (Go 1.26, k8s 0.37.1, govmomi 0.56.0, mux/logrus/yaml; no code changes needed, simulator tests pass; lab smoke 55/55).
+3. **Dependency bumps** (k8s, govmomi, Go): **done 2026-10-04**, released as v0.5.1 (Go 1.26, k8s 0.37.1, govmomi 0.56.0, mux/logrus/yaml; no code changes needed, simulator tests pass; lab smoke 55/55).
 4. **Blanket 404s** that hide permission errors (9 sites: vmic 5, forklift 3, harvester 1). **Done 2026-10-04**: each now answers with the API server's status (404 only when the object is missing, 403 for a permission problem, 500 for a failed call); one test per handler, every converted site mutation-checked.
 5. Two items for the Phase 4 capabilities detection: `forklift.CheckAvailability` treats any failure as "not available", and `inventory.PVCIndex` swallows a failed PVC list. **Done in step 4.4** (2026-10-04): see docs/phase4-plan.md.
 6. Decide whether to rewrite git history to drop two accidentally committed binaries (see below).
@@ -140,7 +153,7 @@ Changed from the original plan:
 - **Typed objects and the CRD contract: done 2026-10-04** (docs/contract.md). The contract is generated from the controller's Go types, not from a CRD saved from the lab, because the controller creates its CRDs at runtime.
 - **No import of the controller's `pkg/apis`.** Its `go.mod` pins `k8s.io/client-go v12.0.0+incompatible` and depends on a `replace` block that consumers do not inherit. Typed VMIC objects are instead produced locally with `runtime.DefaultUnstructuredConverter`, with a contract test against the contract generated from the controller's own types (docs/contract.md), since the controller creates its CRDs at runtime and there is no CRD to save from the lab.
 - **Engine interface only where the engines really share behaviour** (detection/capabilities, plan list and status, logs). VMIC (sources + VirtualMachineImport) and Forklift (provider, inventory service, maps, plan, migration) differ too much for an upfront CreatePlan/RunPlan abstraction; routes stay as they are until Phase 4.
-- **Dependency bumps** (k8s 0.28 → 0.37.1, govmomi 0.33 → 0.56.0, Go 1.26) were a separate last step, **done 2026-10-05** and released as v0.5.1. govmomi across that many minors was the risk for `vcenter.go`; it needed no code changes, with the `vcenter` simulator tests as the safety net. The Dockerfile's `golang:` tag moved in the same commit.
+- **Dependency bumps** (k8s 0.28 → 0.37.1, govmomi 0.33 → 0.56.0, Go 1.26) were a separate last step, **done 2026-10-04** and released as v0.5.1. govmomi across that many minors was the risk for `vcenter.go`; it needed no code changes, with the `vcenter` simulator tests as the safety net. The Dockerfile's `golang:` tag moved in the same commit.
 - `logrus.WithFields` is adopted opportunistically in code being moved, not as a sweep.
 
 Test debt found and paid while extracting (harvester: 1 weak test -> 14 cases covering the NAD label filter, namespace creation, scoping, YAML/JSON GETs; mutation-checked; YAML responses now carry `X-Content-Type-Options: nosniff`, the only deliberate behaviour addition so far): the capabilities test only asserted a 200 (now it covers the version-to-feature mapping, mutation-checked), and a `kube` test had been left behind in `handlers_test.go` (moved). Similar finds turned up in the later packages and were paid in the same way.

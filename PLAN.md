@@ -4,6 +4,8 @@ Status (2026-10-08): Phases 0–2 done and released. Phase 3 (backend alignment)
 
 ## 1. What exists today
 
+### 1a. Initial state (2026-09-30)
+
 | | vm-import-controller | vm-import-ui | harvester-ui-extension (upstream) |
 |---|---|---|---|
 | Role | Reconciles `VirtualMachineImport` + `VmwareSource`/`OvaSource`/`OpenstackSource` CRs; converts disks with qemu; serves them on `:8080` for `VirtualMachineImage` | Web wizard + REST API over **two engines** (VMIC and Forklift), vCenter explorer, support bundle, VM export (Harvester → OVA) | Plain CRUD edit/list pages for the VMIC CRDs (`edit/migration.harvesterhci.io.*.vue`) |
@@ -11,7 +13,14 @@ Status (2026-10-08): Phases 0–2 done and released. Phase 3 (backend alignment)
 | Packaging | Built-in Harvester add-on (`harvester-vm-import-controller` chart in harvester/charts, wired in harvester/addons `rancherd-22-addons.yaml`) | Own chart + NavLink, NodePort 32000, image on ghcr.io/doccaz | Ships inside Harvester UI |
 | Style | logrus `WithFields`, dapper/scripts, strict golangci (gosec, prealloc, staticcheck), `revive.toml` | logrus aliased `log`, giant `handlers.go` (~2.2k lines), no linter config seen | Rancher conventions |
 
-*Snapshot of 2026-09-30. As of 2026-10-09 the UI backend is on Go 1.26, k8s.io 0.37.1 and govmomi 0.56.0 (the controller table column is unchanged), so the version skew is gone; the `App.js` figure is also out of date, the frontend is now split into modules (Phase 4).*
+### 1b. Current state (2026-10-09, release v0.5.2)
+
+| | vm-import-controller | vm-import-ui (now `harvester-migration` add-on) | harvester-ui-extension (upstream) |
+|---|---|---|---|
+| Role | Unchanged. Bundled unmodified as a subchart (pinned to the Harvester minor, currently 1.8.2) | Same wizard and engines; the Forklift engine appears only when Forklift is detected; per-user token auth; export download through a serve pod | Not re-checked |
+| Language | Per the local reference clone (commit of 2026-06-23, not re-pulled): Go 1.26, govmomi 0.52, k8s 0.35 declared but pinned to 0.33.7 by a `replace` block | Go 1.26, gorilla/mux 1.8.1, `internal/` packages (`api`, `kube`, `vmic`, `forklift`, `vcenter`, `export`, ...), unstructured dynamic client with typed VMIC objects converted locally, k8s 0.37.1, govmomi 0.56.0; React 18 + Tailwind, `App.js` 334 lines plus engine and shared modules, 167 frontend tests | Not re-checked |
+| Packaging | Built-in add-on remains available; our chart refuses to install while it is enabled | Umbrella chart `harvester-migration` (controller subchart + UI Deployment), `ClusterIP` behind the service proxy and a NavLink, image `ghcr.io/doccaz/harvester-migration-ui`, chart on GitHub Pages, `Addon` manifest in `addon/` | Not re-checked |
+| Style | Unchanged | Adopted the controller's golangci-lint config (v2.12.2, 0 issues), route golden test, simulator-backed vCenter tests, CRD contract test; logrus | Not re-checked |
 
 Forklift is already a separate experimental Harvester add-on, packaged by [harvester/forklift-packaging](https://github.com/harvester/forklift-packaging) (cloned to `reference/forklift-packaging`, Forklift v2.9.2). Its shape matters for the design:
 

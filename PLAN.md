@@ -11,6 +11,8 @@ Status (2026-10-08): Phases 0–2 done and released. Phase 3 (backend alignment)
 | Packaging | Built-in Harvester add-on (`harvester-vm-import-controller` chart in harvester/charts, wired in harvester/addons `rancherd-22-addons.yaml`) | Own chart + NavLink, NodePort 32000, image on ghcr.io/doccaz | Ships inside Harvester UI |
 | Style | logrus `WithFields`, dapper/scripts, strict golangci (gosec, prealloc, staticcheck), `revive.toml` | logrus aliased `log`, giant `handlers.go` (~2.2k lines), no linter config seen | Rancher conventions |
 
+*Snapshot of 2026-09-30. As of 2026-10-09 the UI backend is on Go 1.26, k8s.io 0.37.1 and govmomi 0.56.0 (the controller table column is unchanged), so the version skew is gone; the `App.js` figure is also out of date, the frontend is now split into modules (Phase 4).*
+
 Forklift is already a separate experimental Harvester add-on, packaged by [harvester/forklift-packaging](https://github.com/harvester/forklift-packaging) (cloned to `reference/forklift-packaging`, Forklift v2.9.2). Its shape matters for the design:
 
 - It is **not a plain chart**: the `forklift-operator` chart installs an *Ansible-based operator* (patched `watches.yml`/role for non-OpenShift) plus the Forklift CRDs, and the actual stack (controller, API, validation, inventory, virt-v2v, populators, OVA provider server) only appears after a **`ForkliftController` CR** is created. Your `forklift-controller.yaml` is that CR (`feature_ui_plugin: "false"`).
@@ -27,7 +29,7 @@ The two `vm-import-ui-extension*` directories show a Rancher UI-extension route 
 3. **Two controllers must never run together.** CRDs are created at runtime (`crd.Create`); no leader election is visible. Enabling the built-in `vm-import-controller` add-on *and* a new add-on that also runs the controller would double-reconcile every CR.
 4. **Security.** The UI backend uses its own cluster-wide ServiceAccount (secrets create/delete, Jobs for export) behind an unauthenticated NodePort. Fine for a lab, not acceptable for a shipped add-on.
 5. **Controller needs** 2–4 GiB RAM, runs as root, uses `/tmp` (optionally a PVC) for converted disks. The UI is tiny. Different resource profiles argue for separate Pods.
-6. **Version skew.** k8s 0.28 / govmomi 0.33 (UI) vs 0.35 / 0.52 (controller). A single Go module forces the UI up to the controller's versions.
+6. **Version skew** (found 2026-09-30, **resolved 2026-10-05**). k8s 0.28 / govmomi 0.33 (UI) vs 0.35 / 0.52 (controller). A single Go module would have forced the UI up to the controller's versions; the UI was instead bumped on its own (Go 1.26, k8s 0.37.1, govmomi 0.56.0, v0.5.1) while staying a separate module.
 
 ## 3. Options
 
@@ -75,7 +77,7 @@ Harvester's own UI (`harvester-ui-extension`) already has plain CRUD pages for t
 - Do not duplicate CRUD that the built-in form already does well; link out to it instead.
 - Cross-link each source/import in our UI to its native Harvester resource page ("View in Harvester").
 - Long-term: a Rancher UI-extension build target for our wizard would remove the overlap and share Harvester's auth (see Phase 4 evaluation).
-- Open check: where the built-in pages appear in the Harvester menu, and whether they depend on the controller add-on being enabled. Verify before implementing the cross-links.
+- The cross-links shipped in v0.5.0 and were confirmed by hand in the browser (rc2 pass). Still open: whether the built-in pages depend on the controller add-on being enabled.
 
 ## 5. Decisions (2026-10-01)
 
@@ -83,16 +85,17 @@ Harvester's own UI (`harvester-ui-extension`) already has plain CRUD pages for t
 2. **Forklift:** optional engine, UI elements appear only when Forklift is detected (CRDs served and `ForkliftController` Ready).
 3. **VM Export (OVA):** the user's premise was that it depends on Forklift tools. Code check says it does not: no Forklift references in `pkg/export*.go`/`ova.go`/`ovf.go`, and `qemu-img` ships in the UI's own image. Only the *round-trip re-import test* uses Forklift's OVA provider. Decision: gate it behind `export.enabled` (default off) and, as a UX choice, show the Export page only when Forklift is detected, since re-importing the OVA is its main use here. Revisit if you want it always available.
 4. **Repo:** `doccaz/harvester-migration-addon` (created, public).
+5. **Status of the project (2026-10-08):** this is **not an official SUSE product**, is not supported by SUSE or the Harvester project, and is for exploration and evaluation only. The disclaimer is shown in the README, the Helm install notes, the Addon manifest and the UI's About tab (v0.5.2). Any move to Phase 5b/5c would need this revisited with the maintainers.
 
 ## 6. Phased plan
 
-### Phase 0 — Groundwork (≈1 week)
+### Phase 0 — Groundwork (≈1 week) — DONE
 - Create repo skeleton (not on GitHub until you say so): `charts/`, `ui-backend/`, `ui-frontend/`, `docs/`, `.github/`.
 - Read `reference/forklift-packaging` to record the Forklift deploy contract (operator chart, `ForkliftController` CR, cert-manager) in `docs/contract-forklift.md`.
 - Read the real `harvester/charts` `harvester-vm-import-controller` chart (done: Deployment `Recreate`, `/tmp` emptyDir or PVC, Service 8080, root, affinity away from control-plane) and record its contract in `docs/contract.md`.
 - Decide Phase 5 target. Capture current vm-import-ui behaviour as a regression baseline (its `docs/test-log-2026-09-30.md` is a good start).
 
-### Phase 1 — One chart, one Addon (≈1–2 weeks)
+### Phase 1 — One chart, one Addon (≈1–2 weeks) — DONE
 - Umbrella chart `harvester-migration` with the upstream controller chart as a dependency (`fullnameOverride: harvester-vm-import-controller`, same labels) and the UI as a second Deployment.
 - `Addon` manifest in the style of `experimental-addons/harvester-vm-dhcp-controller` (`addon.harvesterhci.io/experimental: "true"`, `enabled: false`).
 - **Conflict guard:** pre-install check (Helm `lookup`) that fails with a clear message if the built-in `vm-import-controller` Addon is enabled; document the migration path (disable old, enable new, CRs are preserved because CRDs and CRs are unchanged).
@@ -117,7 +120,7 @@ Done (all verified by the four gates):
 Package extraction is complete (see docs/backend-layout.md for the map and the tested rules): `main.go` is 85 lines, and `api` owns the route table, which a test walks to prove every API route requires a user token.
 
 Remaining Phase 3 work, all optional and each its own gated step:
-1. **Typed VM-import objects**, produced locally (see below), with a contract test against the real `virtualmachineimports.migration.harvesterhci.io` CRD saved from the lab.
+1. **Typed VM-import objects**: **done 2026-10-04** (see "Changed from the original plan" below and docs/contract.md).
 2. **Engine interface** where the engines genuinely share behaviour (see below).
 3. **Dependency bumps** (k8s, govmomi, Go): **done 2026-10-05**, released as v0.5.1 (Go 1.26, k8s 0.37.1, govmomi 0.56.0, mux/logrus/yaml; no code changes needed, simulator tests pass; lab smoke 55/55).
 4. **Blanket 404s** that hide permission errors (9 sites: vmic 5, forklift 3, harvester 1). **Done 2026-10-04**: each now answers with the API server's status (404 only when the object is missing, 403 for a permission problem, 500 for a failed call); one test per handler, every converted site mutation-checked.
@@ -126,12 +129,12 @@ Remaining Phase 3 work, all optional and each its own gated step:
 
 Changed from the original plan:
 - **Typed objects and the CRD contract: done 2026-10-04** (docs/contract.md). The contract is generated from the controller's Go types, not from a CRD saved from the lab, because the controller creates its CRDs at runtime.
-- **No import of the controller's `pkg/apis`.** Its `go.mod` pins `k8s.io/client-go v12.0.0+incompatible` and depends on a `replace` block that consumers do not inherit. Typed VMIC objects are instead produced locally with `runtime.DefaultUnstructuredConverter`, with a contract test against the real `virtualmachineimports.migration.harvesterhci.io` CRD saved from the lab.
+- **No import of the controller's `pkg/apis`.** Its `go.mod` pins `k8s.io/client-go v12.0.0+incompatible` and depends on a `replace` block that consumers do not inherit. Typed VMIC objects are instead produced locally with `runtime.DefaultUnstructuredConverter`, with a contract test against the contract generated from the controller's own types (docs/contract.md), since the controller creates its CRDs at runtime and there is no CRD to save from the lab.
 - **Engine interface only where the engines really share behaviour** (detection/capabilities, plan list and status, logs). VMIC (sources + VirtualMachineImport) and Forklift (provider, inventory service, maps, plan, migration) differ too much for an upfront CreatePlan/RunPlan abstraction; routes stay as they are until Phase 4.
-- **Dependency bumps** (k8s 0.28 → current, govmomi 0.33 → 0.52, Go directive) are a separate optional last step; govmomi across 19 minors is where `vcenter.go` is most likely to break. If the `go` directive moves, move the Dockerfile's `golang:` tag in the same commit.
+- **Dependency bumps** (k8s 0.28 → 0.37.1, govmomi 0.33 → 0.56.0, Go 1.26) were a separate last step, **done 2026-10-05** and released as v0.5.1. govmomi across that many minors was the risk for `vcenter.go`; it needed no code changes, with the `vcenter` simulator tests as the safety net. The Dockerfile's `golang:` tag moved in the same commit.
 - `logrus.WithFields` is adopted opportunistically in code being moved, not as a sweep.
 
-Test debt found and paid while extracting (harvester: 1 weak test -> 14 cases covering the NAD label filter, namespace creation, scoping, YAML/JSON GETs; mutation-checked; YAML responses now carry `X-Content-Type-Options: nosniff`, the only deliberate behaviour addition so far): the capabilities test only asserted a 200 (now it covers the version-to-feature mapping, mutation-checked), and a `kube` test had been left behind in `handlers_test.go` (moved). Expect similar finds in the remaining packages.
+Test debt found and paid while extracting (harvester: 1 weak test -> 14 cases covering the NAD label filter, namespace creation, scoping, YAML/JSON GETs; mutation-checked; YAML responses now carry `X-Content-Type-Options: nosniff`, the only deliberate behaviour addition so far): the capabilities test only asserted a 200 (now it covers the version-to-feature mapping, mutation-checked), and a `kube` test had been left behind in `handlers_test.go` (moved). Similar finds turned up in the later packages and were paid in the same way.
 
 Tooling lesson (forklift step): my move script's 'unqualify' pass rewrote `forklift.` inside string literals and silently turned `"forklift.konveyor.io/v1beta1"` into `"konveyor.io/v1beta1"` (and broke an annotation key) in the moved production code. No test or lab snapshot could catch it (the fake client does not validate API groups and the snapshot covers GETs only); a declaration-identity check against `HEAD` did. All move/extract scripts are now literal-aware, and an identity check (modulo the intended renames, whitespace-insensitive) is a required gate for every move. The earlier inventory move was re-audited against its own commit and is clean.
 
@@ -141,10 +144,10 @@ Lessons and open items:
 - Fixed (own commit, verified on the lab, baseline retaken): API errors now keep their HTTP status via `httpx.RespondWithAPIError` on the four YAML handlers and namespace creation (404 / 409 / 403 instead of a blanket 500). Done for `harvester`, `vmic` (24 sites + typed vCenter errors, 32 status rows + simulator-backed handler tests), `forklift` (21 sites, 19 status rows, proxy tests) and `export` (13 sites, first-ever handler tests, Job entry-point contract pinned); the sites that stay 500 are deliberate and listed in docs/refactor-notes.md. The blanket-500 sweep is complete (counts and the deliberate leftovers in docs/refactor-notes.md); the blanket 404s were fixed on 2026-10-04 (item 4 above).
 - Released as v0.3.0 (the refactor plus the deliberate behaviour changes in docs/refactor-notes.md: API statuses, `nosniff`, two timeouts, a DNS-label check on the OVA proxy namespace) and verified on the lab with `hack/lab-smoke.sh` (49/49; see docs/phase2-verification.md). The running-VM export refusal is verified on the lab (409, no Job, no side effects). A successful export of a stopped VM is verified end to end (2026-10-02): `labs/bastion-galins-server`, 4.5 GB OVA, 639 s, manifest digests match, fetched with a matching SHA-256, `hack/verify-ova.sh` 11/11 including DSP8023 schema and `qemu-img` (details and the transfer lesson in docs/phase2-verification.md; `hack/fetch-ova.sh` now adapts its range size). The manual browser pass is done (all tabs, support bundle, export, login/logout). Not yet exercised: re-importing an exported OVA through Forklift's OVA provider (needs a new export).
 
-### Phase 4 — Frontend modularisation (≈3 weeks)
+### Phase 4 — Frontend modularisation (≈3 weeks) — DONE in v0.5.0
 Status 2026-10-04: steps 4.0-4.6 done and released as v0.5.0 (lab-verified: rc2 smoke 55/55, browser pass). Detailed plan, gates and findings in docs/phase4-plan.md. 4.7 (tests and the Rancher UI-extension evaluation note, docs/ui-extension-evaluation.md) is done too.
 - Break up `App.js` (5.7k lines) into engine modules and shared components; engine registry driven by `GET /api/v1/capabilities`.
-- Add "View in Harvester" cross-links from sources and imports to the built-in resource pages (see §4b); verify the target routes first.
+- Add "View in Harvester" cross-links from sources and imports to the built-in resource pages (see §4b); **done** in v0.5.0, target routes checked in the browser.
 - Keep `utils.js` and the fixture-replay harness; add component tests per module.
 - Forklift section appears only when the operator CRDs are present and a `ForkliftController` is Ready; otherwise a setup checklist (see §4) replaces it.
 - Evaluate (not commit to) a Rancher UI-extension build target for the same modules.
@@ -169,7 +172,7 @@ Status 2026-10-04: steps 4.0-4.6 done and released as v0.5.0 (lab-verified: rc2 
 
 The bundled controller subchart must match the Harvester minor a chart release targets: the lab
 (Harvester 1.8.2) showed that the 1.9.0 subchart pulls a v1.9.0 controller image onto a 1.8.2
-cluster, which the built-in add-on never does. The 0.3.x line therefore pins `1.8.2`; a
+cluster, which the built-in add-on never does. The 0.3.x–0.5.x lines therefore pin `1.8.2`; a
 Harvester 1.9 line gets its own chart release pinning 1.9.x. Done (2026-10-03): the install notes warn when the cluster's Harvester minor differs from the bundled controller's (never blocks; dev builds like `master-head` are skipped), `controller.clusterVersionOverride` replaces the cluster lookup, `hack/check-version-warning.sh` tests it in CI, and docs/support-matrix.md lists which chart line bundles which controller.
 Verified on the lab: the bundled controller works as a drop-in for the built-in one (CRDs, names
 and labels, existing objects), with the stale-image log loop identical on both versions.
